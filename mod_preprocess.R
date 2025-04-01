@@ -6,6 +6,23 @@ library(ggplot2)
 library(DT)
 library(e1071)  # For skewness calculation
 
+#' UI function for preprocessing module
+#'
+#' @param id The module namespace id
+#' @return A UI element containing the preprocessing button
+#'
+preprocessUI <- function(id) {
+  ns <- NS(id)
+  
+  tagList(
+    actionButton(ns("show_preprocess"), "Preprocess Data", 
+                 icon = icon("filter"),
+                 class = "btn-primary"),
+    downloadButton(ns("download_data"), "Download Data", 
+                   class = "btn-info")
+  )
+}
+
 #' UI function for preprocessing module button
 #'
 #' @param id The module namespace id
@@ -39,7 +56,8 @@ preprocessServer <- function(id, data) {
       original_data = NULL,
       data_range = NULL,
       log_constant_default = 1e-6,
-      min_constant = 1e-6
+      min_constant = 1e-6,
+      top_n_default = 3000
     )
     
     # Function to analyze data and compute statistics
@@ -224,6 +242,22 @@ preprocessServer <- function(id, data) {
         }
       }
       
+      # 5. Filter to keep only top N most variable rows (by SD)
+      if (input$do_filter_rows) {
+        # Calculate row standard deviations
+        row_sds <- apply(processed, 1, sd, na.rm = TRUE)
+        
+        # Determine how many rows to keep
+        top_n <- min(as.numeric(input$top_n_rows), nrow(processed))
+        
+        # Sort by SD and keep top rows
+        if (top_n < nrow(processed)) {
+          # Get indices of rows with highest SDs
+          top_indices <- order(row_sds, decreasing = TRUE)[1:top_n]
+          processed <- processed[top_indices, , drop = FALSE]
+        }
+      }
+      
       rv$processed_data <- processed
     }
     
@@ -306,6 +340,16 @@ preprocessServer <- function(id, data) {
                      numericInput(ns("zscore_cutoff"), "Z-score cutoff value:",
                                   value = 2, min = 0.1, step = 0.1)
                    )
+                 ),
+                 
+                 # Variable row filtering
+                 wellPanel(
+                   checkboxInput(ns("do_filter_rows"), "Keep top most variable rows", value = FALSE),
+                   conditionalPanel(
+                     condition = "input.do_filter_rows", ns = ns,
+                     numericInput(ns("top_n_rows"), "Number of rows to keep:",
+                                  value = rv$top_n_default, min = 1, max = 10000000, step = 100)
+                   )
                  )
           ),
           
@@ -327,7 +371,13 @@ preprocessServer <- function(id, data) {
                  
                  # Data preview (before/after transformation)
                  h4("Data Preview (First 5 rows and columns)"),
-                 DTOutput(ns("data_preview"))
+                 DTOutput(ns("data_preview")),
+                 
+                 # Download button for transformed data
+                 tags$div(
+                   style = "margin-top: 15px;",
+                   downloadButton(ns("download_data"), "Download Transformed Data", class = "btn-info")
+                 )
           )
         ),
         
@@ -400,6 +450,8 @@ preprocessServer <- function(id, data) {
     observeEvent(input$center_scale, { apply_preprocessing() })
     observeEvent(input$do_zscore_cap, { apply_preprocessing() })
     observeEvent(input$zscore_cutoff, { apply_preprocessing() })
+    observeEvent(input$do_filter_rows, { apply_preprocessing() })
+    observeEvent(input$top_n_rows, { apply_preprocessing() })
     
     # Reset to original data and reset all controls to default "do nothing" state
     observeEvent(input$reset_all, {
@@ -417,6 +469,9 @@ preprocessServer <- function(id, data) {
       
       updateCheckboxInput(session, "do_zscore_cap", value = FALSE)
       updateNumericInput(session, "zscore_cutoff", value = 2)
+      
+      updateCheckboxInput(session, "do_filter_rows", value = FALSE)
+      updateNumericInput(session, "top_n_rows", value = rv$top_n_default)
     })
     
     # Cancel button closes the modal without applying changes
@@ -428,6 +483,27 @@ preprocessServer <- function(id, data) {
     observeEvent(input$done, {
       removeModal()
     })
+    
+    # Download handler for transformed data
+    output$download_data <- downloadHandler(
+      filename = function() {
+        paste("transformed_data_", format(Sys.time(), "%Y%m%d_%H%M%S"), ".csv", sep = "")
+      },
+      content = function(file) {
+        if (is.null(rv$processed_data)) {
+          # If no processed data exists, use original data
+          data_to_save <- rv$original_data
+        } else {
+          data_to_save <- rv$processed_data
+        }
+        
+        # Convert to data frame for easier writing
+        data_df <- as.data.frame(data_to_save)
+        
+        # Write to CSV
+        write.csv(data_df, file, row.names = TRUE)
+      }
+    )
     
     # Return processed data
     return(list(
