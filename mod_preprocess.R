@@ -35,7 +35,10 @@ preprocessServer <- function(id, data) {
       has_missing = FALSE,
       has_negative = FALSE,
       skewness = 0,
-      original_data = NULL
+      original_data = NULL,
+      data_range = NULL,
+      log_constant_default = 1e-6,
+      min_constant = 1e-6
     )
     
     # Function to analyze data and compute statistics
@@ -51,10 +54,22 @@ preprocessServer <- function(id, data) {
       # Check for negative values
       rv$has_negative <- any(data_matrix < 0, na.rm = TRUE)
       
-      # Calculate skewness
+      # Calculate data range
       flat_data <- as.numeric(data_matrix)
       flat_data <- flat_data[!is.na(flat_data)]
+      rv$data_range <- c(min(flat_data), max(flat_data))
+      
+      # Calculate skewness
       rv$skewness <- skewness(flat_data)
+      
+      # Calculate 10th percentile of positive values for log constant
+      positive_values <- flat_data[flat_data > 0]
+      if (length(positive_values) > 0) {
+        percentile_10 <- quantile(positive_values, 0.1)
+        rv$log_constant_default <- max(percentile_10, rv$min_constant)
+      } else {
+        rv$log_constant_default <- rv$min_constant
+      }
       
       # Initial processed data is the input data
       rv$processed_data <- data_matrix
@@ -153,30 +168,39 @@ preprocessServer <- function(id, data) {
       if (input$do_zscore_cap) {
         z_cutoff <- as.numeric(input$zscore_cutoff)
         
+        # To fix the hclust error, ensure we're not passing NAs or Infs
+        processed <- pmin(pmax(processed, -1e300), 1e300)  # Cap extreme values
+        
         if (input$center_scale %in% c("center_row", "scale_row")) {
           # Cap by row if row-wise centering/scaling was applied
           for (i in 1:nrow(processed)) {
             row_data <- processed[i, ]
-            row_mean <- mean(row_data, na.rm = TRUE)
-            row_sd <- sd(row_data, na.rm = TRUE)
-            if (row_sd > 0) {
-              upper_bound <- row_mean + z_cutoff * row_sd
-              lower_bound <- row_mean - z_cutoff * row_sd
-              processed[i, row_data > upper_bound] <- upper_bound
-              processed[i, row_data < lower_bound] <- lower_bound
+            row_data <- row_data[is.finite(row_data)]  # Remove Inf/NaN
+            if (length(row_data) > 0) {
+              row_mean <- mean(row_data, na.rm = TRUE)
+              row_sd <- sd(row_data, na.rm = TRUE)
+              if (!is.na(row_sd) && row_sd > 0) {
+                upper_bound <- row_mean + z_cutoff * row_sd
+                lower_bound <- row_mean - z_cutoff * row_sd
+                processed[i, processed[i,] > upper_bound] <- upper_bound
+                processed[i, processed[i,] < lower_bound] <- lower_bound
+              }
             }
           }
         } else if (input$center_scale %in% c("center_col", "scale_col", "none")) {
           # Cap by column if column-wise centering/scaling was applied or none
           for (j in 1:ncol(processed)) {
             col_data <- processed[, j]
-            col_mean <- mean(col_data, na.rm = TRUE)
-            col_sd <- sd(col_data, na.rm = TRUE)
-            if (col_sd > 0) {
-              upper_bound <- col_mean + z_cutoff * col_sd
-              lower_bound <- col_mean - z_cutoff * col_sd
-              processed[col_data > upper_bound, j] <- upper_bound
-              processed[col_data < lower_bound, j] <- lower_bound
+            col_data <- col_data[is.finite(col_data)]  # Remove Inf/NaN
+            if (length(col_data) > 0) {
+              col_mean <- mean(col_data, na.rm = TRUE)
+              col_sd <- sd(col_data, na.rm = TRUE)
+              if (!is.na(col_sd) && col_sd > 0) {
+                upper_bound <- col_mean + z_cutoff * col_sd
+                lower_bound <- col_mean - z_cutoff * col_sd
+                processed[processed[,j] > upper_bound, j] <- upper_bound
+                processed[processed[,j] < lower_bound, j] <- lower_bound
+              }
             }
           }
         }
@@ -184,6 +208,13 @@ preprocessServer <- function(id, data) {
       
       rv$processed_data <- processed
     }
+    
+    # Update log constant when log transform is turned on
+    observeEvent(input$do_log_transform, {
+      if(input$do_log_transform) {
+        updateNumericInput(session, "log_constant", value = rv$log_constant_default)
+      }
+    })
     
     # Watch for data changes from the main app
     observe({
@@ -208,35 +239,12 @@ preprocessServer <- function(id, data) {
     
     # Show the preprocessing dialog
     showPreprocessingDialog <- function() {
-      # Calculate initial values for log constant if needed
-      log_constant_default <- 0
-      if (rv$has_negative) {
-        log_constant_default <- 0
-      } else if (!is.null(rv$original_data)) {
-        flat_data <- as.numeric(rv$original_data)
-        flat_data <- flat_data[!is.na(flat_data) & flat_data > 0]
-        if (length(flat_data) > 0) {
-          log_constant_default <- 0  # Default is 0 if all data > 0
-        }
-      }
-      
-      # Determine if log transform should be on by default based on skewness
-      auto_log_transform <- rv$skewness > 10
-      
+      # Show modal dialog with controls
       showModal(modalDialog(
         title = "Preprocess Data",
         
         fluidRow(
           column(6,
-                 # Display data statistics
-                 strong("Data Statistics:"),
-                 tags$ul(
-                   tags$li(paste("Matrix Size:", nrow(rv$original_data), "rows ×", ncol(rv$original_data), "columns")),
-                   tags$li(paste("Missing Values:", ifelse(rv$has_missing, "Yes", "No"))),
-                   tags$li(paste("Negative Values:", ifelse(rv$has_negative, "Yes", "No"))),
-                   tags$li(paste("Skewness:", round(rv$skewness, 2)))
-                 ),
-                 
                  # Missing value handling (only show if missing values are detected)
                  conditionalPanel(
                    condition = "output.has_missing", ns = ns,
@@ -255,30 +263,30 @@ preprocessServer <- function(id, data) {
                  wellPanel(
                    h4("Log Transformation"),
                    checkboxInput(ns("do_log_transform"), "Apply log10 transformation", 
-                                 value = auto_log_transform),
+                                 value = FALSE),
                    conditionalPanel(
                      condition = "input.do_log_transform", ns = ns,
                      numericInput(ns("log_constant"), "Constant to add (c in log10(x + c)):",
-                                  value = log_constant_default, min = 0)
+                                  value = rv$log_constant_default, min = rv$min_constant)
                    )
                  ),
                  
-                 # Centering and scaling
+                 # Centering and scaling - changed to selectInput
                  wellPanel(
                    h4("Data Centering and Scaling"),
-                   radioButtons(ns("center_scale"), "Method:",
-                                choices = c("None" = "none",
-                                            "Center by row" = "center_row",
-                                            "Scale by row (Z-score)" = "scale_row",
-                                            "Center by column" = "center_col",
-                                            "Scale by column (Z-score)" = "scale_col"),
-                                selected = "center_row")
+                   selectInput(ns("center_scale"), "Method:",
+                               choices = c("None" = "none",
+                                           "Center by row" = "center_row",
+                                           "Scale by row (Z-score)" = "scale_row",
+                                           "Center by column" = "center_col",
+                                           "Scale by column (Z-score)" = "scale_col"),
+                               selected = "none")
                  ),
                  
-                 # Z-score cutoff for outlier capping
+                 # Z-score cutoff for outlier capping - now on by default
                  wellPanel(
                    h4("Outlier Capping"),
-                   checkboxInput(ns("do_zscore_cap"), "Cap outliers based on Z-score", value = FALSE),
+                   checkboxInput(ns("do_zscore_cap"), "Cap outliers based on Z-score", value = TRUE),
                    conditionalPanel(
                      condition = "input.do_zscore_cap", ns = ns,
                      numericInput(ns("zscore_cutoff"), "Z-score cutoff value:",
@@ -288,6 +296,18 @@ preprocessServer <- function(id, data) {
           ),
           
           column(6,
+                 # Display data statistics moved to right side
+                 wellPanel(
+                   strong("Data Statistics:"),
+                   tags$ul(
+                     tags$li(paste("Matrix Size:", nrow(rv$original_data), "rows ×", ncol(rv$original_data), "columns")),
+                     tags$li(paste("Missing Values:", ifelse(rv$has_missing, "Yes", "No"))),
+                     tags$li(paste("Negative Values:", ifelse(rv$has_negative, "Yes", "No"))),
+                     tags$li(paste("Skewness:", round(rv$skewness, 2))),
+                     tags$li(paste("Data Range:", round(rv$data_range[1], 2), "to", round(rv$data_range[2], 2)))
+                   )
+                 ),
+                 
                  # Dynamic histogram visualization
                  h4("Data Distribution"),
                  plotOutput(ns("data_histogram"), height = "280px"),
@@ -362,9 +382,22 @@ preprocessServer <- function(id, data) {
     observeEvent(input$do_zscore_cap, { apply_preprocessing() })
     observeEvent(input$zscore_cutoff, { apply_preprocessing() })
     
-    # Reset to original data
+    # Reset to original data and reset all controls to default "do nothing" state
     observeEvent(input$reset_all, {
+      # Reset processed data to original
       rv$processed_data <- rv$original_data
+      
+      # Reset all controls to default values that do no processing
+      if(rv$has_missing) {
+        updateRadioButtons(session, "na_method", selected = "leave")
+      }
+      
+      updateCheckboxInput(session, "do_log_transform", value = FALSE)
+      
+      updateSelectInput(session, "center_scale", selected = "none")
+      
+      updateCheckboxInput(session, "do_zscore_cap", value = FALSE)
+      updateNumericInput(session, "zscore_cutoff", value = 2)
     })
     
     # Close modal and return processed data
