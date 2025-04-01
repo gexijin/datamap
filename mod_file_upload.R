@@ -284,14 +284,9 @@ fileUploadServer <- function(id) {
           rownames(df) <- row_names
         }
         
-        # Convert all columns to numeric, handling non-numeric values
-        for(i in 1:ncol(df)) {
-          df[[i]] <- as.numeric(df[[i]])
-        }
         
         # Store the data
         rv$data <- df
-        rv$matrix <- as.matrix(df)
         rv$data_loaded <- TRUE
         
         removeModal()
@@ -308,7 +303,6 @@ fileUploadServer <- function(id) {
     # Return a list of reactive values to be used in the main app
     return(list(
       data = reactive({ rv$data }),
-      matrix = reactive({ rv$matrix }),
       data_loaded = reactive({ rv$data_loaded })
     ))
   })

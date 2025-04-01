@@ -139,11 +139,11 @@ server <- function(input, output, session) {
   })
   outputOptions(output, "dataLoaded", suspendWhenHidden = FALSE)
   
-  # Create a reactive that provides the data matrix for processing
-  # It will first use the file upload data, then switch to preprocessed data
+  # Create a reactive that provides the data for processing
+  # It will first use the file upload data, then switch to preprocessed data if available
   current_data <- reactive({
     # Get uploaded data
-    uploaded_data <- fileData$matrix()
+    uploaded_data <- fileData$data()
     
     # If preprocessing has been applied, use that data instead
     if (!is.null(preprocessed_data()) && fileData$data_loaded()) {
@@ -155,7 +155,7 @@ server <- function(input, output, session) {
   
   # Use the preprocessing module
   preprocessingData <- preprocessServer("preprocess", reactive({
-    fileData$matrix()
+    fileData$data()
   }))
   
   # Get the preprocessed data
@@ -186,9 +186,28 @@ server <- function(input, output, session) {
     datatable(current_data(), options = list(scrollX = TRUE, pageLength = 10))
   })
   
+  # Helper function to convert data to a numeric matrix before creating the heatmap
+  prepare_heatmap_data <- function(data) {
+    # Check if data is already a matrix
+    if(!is.matrix(data)) {
+      # Convert all columns to numeric if possible
+      numeric_data <- as.data.frame(lapply(data, function(x) {
+        as.numeric(as.character(x))
+      }))
+      # Convert to matrix
+      data_matrix <- as.matrix(numeric_data)
+    } else {
+      data_matrix <- data
+    }
+    return(data_matrix)
+  }
+  
   # Generate the heatmap using current data
   output$heatmap <- renderPlot({
     req(current_data())
+    
+    # Convert the data to a numeric matrix for the heatmap
+    heatmap_data <- prepare_heatmap_data(current_data())
     
     # Get the color palette and reverse if needed
     colors <- colorRampPalette(rev(brewer.pal(11, input$color)))(100)
@@ -198,7 +217,7 @@ server <- function(input, output, session) {
     
     # Create the heatmap
     pheatmap(
-      mat = current_data(),
+      mat = heatmap_data,
       color = colors,
       cluster_rows = input$cluster_rows,
       cluster_cols = input$cluster_cols,
@@ -237,6 +256,9 @@ server <- function(input, output, session) {
     content = function(file) {
       pdf(file, width = input$width/72, height = input$height/72)
       
+      # Convert the data to a numeric matrix for the heatmap
+      heatmap_data <- prepare_heatmap_data(current_data())
+      
       # Get the color palette and reverse if needed
       colors <- colorRampPalette(rev(brewer.pal(11, input$color)))(100)
       if(input$color_reverse) {
@@ -245,7 +267,7 @@ server <- function(input, output, session) {
       
       # Create the heatmap
       pheatmap(
-        mat = current_data(),
+        mat = heatmap_data,
         color = colors,
         cluster_rows = input$cluster_rows,
         cluster_cols = input$cluster_cols,
@@ -265,6 +287,9 @@ server <- function(input, output, session) {
     content = function(file) {
       png(file, width = input$width, height = input$height, res = 72)
       
+      # Convert the data to a numeric matrix for the heatmap
+      heatmap_data <- prepare_heatmap_data(current_data())
+      
       # Get the color palette and reverse if needed
       colors <- colorRampPalette(rev(brewer.pal(11, input$color)))(100)
       if(input$color_reverse) {
@@ -273,7 +298,7 @@ server <- function(input, output, session) {
       
       # Create the heatmap
       pheatmap(
-        mat = current_data(),
+        mat = heatmap_data,
         color = colors,
         cluster_rows = input$cluster_rows,
         cluster_cols = input$cluster_cols,

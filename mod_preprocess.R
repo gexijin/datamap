@@ -39,7 +39,7 @@ preprocessButtonUI <- function(id) {
 #' Server function for preprocessing module
 #'
 #' @param id The module namespace id
-#' @param data Reactive data matrix to process
+#' @param data Reactive data frame to process
 #' @return A list with the processed data reactive
 #'
 preprocessServer <- function(id, data) {
@@ -54,39 +54,54 @@ preprocessServer <- function(id, data) {
       has_zeros = FALSE,
       skewness = 0,
       original_data = NULL,
+      original_data_matrix = NULL,  # Store the numeric matrix version
       data_range = NULL,
       log_constant_default = 1e-6,
       min_constant = 1e-6,
       top_n_default = 3000
     )
     
-    # Function to analyze data and compute statistics
-    analyze_data <- function(data_matrix) {
-      if (is.null(data_matrix)) return()
+    analyze_data <- function(data_frame) {
+      if (is.null(data_frame)) return()
       
-      # Store original data
-      rv$original_data <- data_matrix
+      # Store the original data frame
+      rv$original_data <- data_frame
       
-      # Detect missing values
+      # Create a numeric matrix version for analysis and processing
+      # Convert all columns to numeric
+      numeric_data <- as.data.frame(lapply(data_frame, function(x) {
+        as.numeric(as.character(x))
+      }))
+      
+      # Convert to matrix for easier processing
+      data_matrix <- as.matrix(numeric_data)
+      rv$original_data_matrix <- data_matrix
+      
+      # Remove columns that are entirely NA (i.e. non-numeric) and notify user
+      col_all_na <- apply(data_matrix, 2, function(x) all(is.na(x)))
+      if (any(col_all_na)) {
+        removed_cols <- colnames(data_matrix)[col_all_na]
+        showNotification(
+          paste("The following columns are non-numeric and have been removed:", 
+                paste(removed_cols, collapse = ", ")),
+          type = "warning"
+        )
+        data_matrix <- data_matrix[, !col_all_na, drop = FALSE]
+      }
+      
+      # Compute statistics based on numeric data
       rv$has_missing <- any(is.na(data_matrix))
-      
-      # Check for negative values
       rv$has_negative <- any(data_matrix < 0, na.rm = TRUE)
-      
-      # Check for zeros
       rv$has_zeros <- any(data_matrix == 0, na.rm = TRUE)
       
-      # Calculate data range
       flat_data <- as.numeric(data_matrix)
       flat_data <- flat_data[!is.na(flat_data)]
       rv$data_range <- c(min(flat_data), max(flat_data))
       
-      # Calculate skewness
       rv$skewness <- skewness(flat_data)
       
       # Set log constant based on data
       if (rv$has_zeros) {
-        # If there are zeros, use 10th percentile with a minimum
         positive_values <- flat_data[flat_data > 0]
         if (length(positive_values) > 0) {
           percentile_10 <- quantile(positive_values, 0.1)
@@ -95,23 +110,21 @@ preprocessServer <- function(id, data) {
           rv$log_constant_default <- rv$min_constant
         }
       } else if (!rv$has_negative && min(flat_data, na.rm=TRUE) > 0) {
-        # If all values are positive (no zeros, no negatives), set constant to 0
         rv$log_constant_default <- 0
       } else {
-        # Fallback
         rv$log_constant_default <- rv$min_constant
       }
       
-      # Initial processed data is the input data
+      # Initial processed data is the cleaned input matrix
       rv$processed_data <- data_matrix
     }
     
     # Function to apply preprocessing based on current settings
     apply_preprocessing <- function() {
-      if (is.null(rv$original_data)) return()
+      if (is.null(rv$original_data_matrix)) return()
       
-      # Start with the original data
-      processed <- rv$original_data
+      # Start with the original data matrix
+      processed <- rv$original_data_matrix
       
       # 1. Handle missing values
       if (rv$has_missing) {
@@ -270,9 +283,9 @@ preprocessServer <- function(id, data) {
     
     # Watch for data changes from the main app
     observe({
-      data_matrix <- data()
-      if (!is.null(data_matrix)) {
-        analyze_data(data_matrix)
+      data_frame <- data()
+      if (!is.null(data_frame)) {
+        analyze_data(data_frame)
         # If this is the first data loading, automatically show preprocessing
         if (is.null(rv$original_data)) {
           showPreprocessingDialog()
@@ -358,7 +371,7 @@ preprocessServer <- function(id, data) {
                  wellPanel(
                    strong("Data Statistics:"),
                    tags$ul(
-                     tags$li(paste("Matrix Size:", nrow(rv$original_data), "rows ×", ncol(rv$original_data), "columns")),
+                     tags$li(paste("Matrix Size:", nrow(rv$original_data_matrix), "rows ×", ncol(rv$original_data_matrix), "columns")),
                      tags$li(paste("Missing Values:", ifelse(rv$has_missing, "Yes", "No"))),
                      tags$li(paste("Negative Values:", ifelse(rv$has_negative, "Yes", "No"))),
                      tags$li(paste("Skewness:", round(rv$skewness, 2))),
@@ -456,7 +469,7 @@ preprocessServer <- function(id, data) {
     # Reset to original data and reset all controls to default "do nothing" state
     observeEvent(input$reset_all, {
       # Reset processed data to original
-      rv$processed_data <- rv$original_data
+      rv$processed_data <- rv$original_data_matrix
       
       # Reset all controls to default values that do no processing
       if(rv$has_missing) {
@@ -492,7 +505,7 @@ preprocessServer <- function(id, data) {
       content = function(file) {
         if (is.null(rv$processed_data)) {
           # If no processed data exists, use original data
-          data_to_save <- rv$original_data
+          data_to_save <- rv$original_data_matrix
         } else {
           data_to_save <- rv$processed_data
         }
