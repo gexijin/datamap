@@ -34,6 +34,7 @@ preprocessServer <- function(id, data) {
       processed_data = NULL,
       has_missing = FALSE,
       has_negative = FALSE,
+      has_zeros = FALSE,
       skewness = 0,
       original_data = NULL,
       data_range = NULL,
@@ -54,6 +55,9 @@ preprocessServer <- function(id, data) {
       # Check for negative values
       rv$has_negative <- any(data_matrix < 0, na.rm = TRUE)
       
+      # Check for zeros
+      rv$has_zeros <- any(data_matrix == 0, na.rm = TRUE)
+      
       # Calculate data range
       flat_data <- as.numeric(data_matrix)
       flat_data <- flat_data[!is.na(flat_data)]
@@ -62,12 +66,21 @@ preprocessServer <- function(id, data) {
       # Calculate skewness
       rv$skewness <- skewness(flat_data)
       
-      # Calculate 10th percentile of positive values for log constant
-      positive_values <- flat_data[flat_data > 0]
-      if (length(positive_values) > 0) {
-        percentile_10 <- quantile(positive_values, 0.1)
-        rv$log_constant_default <- max(percentile_10, rv$min_constant)
+      # Set log constant based on data
+      if (rv$has_zeros) {
+        # If there are zeros, use 10th percentile with a minimum
+        positive_values <- flat_data[flat_data > 0]
+        if (length(positive_values) > 0) {
+          percentile_10 <- quantile(positive_values, 0.1)
+          rv$log_constant_default <- max(percentile_10, rv$min_constant)
+        } else {
+          rv$log_constant_default <- rv$min_constant
+        }
+      } else if (!rv$has_negative && min(flat_data, na.rm=TRUE) > 0) {
+        # If all values are positive (no zeros, no negatives), set constant to 0
+        rv$log_constant_default <- 0
       } else {
+        # Fallback
         rv$log_constant_default <- rv$min_constant
       }
       
@@ -124,7 +137,12 @@ preprocessServer <- function(id, data) {
         }
         
         # Get constant c for log(x + c)
-        const <- as.numeric(input$log_constant)
+        if (rv$has_zeros || rv$has_negative) {
+          const <- as.numeric(input$log_constant)
+        } else {
+          # If all values are positive (no zeros), use 0 as constant
+          const <- 0
+        }
         
         # Apply log transformation
         processed <- log10(processed + const)
@@ -211,7 +229,7 @@ preprocessServer <- function(id, data) {
     
     # Update log constant when log transform is turned on
     observeEvent(input$do_log_transform, {
-      if(input$do_log_transform) {
+      if(input$do_log_transform && (rv$has_zeros || rv$has_negative)) {
         updateNumericInput(session, "log_constant", value = rv$log_constant_default)
       }
     })
@@ -249,23 +267,21 @@ preprocessServer <- function(id, data) {
                  conditionalPanel(
                    condition = "output.has_missing", ns = ns,
                    wellPanel(
-                     h4("Missing Value Handling"),
-                     radioButtons(ns("na_method"), "How to handle missing values:",
-                                  choices = c("Leave as missing" = "leave",
-                                              "Replace with zero" = "zero",
-                                              "Replace with mean" = "mean",
-                                              "Replace with median" = "median"),
-                                  selected = "leave")
+                     selectInput(ns("na_method"), "Missing value handling:",
+                                 choices = c("Leave as missing" = "leave",
+                                             "Replace with zero" = "zero",
+                                             "Replace with mean" = "mean",
+                                             "Replace with median" = "median"),
+                                 selected = "leave")
                    )
                  ),
                  
                  # Log transformation
                  wellPanel(
-                   h4("Log Transformation"),
                    checkboxInput(ns("do_log_transform"), "Apply log10 transformation", 
-                                 value = FALSE),
+                                 value = !rv$has_negative && rv$skewness > 10),
                    conditionalPanel(
-                     condition = "input.do_log_transform", ns = ns,
+                     condition = "input.do_log_transform && output.needs_constant", ns = ns,
                      numericInput(ns("log_constant"), "Constant to add (c in log10(x + c)):",
                                   value = rv$log_constant_default, min = rv$min_constant)
                    )
@@ -273,19 +289,17 @@ preprocessServer <- function(id, data) {
                  
                  # Centering and scaling - changed to selectInput
                  wellPanel(
-                   h4("Data Centering and Scaling"),
-                   selectInput(ns("center_scale"), "Method:",
+                   selectInput(ns("center_scale"), "Centering and Scaling:",
                                choices = c("None" = "none",
                                            "Center by row" = "center_row",
                                            "Scale by row (Z-score)" = "scale_row",
                                            "Center by column" = "center_col",
                                            "Scale by column (Z-score)" = "scale_col"),
-                               selected = "none")
+                               selected = "center_row")
                  ),
                  
                  # Z-score cutoff for outlier capping - now on by default
                  wellPanel(
-                   h4("Outlier Capping"),
                    checkboxInput(ns("do_zscore_cap"), "Cap outliers based on Z-score", value = TRUE),
                    conditionalPanel(
                      condition = "input.do_zscore_cap", ns = ns,
@@ -309,7 +323,6 @@ preprocessServer <- function(id, data) {
                  ),
                  
                  # Dynamic histogram visualization
-                 h4("Data Distribution"),
                  plotOutput(ns("data_histogram"), height = "280px"),
                  
                  # Data preview (before/after transformation)
@@ -319,20 +332,26 @@ preprocessServer <- function(id, data) {
         ),
         
         footer = tagList(
+          actionButton(ns("cancel"), "Cancel", class = "btn-default"),
           actionButton(ns("reset_all"), "Reset to Original", class = "btn-warning"),
           actionButton(ns("done"), "Apply Changes", class = "btn-success")
         ),
         
         size = "l",
-        easyClose = FALSE
+        easyClose = TRUE
       ))
     }
     
-    # Boolean output for conditional UI
+    # Boolean outputs for conditional UI
     output$has_missing <- reactive({
       return(rv$has_missing)
     })
     outputOptions(output, "has_missing", suspendWhenHidden = FALSE)
+    
+    output$needs_constant <- reactive({
+      return(rv$has_zeros || rv$has_negative)
+    })
+    outputOptions(output, "needs_constant", suspendWhenHidden = FALSE)
     
     # Create histogram of current data values
     output$data_histogram <- renderPlot({
@@ -398,6 +417,11 @@ preprocessServer <- function(id, data) {
       
       updateCheckboxInput(session, "do_zscore_cap", value = FALSE)
       updateNumericInput(session, "zscore_cutoff", value = 2)
+    })
+    
+    # Cancel button closes the modal without applying changes
+    observeEvent(input$cancel, {
+      removeModal()
     })
     
     # Close modal and return processed data
