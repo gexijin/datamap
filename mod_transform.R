@@ -77,13 +77,15 @@ transform_server <- function(id, data) {
       
       # Store the original data frame
       rv$original_data <- data_frame
-      
+      original_row_names <- rownames(data_frame)
       # Create a numeric matrix version for analysis and processing
-      numeric_data <- as.data.frame(lapply(data_frame, function(x) {
-        as.numeric(as.character(x))
-      }))
+      numeric_data <- as.data.frame(
+        lapply(data_frame, function(x) as.numeric(as.character(x))),
+        row.names = original_row_names
+      )
       
       data_matrix <- as.matrix(numeric_data)
+      rownames(data_matrix) <- original_row_names
       # Remove rows that are completely missing
       row_all_na <- apply(data_matrix, 1, function(x) all(is.na(x)))
       if (any(row_all_na)) {
@@ -475,7 +477,7 @@ transform_server <- function(id, data) {
       removeModal()
       rv$modal_closed <- TRUE
     })
-    
+
     return(list(
       processed_data = reactive({ 
         if (rv$changes_applied) {

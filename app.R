@@ -238,32 +238,31 @@ server <- function(input, output, session) {
     as.data.frame(t(annot_selected))
   })
 
-  # Create a reactive expression for the heatmap object (generated once)
   heatmap_obj <- reactive({
     req(current_data())
-    # Convert the data to a numeric matrix for the heatmap
+    # Convert the current data to a numeric matrix for the heatmap
     heatmap_data <- prepare_heatmap_data(current_data())
-  
-    # Get the color palette
+    
+    # Determine whether to show row names: only if row names exist and there are fewer than 100 rows
+    show_row_names <- !is.null(rownames(heatmap_data)) && nrow(heatmap_data) < 100
+    
+    # Select the color palette
     if (input$color == "GreenBlackRed") {
       colors <- colorRampPalette(c("green", "black", "red"))(100)
     } else {
       colors <- colorRampPalette(rev(brewer.pal(11, input$color)))(100)
     }
     
-    # Prepare clustering distance methods
+    # Prepare clustering parameters
     distance_method <- if (!is.null(input$distance_method)) input$distance_method else "euclidean"
-    correlation_method <- "pearson" # default
-    
-    # Handle correlation-based distances
+    correlation_method <- "pearson"
     if(distance_method %in% c("pearson", "spearman", "kendall")) {
       correlation_method <- distance_method
       distance_method <- "correlation"
     }
     
-    # Ensure clustering_method has a valid value
     clustering_method <- if (!is.null(input$clustering_method)) input$clustering_method else "complete"
-    
+    # Generate the heatmap with conditional row names display
     pheatmap(
       mat = heatmap_data,
       color = colors,
@@ -279,10 +278,12 @@ server <- function(input, output, session) {
         function(x) as.dist(1 - cor(t(x), method = correlation_method, use = "pairwise.complete.obs"))
       } else NULL,
       fontsize = input$fontsize,
-      annotation_col = annotation_for_heatmap(),  # Added annotation for heatmap columns
+      annotation_col = annotation_for_heatmap(),
+      show_rownames = show_row_names,  # Conditionally display row names
       silent = TRUE
     )
   })
+
   
   # Generate the heatmap using current data
   output$heatmap <- renderPlot({
