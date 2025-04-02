@@ -1,10 +1,8 @@
 library(shiny)
 library(pheatmap)
 library(RColorBrewer)
-library(DT)
 library(readxl)  # file upload module
-library(e1071)   # transform module (skewness calculation)
-library(ggplot2) # transform module (histogram)
+library(e1071)   #skewness calculation)
 library(grid)    # needed for grid.draw
 
 source("mod_file_upload.R")

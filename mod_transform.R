@@ -61,7 +61,7 @@ transform_server <- function(id, data) {
       changes_applied = FALSE,      # Track if changes have been applied
       modal_closed = TRUE,  
       ui_settings = list(           # Store UI input values to preserve between sessions
-        na_method = "leave",
+        na_method = "zero",
         do_log_transform = FALSE,
         log_constant = NULL,
         center_scale = "none",
@@ -143,7 +143,7 @@ transform_server <- function(id, data) {
     # Consolidated function to update and capture UI settings
     update_and_capture_ui_settings <- function() {
       settings <- list(
-        na_method = if (!is.null(input$na_method)) input$na_method else "leave",
+        na_method = if (!is.null(input$na_method)) input$na_method else "zero",
         do_log_transform = if (!is.null(input$do_log_transform)) input$do_log_transform else FALSE,
         log_constant = if (!is.null(input$log_constant)) input$log_constant else rv$ui_settings$log_constant,
         center_scale = if (!is.null(input$center_scale)) input$center_scale else "none",
