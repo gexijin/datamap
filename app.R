@@ -6,15 +6,12 @@ library(DT)
 library(readxl)  # Required for the file upload module
 library(e1071)   # Required for the preprocessing module (skewness calculation)
 library(ggplot2) # Required for the preprocessing module (histogram)
-library(shinyjs) # Required for programmatically clicking buttons
 
 # Load the custom modules
 source("mod_file_upload.R")
 source("mod_preprocess.R")
 source("utilities.R")
-
 ui <- fluidPage(
-  useShinyjs(), # Enable shinyjs for programmatic UI interactions
   titlePanel("Interactive Heatmap Generator"),
   
   sidebarLayout(
@@ -39,7 +36,7 @@ ui <- fluidPage(
         hr(),
         h4("Heatmap Customization"),
         
-        # Color scheme selection
+        # Color scheme selection - Added GreenBlackRed as default
         selectInput("color", "Color Palette",
                     choices = c("GreenBlackRed", "RdBu", "RdYlBu", "YlOrRd", "YlGnBu", "Blues", "Greens", "Purples", "Reds", "OrRd"),
                     selected = "GreenBlackRed"),
@@ -50,13 +47,8 @@ ui <- fluidPage(
         checkboxInput("cluster_rows", "Cluster Rows", TRUE),
         checkboxInput("cluster_cols", "Cluster Columns", TRUE),
         
-        # Scaling options
-        radioButtons("scale", "Scale Data",
-                     choices = c("None" = "none", "By Row" = "row", "By Column" = "column"),
-                     selected = "none"),
-        
         # Font size
-        sliderInput("fontsize", "Cell Font Size", min = 4, max = 14, value = 8),
+        sliderInput("fontsize", "Font Size", min = 4, max = 25, value = 12),
         
         # Size adjustments
         hr(),
@@ -76,6 +68,7 @@ ui <- fluidPage(
       tabsetPanel(
         tabPanel("Heatmap", 
                  plotOutput("heatmap", width = "100%", height = "600px")
+                 # Removed the Heatmap Settings Summary section
         ),
         tabPanel("Data Preview", 
                  h4("Raw Data Preview"),
@@ -96,21 +89,6 @@ server <- function(input, output, session) {
   })
   outputOptions(output, "dataLoaded", suspendWhenHidden = FALSE)
   
-  # Use the preprocessing module with automatic trigger
-  preprocessingData <- preprocessServer("preprocess", reactive({
-    fileData$data()
-  }))
-  
-  # Observer to automatically trigger preprocessing when data is loaded
-  observeEvent(fileData$data_loaded(), {
-    if(fileData$data_loaded()) {
-      # Find the preprocess button and click it automatically
-      shinyjs::delay(500, {
-        shinyjs::click("preprocess-button")
-      })
-    }
-  })
-  
   # Create a reactive that provides the data for processing
   # It will first use the file upload data, then switch to preprocessed data if available
   current_data <- reactive({
@@ -125,7 +103,10 @@ server <- function(input, output, session) {
     }
   })
   
-  # Remove duplicate declaration (already moved above)
+  # Use the preprocessing module
+  preprocessingData <- preprocessServer("preprocess", reactive({
+    fileData$data()
+  }))
   
   # Get the preprocessed data
   preprocessed_data <- reactive({
@@ -178,16 +159,15 @@ server <- function(input, output, session) {
     # Convert the data to a numeric matrix for the heatmap
     heatmap_data <- prepare_heatmap_data(current_data())
     
-    # Setup colors based on selection
+    # Get the color palette and reverse if needed
     if(input$color == "GreenBlackRed") {
       # Custom green-black-red color palette
       colors <- colorRampPalette(c("green", "black", "red"))(100)
     } else {
-      # Standard RColorBrewer palettes
+      # RColorBrewer palettes
       colors <- colorRampPalette(rev(brewer.pal(11, input$color)))(100)
     }
     
-    # Reverse colors if needed
     if(input$color_reverse) {
       colors <- rev(colors)
     }
@@ -198,11 +178,11 @@ server <- function(input, output, session) {
       color = colors,
       cluster_rows = input$cluster_rows,
       cluster_cols = input$cluster_cols,
-      scale = input$scale,
-      fontsize = input$fontsize,
-      main = "Customized Heatmap"
+      fontsize = input$fontsize
     )
   }, width = function() input$width, height = function() input$height)
+  
+  # Removed the settings_summary output code
   
   # Download handlers using current data
   output$downloadPDF <- downloadHandler(
@@ -215,16 +195,15 @@ server <- function(input, output, session) {
       # Convert the data to a numeric matrix for the heatmap
       heatmap_data <- prepare_heatmap_data(current_data())
       
-      # Setup colors based on selection
+      # Get the color palette and reverse if needed
       if(input$color == "GreenBlackRed") {
         # Custom green-black-red color palette
         colors <- colorRampPalette(c("green", "black", "red"))(100)
       } else {
-        # Standard RColorBrewer palettes
+        # RColorBrewer palettes
         colors <- colorRampPalette(rev(brewer.pal(11, input$color)))(100)
       }
       
-      # Reverse colors if needed
       if(input$color_reverse) {
         colors <- rev(colors)
       }
@@ -235,9 +214,7 @@ server <- function(input, output, session) {
         color = colors,
         cluster_rows = input$cluster_rows,
         cluster_cols = input$cluster_cols,
-        scale = input$scale,
-        fontsize = input$fontsize,
-        main = "Customized Heatmap"
+        fontsize = input$fontsize
       )
       
       dev.off()
@@ -254,16 +231,15 @@ server <- function(input, output, session) {
       # Convert the data to a numeric matrix for the heatmap
       heatmap_data <- prepare_heatmap_data(current_data())
       
-      # Setup colors based on selection
+      # Get the color palette and reverse if needed
       if(input$color == "GreenBlackRed") {
         # Custom green-black-red color palette
         colors <- colorRampPalette(c("green", "black", "red"))(100)
       } else {
-        # Standard RColorBrewer palettes
+        # RColorBrewer palettes
         colors <- colorRampPalette(rev(brewer.pal(11, input$color)))(100)
       }
       
-      # Reverse colors if needed
       if(input$color_reverse) {
         colors <- rev(colors)
       }
