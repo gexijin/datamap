@@ -50,8 +50,40 @@ transform_server <- function(id, data) {
       data_range = NULL,
       log_constant_default = 1e-6,
       min_constant = 1e-6,
-      top_n_default = 3000
+      top_n_default = 3000,
+      current_settings = NULL,      # Track current transformation settings
+      applied_settings = NULL,      # Track applied transformation settings
+      dialog_shown = FALSE,         # Track if dialog has been shown
+      changes_applied = FALSE,      # Track if changes have been applied
+      recommended_settings = NULL   # Store recommended settings
     )
+    
+    # Function to determine recommended transforms based on data
+    get_recommended_settings <- function() {
+      # Default settings
+      settings <- list()
+      
+      # Recommend the most appropriate settings based on data properties
+      settings$na_method <- "leave"
+      
+      # Recommend log transform if data is highly skewed and positive
+      settings$do_log_transform <- !rv$has_negative && rv$skewness > 10
+      settings$log_constant <- rv$log_constant_default
+      
+      # Set default centering/scaling - for now just use none
+      # In a real app, this could be more sophisticated
+      settings$center_scale <- "none"
+      
+      # Outlier capping is on by default
+      settings$do_zscore_cap <- TRUE
+      settings$zscore_cutoff <- 2
+      
+      # Row filtering defaults to off
+      settings$do_filter_rows <- FALSE
+      settings$top_n_rows <- rv$top_n_default
+      
+      return(settings)
+    }
     
     analyze_data <- function(data_frame) {
       if (is.null(data_frame)) return()
@@ -109,17 +141,87 @@ transform_server <- function(id, data) {
       
       # Initial processed data is the cleaned input matrix
       rv$processed_data <- data_matrix
+      
+      # Store recommended settings for initial dialog
+      rv$recommended_settings <- get_recommended_settings()
     }
     
-    # Function to apply preprocessing based on current settings
+    # Function to capture current settings - Fixed to handle null inputs
+    capture_current_settings <- function() {
+      # Start with recommended settings as a base
+      if (is.null(rv$recommended_settings)) {
+        rv$recommended_settings <- get_recommended_settings()
+      }
+      
+      settings <- rv$recommended_settings
+      
+      # Only try to read input values if we're reasonably sure they exist
+      if (!is.null(input)) {
+        # NA method - only relevant if we have missing values
+        if (rv$has_missing && !is.null(input$na_method)) {
+          settings$na_method <- input$na_method
+        }
+        
+        # Log transform
+        if (!is.null(input$do_log_transform)) {
+          settings$do_log_transform <- input$do_log_transform
+          if (settings$do_log_transform && !is.null(input$log_constant)) {
+            settings$log_constant <- input$log_constant
+          }
+        }
+        
+        # Center/scale method
+        if (!is.null(input$center_scale)) {
+          settings$center_scale <- input$center_scale
+        }
+        
+        # Z-score capping
+        if (!is.null(input$do_zscore_cap)) {
+          settings$do_zscore_cap <- input$do_zscore_cap
+          if (settings$do_zscore_cap && !is.null(input$zscore_cutoff)) {
+            settings$zscore_cutoff <- input$zscore_cutoff
+          }
+        }
+        
+        # Row filtering
+        if (!is.null(input$do_filter_rows)) {
+          settings$do_filter_rows <- input$do_filter_rows
+          if (settings$do_filter_rows && !is.null(input$top_n_rows)) {
+            settings$top_n_rows <- input$top_n_rows
+          }
+        }
+      }
+      
+      return(settings)
+    }
+    
+    # Function to compare two settings lists
+    settings_have_changed <- function(settings1, settings2) {
+      if (is.null(settings1) || is.null(settings2)) return(TRUE)
+      
+      # Compare each setting
+      (!identical(settings1$na_method, settings2$na_method)) ||
+      (!identical(settings1$do_log_transform, settings2$do_log_transform)) ||
+      (!identical(settings1$log_constant, settings2$log_constant)) ||
+      (!identical(settings1$center_scale, settings2$center_scale)) ||
+      (!identical(settings1$do_zscore_cap, settings2$do_zscore_cap)) ||
+      (!identical(settings1$zscore_cutoff, settings2$zscore_cutoff)) ||
+      (!identical(settings1$do_filter_rows, settings2$do_filter_rows)) ||
+      (!identical(settings1$top_n_rows, settings2$top_n_rows))
+    }
+    
+    # Function to apply preprocessing based on current settings or defaults
     apply_preprocessing <- function() {
       if (is.null(rv$original_data_matrix)) return()
       
       # Start with the original data matrix
       processed <- rv$original_data_matrix
       
+      # Use current input values or defaults
+      settings <- capture_current_settings()
+      
       # 1. Handle missing values
-      if (rv$has_missing) {
+      if (rv$has_missing && !is.null(settings$na_method)) {
         # Remove rows that are entirely NA
         row_all_na <- apply(processed, 1, function(x) all(is.na(x)))
         if (any(row_all_na)) {
@@ -132,17 +234,17 @@ transform_server <- function(id, data) {
           processed <- processed[, !col_all_na, drop = FALSE]
         }
         
-        # Handle remaining missing values according to user selection
-        if (input$na_method != "leave") {
-          if (input$na_method == "zero") {
+        # Handle remaining missing values according to settings
+        if (settings$na_method != "leave") {
+          if (settings$na_method == "zero") {
             processed[is.na(processed)] <- 0
-          } else if (input$na_method == "mean") {
+          } else if (settings$na_method == "mean") {
             # Replace NA with mean of respective column
             for (j in 1:ncol(processed)) {
               col_mean <- mean(processed[, j], na.rm = TRUE)
               processed[is.na(processed[, j]), j] <- col_mean
             }
-          } else if (input$na_method == "median") {
+          } else if (settings$na_method == "median") {
             # Replace NA with median of respective column
             for (j in 1:ncol(processed)) {
               col_median <- median(processed[, j], na.rm = TRUE)
@@ -153,31 +255,26 @@ transform_server <- function(id, data) {
       }
       
       # 2. Apply log transformation if selected
-      if (input$do_log_transform) {
+      if (!is.null(settings$do_log_transform) && settings$do_log_transform) {
         # Set negative values to zero if they exist
         if (any(processed < 0, na.rm = TRUE)) {
           processed[processed < 0] <- 0
         }
         
         # Get constant c for log(x + c)
-        if (rv$has_zeros || rv$has_negative) {
-          const <- as.numeric(input$log_constant)
-        } else {
-          # If all values are positive (no zeros), use 0 as constant
-          const <- 0
-        }
+        const <- if (!is.null(settings$log_constant)) settings$log_constant else rv$log_constant_default
         
         # Apply log transformation
         processed <- log10(processed + const)
       }
       
       # 3. Apply centering and scaling
-      if (input$center_scale != "none") {
-        if (input$center_scale == "center_row") {
+      if (!is.null(settings$center_scale) && settings$center_scale != "none") {
+        if (settings$center_scale == "center_row") {
           # Center by row
           row_means <- rowMeans(processed, na.rm = TRUE)
           processed <- t(t(processed) - row_means)
-        } else if (input$center_scale == "scale_row") {
+        } else if (settings$center_scale == "scale_row") {
           # Scale by row (z-score)
           row_means <- rowMeans(processed, na.rm = TRUE)
           row_sds <- apply(processed, 1, sd, na.rm = TRUE)
@@ -187,11 +284,11 @@ transform_server <- function(id, data) {
           if (length(zero_sd_rows) > 0) {
             processed[zero_sd_rows, ] <- 0
           }
-        } else if (input$center_scale == "center_col") {
+        } else if (settings$center_scale == "center_col") {
           # Center by column
           col_means <- colMeans(processed, na.rm = TRUE)
           processed <- t(t(processed) - col_means)
-        } else if (input$center_scale == "scale_col") {
+        } else if (settings$center_scale == "scale_col") {
           # Scale by column (z-score)
           col_means <- colMeans(processed, na.rm = TRUE)
           col_sds <- apply(processed, 2, sd, na.rm = TRUE)
@@ -206,13 +303,15 @@ transform_server <- function(id, data) {
       }
       
       # 4. Apply Z-score cutoff for outlier capping
-      if (input$do_zscore_cap) {
-        z_cutoff <- as.numeric(input$zscore_cutoff)
+      if (!is.null(settings$do_zscore_cap) && settings$do_zscore_cap) {
+        z_cutoff <- if (!is.null(settings$zscore_cutoff)) settings$zscore_cutoff else 2
         
         # To fix the hclust error, ensure we're not passing NAs or Infs
         processed <- pmin(pmax(processed, -1e300), 1e300)  # Cap extreme values
         
-        if (input$center_scale %in% c("center_row", "scale_row")) {
+        scaling_by_row <- !is.null(settings$center_scale) && settings$center_scale %in% c("center_row", "scale_row")
+        
+        if (scaling_by_row) {
           # Cap by row if row-wise centering/scaling was applied
           for (i in 1:nrow(processed)) {
             row_data <- processed[i, ]
@@ -228,7 +327,7 @@ transform_server <- function(id, data) {
               }
             }
           }
-        } else if (input$center_scale %in% c("center_col", "scale_col", "none")) {
+        } else {
           # Cap by column if column-wise centering/scaling was applied or none
           for (j in 1:ncol(processed)) {
             col_data <- processed[, j]
@@ -248,12 +347,12 @@ transform_server <- function(id, data) {
       }
       
       # 5. Filter to keep only top N most variable rows (by SD)
-      if (input$do_filter_rows) {
+      if (!is.null(settings$do_filter_rows) && settings$do_filter_rows) {
         # Calculate row standard deviations
         row_sds <- apply(processed, 1, sd, na.rm = TRUE)
         
         # Determine how many rows to keep
-        top_n <- min(as.numeric(input$top_n_rows), nrow(processed))
+        top_n <- min(as.numeric(settings$top_n_rows), nrow(processed))
         
         # Sort by SD and keep top rows
         if (top_n < nrow(processed)) {
@@ -276,11 +375,13 @@ transform_server <- function(id, data) {
     # Watch for data changes from the main app
     observe({
       data_frame <- data()
-      if (!is.null(data_frame)) {
+      if (!is.null(data_frame) && !identical(data_frame, rv$original_data)) {
         analyze_data(data_frame)
-        # If this is the first data loading, automatically show preprocessing
-        if (is.null(rv$original_data)) {
+        
+        # Automatically show preprocessing dialog for new data
+        if (!rv$dialog_shown) {
           showPreprocessingDialog()
+          rv$dialog_shown <- TRUE
         }
       }
     })
@@ -294,9 +395,16 @@ transform_server <- function(id, data) {
       }
     })
     
-
     # Show the preprocessing dialog
     showPreprocessingDialog <- function() {
+      # Ensure recommended settings exist
+      if (is.null(rv$recommended_settings)) {
+        rv$recommended_settings <- get_recommended_settings()
+      }
+      
+      # Make a local copy of recommended settings
+      recommended <- rv$recommended_settings
+      
       # Show modal dialog with controls
       showModal(modalDialog(
         title = "Preprocess Data",
@@ -312,18 +420,18 @@ transform_server <- function(id, data) {
                                              "Replace with zero" = "zero",
                                              "Replace with mean" = "mean",
                                              "Replace with median" = "median"),
-                                 selected = "leave")
+                                 selected = recommended$na_method)
                    )
                  ),
                  
                  # Log transformation
                  wellPanel(
                    checkboxInput(ns("do_log_transform"), "Apply log10 transformation", 
-                                 value = !rv$has_negative && rv$skewness > 10),
+                                 value = recommended$do_log_transform),
                    conditionalPanel(
                      condition = "input.do_log_transform && output.needs_constant", ns = ns,
                      numericInput(ns("log_constant"), "Constant to add (c in log10(x + c)):",
-                                  value = rv$log_constant_default, min = rv$min_constant)
+                                  value = recommended$log_constant, min = rv$min_constant)
                    )
                  ),
                  
@@ -331,26 +439,28 @@ transform_server <- function(id, data) {
                  wellPanel(
                    selectInput(ns("center_scale"), "Centering and Scaling:",
                                choices = data_transforms,
-                               selected = data_transforms[guess_transform(rv$processed_data)])
+                               selected = recommended$center_scale)
                  ),
                  
                  # Z-score cutoff for outlier capping - now on by default
                  wellPanel(
-                   checkboxInput(ns("do_zscore_cap"), "Cap outliers based on Z-score", value = TRUE),
+                   checkboxInput(ns("do_zscore_cap"), "Cap outliers based on Z-score", 
+                                 value = recommended$do_zscore_cap),
                    conditionalPanel(
                      condition = "input.do_zscore_cap", ns = ns,
                      numericInput(ns("zscore_cutoff"), "Z-score cutoff value:",
-                                  value = 2, min = 0.1, step = 0.1)
+                                  value = recommended$zscore_cutoff, min = 0.1, step = 0.1)
                    )
                  ),
                  
                  # Variable row filtering
                  wellPanel(
-                   checkboxInput(ns("do_filter_rows"), "Keep top most variable rows", value = FALSE),
+                   checkboxInput(ns("do_filter_rows"), "Keep top most variable rows", 
+                                 value = recommended$do_filter_rows),
                    conditionalPanel(
                      condition = "input.do_filter_rows", ns = ns,
                      numericInput(ns("top_n_rows"), "Number of rows to keep:",
-                                  value = rv$top_n_default, min = 1, max = 10000000, step = 100)
+                                  value = recommended$top_n_rows, min = 1, max = 10000000, step = 100)
                    )
                  )
           ),
@@ -392,6 +502,9 @@ transform_server <- function(id, data) {
         size = "l",
         easyClose = TRUE
       ))
+      
+      # Apply preprocessing with recommended settings to show the preview
+      apply_preprocessing()
     }
     
     # Boolean outputs for conditional UI
@@ -445,7 +558,7 @@ transform_server <- function(id, data) {
       )
     })
     
-    # Observe changes to controls and update preprocessing
+    # Update data preview whenever settings change
     observeEvent(input$na_method, { apply_preprocessing() })
     observeEvent(input$do_log_transform, { apply_preprocessing() })
     observeEvent(input$log_constant, { apply_preprocessing() })
@@ -462,7 +575,7 @@ transform_server <- function(id, data) {
       
       # Reset all controls to default values that do no processing
       if(rv$has_missing) {
-        updateRadioButtons(session, "na_method", selected = "leave")
+        updateSelectInput(session, "na_method", selected = "leave")
       }
       
       updateCheckboxInput(session, "do_log_transform", value = FALSE)
@@ -481,8 +594,25 @@ transform_server <- function(id, data) {
       removeModal()
     })
     
-    # Close modal and return processed data
+    # Apply transformations and close modal
     observeEvent(input$done, {
+      # Capture final settings after dialog
+      final_settings <- capture_current_settings()
+      
+      # Check if settings have changed compared to previously applied settings
+      if (settings_have_changed(final_settings, rv$applied_settings)) {
+        # Apply the transformations and store the applied settings
+        apply_preprocessing()
+        rv$applied_settings <- final_settings
+        rv$changes_applied <- TRUE
+        
+        # Notify user that changes were applied
+        showNotification("Transformations applied successfully", type = "message")
+      } else {
+        # Notify user that no changes were made
+        showNotification("No changes detected in transformation settings", type = "message")
+      }
+      
       removeModal()
     })
     
@@ -507,9 +637,16 @@ transform_server <- function(id, data) {
       }
     )
     
-    # Return processed data
+    # Return processed data and state information
     return(list(
-      processed_data = reactive({ rv$processed_data })
+      processed_data = reactive({ 
+        if (rv$changes_applied) {
+          rv$processed_data 
+        } else {
+          NULL
+        }
+      }),
+      has_transformed = reactive({ rv$changes_applied })
     ))
   })
 }

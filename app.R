@@ -96,7 +96,6 @@ ui <- fluidPage(
       width = 9,
       tabsetPanel(
         tabPanel("Heatmap", 
-
                 plotOutput("heatmap", width = "100%", height = "600px")
         ),
         tabPanel("Data Preview", 
@@ -118,6 +117,11 @@ server <- function(input, output, session) {
   })
   outputOptions(output, "data_loaded", suspendWhenHidden = FALSE)
   
+  # Use the transform module
+  transform_data <- transform_server("transform", reactive({
+    file_data$data()
+  }))
+  
   # Create a reactive that provides the data for processing
   # It will first use the file upload data, then switch to transformed data if available
   current_data <- reactive({
@@ -125,42 +129,19 @@ server <- function(input, output, session) {
     uploaded_data <- file_data$data()
     
     # If transformation has been applied, use that data instead
-    if (!is.null(transformed_data()) && file_data$data_loaded()) {
-      return(transformed_data())
+    if (!is.null(transform_data$processed_data()) && transform_data$has_transformed()) {
+      return(transform_data$processed_data())
     } else {
       return(uploaded_data)
     }
   })
   
-  # Use the transform module
-  transform_data <- transform_server("transform", reactive({
-    file_data$data()
-  }))
-  
-  # Track if transformation has been explicitly applied
-  transform_data$has_transformed <- reactiveVal(FALSE)
-  
-  # Override the processed_data function to track when transformation happens
-  original_processed_data <- transform_data$processed_data
-  transform_data$processed_data <- reactive({
-    result <- original_processed_data()
-    if (!is.null(result)) {
-      transform_data$has_transformed(TRUE)
-    }
-    return(result)
-  })
-  
-  # Get the transformed data
-  transformed_data <- reactive({
-    return(transform_data$processed_data())
-  })
-  
-  # Show transform status - only show Done after explicitly transforming
+  # Show transform status
   output$transform_status <- renderUI({
-    if (!is.null(transformed_data()) && file_data$data_loaded() && transform_data$has_transformed()) {
+    if (transform_data$has_transformed()) {
       tags$div(
         icon("check-circle"), 
-        "Done", 
+        "Transformed", 
         style = "color: green; margin-top: 7px;"
       )
     } else {
@@ -197,7 +178,6 @@ server <- function(input, output, session) {
   # Create a reactive expression for the heatmap object (generated once)
   heatmap_obj <- reactive({
     req(current_data())
-    
     # Convert the data to a numeric matrix for the heatmap
     heatmap_data <- prepare_heatmap_data(current_data())
     
