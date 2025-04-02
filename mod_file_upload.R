@@ -11,7 +11,7 @@ library(DT)
 #' @param id The module namespace id
 #' @return A tagList of UI elements
 #'
-fileUploadUI <- function(id) {
+file_upload_ui <- function(id) {
   ns <- NS(id)
   
   tagList(
@@ -29,7 +29,7 @@ fileUploadUI <- function(id) {
 #' @param id The module namespace id
 #' @return A list of reactive values: data, matrix, and data_loaded
 #'
-fileUploadServer <- function(id) {
+file_upload_server <- function(id) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
     

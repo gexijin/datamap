@@ -19,7 +19,7 @@ data_transforms <- c(
 #' @param id The module namespace id
 #' @return A UI element containing the preprocessing button
 #'
-preprocessUI <- function(id) {
+transform_ui_backup <- function(id) {
   ns <- NS(id)
   
   tagList(
@@ -37,7 +37,7 @@ preprocessUI <- function(id) {
 #' @param id The module namespace id
 #' @return A button that triggers the preprocessing modal
 #'
-preprocessButtonUI <- function(id) {
+transform_ui <- function(id) {
   ns <- NS(id)
   
   actionButton(ns("show_preprocess"), "Preprocess Data", 
@@ -51,7 +51,7 @@ preprocessButtonUI <- function(id) {
 #' @param data Reactive data frame to process
 #' @return A list with the processed data reactive
 #'
-preprocessServer <- function(id, data) {
+transform_server <- function(id, data) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
     

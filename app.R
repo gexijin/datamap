@@ -1,15 +1,14 @@
-# app.R
 library(shiny)
 library(pheatmap)
 library(RColorBrewer)
 library(DT)
-library(readxl)  # Required for the file upload module
-library(e1071)   # Required for the preprocessing module (skewness calculation)
-library(ggplot2) # Required for the preprocessing module (histogram)
+library(readxl)  # file upload module
+library(e1071)   # transform module (skewness calculation)
+library(ggplot2) # transform module (histogram)
+library(grid)    # needed for grid.draw
 
-# Load the custom modules
 source("mod_file_upload.R")
-source("mod_preprocess.R")
+source("mod_transform.R")
 source("utilities.R")
 
 ui <- fluidPage(
@@ -20,20 +19,20 @@ ui <- fluidPage(
       width = 3,
       
       # File upload module UI
-      fileUploadUI("fileUpload"),
+      file_upload_ui("file_upload"),
       
-      # Preprocessing module UI - only shown after data is loaded
+      # Transform module UI - only shown after data is loaded
       conditionalPanel(
-        condition = "output.dataLoaded",
+        condition = "output.data_loaded",
         hr(),
-        h4("Data Preprocessing"),
-        preprocessButtonUI("preprocess"),
-        tags$div(style = "margin-top: 10px;", uiOutput("preprocessing_status"))
+        h4("Data Transformation"),
+        transform_ui("transform"),
+        tags$div(style = "margin-top: 10px;", uiOutput("transform_status"))
       ),
       
       # Heatmap customization section - only shown after data is loaded
       conditionalPanel(
-        condition = "output.dataLoaded",
+        condition = "output.data_loaded",
         hr(),
         h4("Heatmap Customization"),
         
@@ -60,8 +59,8 @@ ui <- fluidPage(
         
         # Download buttons
         hr(),
-        downloadButton("downloadPDF", "Download PDF"),
-        downloadButton("downloadPNG", "Download PNG")
+        downloadButton("download_pdf", "Download PDF"),
+        downloadButton("download_png", "Download PNG")
       )
     ),
     
@@ -82,44 +81,44 @@ ui <- fluidPage(
 
 server <- function(input, output, session) {
   # Use the file upload module
-  fileData <- fileUploadServer("fileUpload")
+  file_data <- file_upload_server("file_upload")
   
   # Track if data is loaded for UI conditionals
-  output$dataLoaded <- reactive({
-    return(fileData$data_loaded())
+  output$data_loaded <- reactive({
+    return(file_data$data_loaded())
   })
-  outputOptions(output, "dataLoaded", suspendWhenHidden = FALSE)
+  outputOptions(output, "data_loaded", suspendWhenHidden = FALSE)
   
   # Create a reactive that provides the data for processing
-  # It will first use the file upload data, then switch to preprocessed data if available
+  # It will first use the file upload data, then switch to transformed data if available
   current_data <- reactive({
     # Get uploaded data
-    uploaded_data <- fileData$data()
+    uploaded_data <- file_data$data()
     
-    # If preprocessing has been applied, use that data instead
-    if (!is.null(preprocessed_data()) && fileData$data_loaded()) {
-      return(preprocessed_data())
+    # If transformation has been applied, use that data instead
+    if (!is.null(transformed_data()) && file_data$data_loaded()) {
+      return(transformed_data())
     } else {
       return(uploaded_data)
     }
   })
   
-  # Use the preprocessing module
-  preprocessingData <- preprocessServer("preprocess", reactive({
-    fileData$data()
+  # Use the transform module
+  transform_data <- transform_server("transform", reactive({
+    file_data$data()
   }))
   
-  # Get the preprocessed data
-  preprocessed_data <- reactive({
-    return(preprocessingData$processed_data())
+  # Get the transformed data
+  transformed_data <- reactive({
+    return(transform_data$processed_data())
   })
   
-  # Show preprocessing status
-  output$preprocessing_status <- renderUI({
-    if (!is.null(preprocessed_data()) && fileData$data_loaded()) {
+  # Show transform status
+  output$transform_status <- renderUI({
+    if (!is.null(transformed_data()) && file_data$data_loaded()) {
       tags$div(
         icon("check-circle"), 
-        "Data has been preprocessed", 
+        "Data has been transformed", 
         style = "color: green; font-style: italic;"
       )
     } else {
@@ -131,7 +130,7 @@ server <- function(input, output, session) {
     }
   })
   
-  # Preview of the current data (original or preprocessed)
+  # Preview of the current data (original or transformed)
   output$data_preview <- renderDT({
     req(current_data())
     datatable(current_data(), options = list(scrollX = TRUE, pageLength = 10))
@@ -153,8 +152,8 @@ server <- function(input, output, session) {
     return(data_matrix)
   }
   
-  # Generate the heatmap using current data
-  output$heatmap <- renderPlot({
+  # Create a reactive expression for the heatmap object (generated once)
+  heatmap_obj <- reactive({
     req(current_data())
     
     # Convert the data to a numeric matrix for the heatmap
@@ -173,85 +172,45 @@ server <- function(input, output, session) {
       colors <- rev(colors)
     }
     
-    # Create the heatmap
+    # Create the heatmap with silent=TRUE to return the gtable object without drawing
     pheatmap(
       mat = heatmap_data,
       color = colors,
       cluster_rows = input$cluster_rows,
       cluster_cols = input$cluster_cols,
-      fontsize = input$fontsize
+      fontsize = input$fontsize,
+      silent = TRUE
     )
+  })
+  
+  # Generate the heatmap using current data
+  output$heatmap <- renderPlot({
+    req(heatmap_obj())
+    grid::grid.newpage()
+    grid::grid.draw(heatmap_obj())
   }, width = function() input$width, height = function() input$height)
   
-  # Download handlers using current data
-  output$downloadPDF <- downloadHandler(
+  # Download handlers using the same heatmap object
+  output$download_pdf <- downloadHandler(
     filename = function() {
       paste0("heatmap-", format(Sys.time(), "%Y%m%d-%H%M%S"), ".pdf")
     },
     content = function(file) {
       pdf(file, width = input$width/72, height = input$height/72)
-      
-      # Convert the data to a numeric matrix for the heatmap
-      heatmap_data <- prepare_heatmap_data(current_data())
-      
-      # Get the color palette and reverse if needed
-      if (input$color == "GreenBlackRed") {
-        # Custom green-black-red color palette
-        colors <- colorRampPalette(c("green", "black", "red"))(100)
-      } else {
-        # RColorBrewer palettes
-        colors <- colorRampPalette(rev(brewer.pal(11, input$color)))(100)
-      }
-      
-      if (input$color_reverse) {
-        colors <- rev(colors)
-      }
-      
-      # Create the heatmap
-      pheatmap(
-        mat = heatmap_data,
-        color = colors,
-        cluster_rows = input$cluster_rows,
-        cluster_cols = input$cluster_cols,
-        fontsize = input$fontsize
-      )
-      
+      grid::grid.newpage()
+      grid::grid.draw(heatmap_obj())
       dev.off()
     }
   )
   
-  output$downloadPNG <- downloadHandler(
+  output$download_png <- downloadHandler(
     filename = function() {
       paste0("heatmap-", format(Sys.time(), "%Y%m%d-%H%M%S"), ".png")
     },
     content = function(file) {
       png(file, width = input$width, height = input$height, res = 72)
-      
-      # Convert the data to a numeric matrix for the heatmap
-      heatmap_data <- prepare_heatmap_data(current_data())
-      
-      # Get the color palette and reverse if needed
-      if (input$color == "GreenBlackRed") {
-        # Custom green-black-red color palette
-        colors <- colorRampPalette(c("green", "black", "red"))(100)
-      } else {
-        # RColorBrewer palettes
-        colors <- colorRampPalette(rev(brewer.pal(11, input$color)))(100)
-      }
-      
-      if (input$color_reverse) {
-        colors <- rev(colors)
-      }
-      
-      # Create the heatmap
-      pheatmap(
-        mat = heatmap_data,
-        color = colors,
-        cluster_rows = input$cluster_rows,
-        cluster_cols = input$cluster_cols,
-        fontsize = input$fontsize
-      )
-      
+      grid::grid.newpage()
+      grid::grid.draw(heatmap_obj())
       dev.off()
     }
   )
