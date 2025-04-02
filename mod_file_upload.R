@@ -1,675 +1,419 @@
-# mod_preprocess.R
-# A Shiny module for data preprocessing with visualization
+# mod_file_upload.R
+# A Shiny module for smart file upload and parsing
 
 library(shiny)
-library(ggplot2)
-library(DT)
-library(e1071)  # For skewness calculation
+library(readxl)
+library(tools)
 
-data_transforms <- c(
-  "None" = "none",
-  "Center by row" = "center_row",
-  "Scale by row (Z-score)" = "scale_row",
-  "Center by column" = "center_col",
-  "Scale by column (Z-score)" = "scale_col"
-)
-
-
-#' UI function for preprocessing module button
+#' UI function for file upload module
 #'
 #' @param id The module namespace id
-#' @return A button that triggers the preprocessing modal
+#' @return A tagList of UI elements
 #'
-transform_ui <- function(id) {
+file_upload_ui <- function(id) {
   ns <- NS(id)
   
-  actionButton(ns("show_preprocess"), "Transform Data", 
-               icon = icon("filter"),
-               class = "btn-primary")
+  tagList(
+    fileInput(ns("file"), "Data Import",
+              accept = c(
+                "text/csv",
+                "text/comma-separated-values,text/plain",
+                ".csv", ".txt", ".tsv", ".xls", ".xlsx"
+              ))
+  )
 }
 
-#' Server function for preprocessing module
+#' Server function for file upload module
 #'
 #' @param id The module namespace id
-#' @param data Reactive data frame to process
-#' @return A list with the processed data reactive
+#' @return A list of reactive values: data and data_loaded
 #'
-transform_server <- function(id, data) {
+file_upload_server <- function(id) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
     
-    # Reactive values to store processed data and state
+    # Reactive values for storing processed data and flags
     rv <- reactiveValues(
-      processed_data = NULL,
-      has_missing = FALSE,
-      has_negative = FALSE,
-      has_zeros = FALSE,
-      skewness = 0,
-      original_data = NULL,
-      original_data_matrix = NULL,  # Store the numeric matrix version
-      data_range = NULL,
-      log_constant_default = 1e-6,
-      min_constant = 1e-6,
-      top_n_default = 3000,
-      current_settings = NULL,      # Track current transformation settings
-      applied_settings = NULL,      # Track applied transformation settings
-      dialog_shown = FALSE,         # Track if dialog has been shown
-      changes_applied = FALSE,      # Track if changes have been applied
-      ui_settings = list(           # Store UI input values to preserve between sessions
-        na_method = "leave",
-        do_log_transform = FALSE,
-        log_constant = NULL,
-        center_scale = "none",
-        do_zscore_cap = TRUE,
-        zscore_cutoff = 2,
-        do_filter_rows = TRUE,      # Changed to TRUE as default
-        top_n_rows = NULL
-      )
+      data = NULL,
+      file_extension = NULL,
+      data_loaded = FALSE
     )
     
-    analyze_data <- function(data_frame) {
-      if (is.null(data_frame)) return()
-      
-      # Store the original data frame
-      rv$original_data <- data_frame
-      
-      # Create a numeric matrix version for analysis and processing
-      # Convert all columns to numeric
-      numeric_data <- as.data.frame(lapply(data_frame, function(x) {
-        as.numeric(as.character(x))
-      }))
-      
-      # Convert to matrix for easier processing
-      data_matrix <- as.matrix(numeric_data)
-      rv$original_data_matrix <- data_matrix
-      
-      # Remove columns that are entirely NA (i.e. non-numeric) and notify user
-      col_all_na <- apply(data_matrix, 2, function(x) all(is.na(x)))
-      if (any(col_all_na)) {
-        removed_cols <- colnames(data_matrix)[col_all_na]
-        showNotification(
-          paste("The following columns are non-numeric and have been removed:", 
-                paste(removed_cols, collapse = ", ")),
-          type = "warning"
-        )
-        data_matrix <- data_matrix[, !col_all_na, drop = FALSE]
-      }
-      
-      # Compute statistics based on numeric data
-      rv$has_missing <- any(is.na(data_matrix))
-      rv$has_negative <- any(data_matrix < 0, na.rm = TRUE)
-      rv$has_zeros <- any(data_matrix == 0, na.rm = TRUE)
-      
-      flat_data <- as.numeric(data_matrix)
-      flat_data <- flat_data[!is.na(flat_data)]
-      rv$data_range <- c(min(flat_data), max(flat_data))
-      
-      rv$skewness <- skewness(flat_data)
-      
-      # Set log constant based on data
-      if (rv$has_zeros) {
-        positive_values <- flat_data[flat_data > 0]
-        if (length(positive_values) > 0) {
-          percentile_10 <- quantile(positive_values, 0.1)
-          rv$log_constant_default <- max(percentile_10, rv$min_constant)
-        } else {
-          rv$log_constant_default <- rv$min_constant
+    # Helper function to count delimiters in a text sample
+    count_delimiters <- function(text_sample) {
+      delimiters <- c(",", "\t", ";", "|", " ")
+      counts <- sapply(delimiters, function(d) {
+        total_count <- 0
+        lines <- strsplit(text_sample, "\n")[[1]]
+        for (line in lines) {
+          # Count actual occurrences of delimiter in each line
+          positions <- gregexpr(d, line, fixed = TRUE)[[1]]
+          # When delimiter isn't found, gregexpr returns -1
+          occurrences <- sum(positions != -1)
+          total_count <- total_count + occurrences
         }
-      } else if (!rv$has_negative && min(flat_data, na.rm=TRUE) > 0) {
-        rv$log_constant_default <- 0
-      } else {
-        rv$log_constant_default <- rv$min_constant
-      }
-      
-      # Initialize log_constant in ui_settings if not set
-      if (is.null(rv$ui_settings$log_constant)) {
-        rv$ui_settings$log_constant <- rv$log_constant_default
-      }
-      
-      # Initialize top_n_rows in ui_settings if not set
-      if (is.null(rv$ui_settings$top_n_rows)) {
-        rv$ui_settings$top_n_rows <- rv$top_n_default
-      }
-      
-      # Initial processed data is the cleaned input matrix
-      rv$processed_data <- data_matrix
+        return(total_count)
+      })
+      names(counts) <- delimiters
+      return(counts)
     }
     
-    # Function to capture current UI settings
-    capture_current_settings <- function() {
-      # Create a list of current settings
-      settings <- list()
-      
-      # Safely get input values that might not exist yet
-      if (rv$has_missing && !is.null(input$na_method)) {
-        settings$na_method <- input$na_method
-      } else {
-        settings$na_method <- "leave"  # Default value
+    # Helper function to check if a column looks like row names
+    is_likely_rownames <- function(column) {
+      # Check if values are unique
+      if(length(unique(column)) != length(column)) {
+        return(FALSE)
       }
       
-      if (!is.null(input$do_log_transform)) {
-        settings$do_log_transform <- input$do_log_transform
-        if (settings$do_log_transform && !is.null(input$log_constant)) {
-          settings$log_constant <- input$log_constant
-        }
-      } else {
-        settings$do_log_transform <- FALSE
+      # Check if values are mostly character-like (not purely numeric)
+      numeric_count <- sum(!is.na(suppressWarnings(as.numeric(column))))
+      if(numeric_count / length(column) > 0.9) {
+        return(FALSE)
       }
       
-      if (!is.null(input$center_scale)) {
-        settings$center_scale <- input$center_scale
-      } else {
-        settings$center_scale <- "none"
-      }
-      
-      if (!is.null(input$do_zscore_cap)) {
-        settings$do_zscore_cap <- input$do_zscore_cap
-        if (settings$do_zscore_cap && !is.null(input$zscore_cutoff)) {
-          settings$zscore_cutoff <- input$zscore_cutoff
-        }
-      } else {
-        settings$do_zscore_cap <- FALSE
-      }
-      
-      if (!is.null(input$do_filter_rows)) {
-        settings$do_filter_rows <- input$do_filter_rows
-        if (settings$do_filter_rows && !is.null(input$top_n_rows)) {
-          settings$top_n_rows <- input$top_n_rows
-        }
-      } else {
-        settings$do_filter_rows <- TRUE  # Changed to TRUE as default
-      }
-      
-      return(settings)
+      return(TRUE)
     }
     
-    # Function to update UI settings from current inputs
-    update_ui_settings <- function() {
-      # Only update if inputs exist
-      if (!is.null(input$na_method)) {
-        rv$ui_settings$na_method <- input$na_method
+    # Helper function to check if a row looks like column headers
+    is_likely_header <- function(row) {
+      # Check if row is different from the rest of the data in type
+      numeric_count <- sum(!is.na(suppressWarnings(as.numeric(row))))
+      if(numeric_count / length(row) < 0.5) {
+        return(TRUE)
       }
       
-      if (!is.null(input$do_log_transform)) {
-        rv$ui_settings$do_log_transform <- input$do_log_transform
-        if (!is.null(input$log_constant)) {
-          rv$ui_settings$log_constant <- input$log_constant
-        }
-      }
-      
-      if (!is.null(input$center_scale)) {
-        rv$ui_settings$center_scale <- input$center_scale
-      }
-      
-      if (!is.null(input$do_zscore_cap)) {
-        rv$ui_settings$do_zscore_cap <- input$do_zscore_cap
-        if (!is.null(input$zscore_cutoff)) {
-          rv$ui_settings$zscore_cutoff <- input$zscore_cutoff
-        }
-      }
-      
-      if (!is.null(input$do_filter_rows)) {
-        rv$ui_settings$do_filter_rows <- input$do_filter_rows
-        if (!is.null(input$top_n_rows)) {
-          rv$ui_settings$top_n_rows <- input$top_n_rows
-        }
-      }
+      return(FALSE)
     }
     
-    # Function to compare two settings lists
-    settings_have_changed <- function(settings1, settings2) {
-      if (is.null(settings1) || is.null(settings2)) return(TRUE)
-      
-      # Compare each setting
-      (!identical(settings1$na_method, settings2$na_method)) ||
-      (!identical(settings1$do_log_transform, settings2$do_log_transform)) ||
-      (!identical(settings1$log_constant, settings2$log_constant)) ||
-      (!identical(settings1$center_scale, settings2$center_scale)) ||
-      (!identical(settings1$do_zscore_cap, settings2$do_zscore_cap)) ||
-      (!identical(settings1$zscore_cutoff, settings2$zscore_cutoff)) ||
-      (!identical(settings1$do_filter_rows, settings2$do_filter_rows)) ||
-      (!identical(settings1$top_n_rows, settings2$top_n_rows))
-    }
+    # Reactive value to track if first column is suitable for row names
+    can_use_rownames <- reactiveVal(FALSE)
     
-    # Function to apply preprocessing based on current settings
-    apply_preprocessing <- function() {
-      if (is.null(rv$original_data_matrix)) return()
+    # Re-evaluate first column when delimiter or sheet changes
+    observeEvent(list(input$import_delimiter, input$import_sheet), {
+      req(input$file)
       
-      # Start with the original data matrix
-      processed <- rv$original_data_matrix
-      
-      # 1. Handle missing values
-      if (rv$has_missing) {
-        # Remove rows that are entirely NA
-        row_all_na <- apply(processed, 1, function(x) all(is.na(x)))
-        if (any(row_all_na)) {
-          processed <- processed[!row_all_na, , drop = FALSE]
-        }
-        
-        # Remove columns that are entirely NA
-        col_all_na <- apply(processed, 2, function(x) all(is.na(x)))
-        if (any(col_all_na)) {
-          processed <- processed[, !col_all_na, drop = FALSE]
-        }
-        
-        # Handle remaining missing values according to user selection
-        if (!is.null(input$na_method) && input$na_method != "leave") {
-          if (input$na_method == "zero") {
-            processed[is.na(processed)] <- 0
-          } else if (input$na_method == "mean") {
-            # Replace NA with mean of respective column
-            for (j in 1:ncol(processed)) {
-              col_mean <- mean(processed[, j], na.rm = TRUE)
-              processed[is.na(processed[, j]), j] <- col_mean
-            }
-          } else if (input$na_method == "median") {
-            # Replace NA with median of respective column
-            for (j in 1:ncol(processed)) {
-              col_median <- median(processed[, j], na.rm = TRUE)
-              processed[is.na(processed[, j]), j] <- col_median
-            }
-          }
-        }
+      # Skip if we're just initializing
+      if (is.null(input$import_delimiter) && is.null(input$import_sheet)) {
+        return()
       }
       
-      # 2. Apply log transformation if selected
-      if (!is.null(input$do_log_transform) && input$do_log_transform) {
-        # Set negative values to zero if they exist
-        if (any(processed < 0, na.rm = TRUE)) {
-          processed[processed < 0] <- 0
-        }
-        
-        # Get constant c for log(x + c)
-        if (rv$has_zeros || rv$has_negative) {
-          const <- as.numeric(input$log_constant)
-        } else {
-          # If all values are positive (no zeros), use 0 as constant
-          const <- 0
-        }
-        
-        # Apply log transformation
-        processed <- log10(processed + const)
-      }
+      file_ext <- rv$file_extension
       
-      # 3. Apply centering and scaling
-      if (!is.null(input$center_scale) && input$center_scale != "none") {
-        if (input$center_scale == "center_row") {
-          # Center by row
-          row_means <- rowMeans(processed, na.rm = TRUE)
-          processed <- t(t(processed) - row_means)
-        } else if (input$center_scale == "scale_row") {
-          # Scale by row (z-score)
-          row_means <- rowMeans(processed, na.rm = TRUE)
-          row_sds <- apply(processed, 1, sd, na.rm = TRUE)
-          processed <- t((t(processed) - row_means) / ifelse(row_sds == 0, 1, row_sds))
-          # If SD is zero, set row to zero
-          zero_sd_rows <- which(row_sds == 0)
-          if (length(zero_sd_rows) > 0) {
-            processed[zero_sd_rows, ] <- 0
-          }
-        } else if (input$center_scale == "center_col") {
-          # Center by column
-          col_means <- colMeans(processed, na.rm = TRUE)
-          processed <- t(t(processed) - col_means)
-        } else if (input$center_scale == "scale_col") {
-          # Scale by column (z-score)
-          col_means <- colMeans(processed, na.rm = TRUE)
-          col_sds <- apply(processed, 2, sd, na.rm = TRUE)
-          processed <- sweep(processed, 2, col_means, "-")
-          processed <- sweep(processed, 2, ifelse(col_sds == 0, 1, col_sds), "/")
-          # If SD is zero, set column to zero
-          zero_sd_cols <- which(col_sds == 0)
-          if (length(zero_sd_cols) > 0) {
-            processed[, zero_sd_cols] <- 0
-          }
-        }
-      }
-      
-      # 4. Apply Z-score cutoff for outlier capping
-      if (!is.null(input$do_zscore_cap) && input$do_zscore_cap) {
-        z_cutoff <- as.numeric(input$zscore_cutoff)
-        
-        # To fix the hclust error, ensure we're not passing NAs or Infs
-        processed <- pmin(pmax(processed, -1e300), 1e300)  # Cap extreme values
-        
-        if (!is.null(input$center_scale) && input$center_scale %in% c("center_row", "scale_row")) {
-          # Cap by row if row-wise centering/scaling was applied
-          for (i in 1:nrow(processed)) {
-            row_data <- processed[i, ]
-            row_data <- row_data[is.finite(row_data)]  # Remove Inf/NaN
-            if (length(row_data) > 0) {
-              row_mean <- mean(row_data, na.rm = TRUE)
-              row_sd <- sd(row_data, na.rm = TRUE)
-              if (!is.na(row_sd) && row_sd > 0) {
-                upper_bound <- row_mean + z_cutoff * row_sd
-                lower_bound <- row_mean - z_cutoff * row_sd
-                processed[i, processed[i,] > upper_bound] <- upper_bound
-                processed[i, processed[i,] < lower_bound] <- lower_bound
-              }
-            }
+      tryCatch({
+        # Get current data based on selected options
+        if(file_ext %in% c("xls", "xlsx")) {
+          if(!is.null(input$import_sheet)) {
+            sample_data <- read_excel(
+              input$file$datapath,
+              sheet = input$import_sheet,
+              col_names = input$import_header,
+              n_max = 10
+            )
+          } else {
+            return()
           }
         } else {
-          # Cap by column if column-wise centering/scaling was applied or none
-          for (j in 1:ncol(processed)) {
-            col_data <- processed[, j]
-            col_data <- col_data[is.finite(col_data)]  # Remove Inf/NaN
-            if (length(col_data) > 0) {
-              col_mean <- mean(col_data, na.rm = TRUE)
-              col_sd <- sd(col_data, na.rm = TRUE)
-              if (!is.na(col_sd) && col_sd > 0) {
-                upper_bound <- col_mean + z_cutoff * col_sd
-                lower_bound <- col_mean - z_cutoff * col_sd
-                processed[processed[,j] > upper_bound, j] <- upper_bound
-                processed[processed[,j] < lower_bound, j] <- lower_bound
-              }
-            }
-          }
-        }
-      }
-      
-      # 5. Filter to keep only top N most variable rows (by SD)
-      if (!is.null(input$do_filter_rows) && input$do_filter_rows) {
-        # Calculate row standard deviations
-        row_sds <- apply(processed, 1, sd, na.rm = TRUE)
-        
-        # Determine how many rows to keep
-        top_n <- min(as.numeric(input$top_n_rows), nrow(processed))
-        
-        # Sort by SD and keep top rows
-        if (top_n < nrow(processed)) {
-          # Get indices of rows with highest SDs
-          top_indices <- order(row_sds, decreasing = TRUE)[1:top_n]
-          processed <- processed[top_indices, , drop = FALSE]
-        }
-      }
-      
-      rv$processed_data <- processed
-    }
-    
-    # Update log constant when log transform is turned on
-    observeEvent(input$do_log_transform, {
-      if(input$do_log_transform && (rv$has_zeros || rv$has_negative)) {
-        updateNumericInput(session, "log_constant", value = rv$log_constant_default)
-      }
-    })
-    
-    # Watch for data changes from the main app
-    observe({
-      data_frame <- data()
-      if (!is.null(data_frame) && !identical(data_frame, rv$original_data)) {
-        analyze_data(data_frame)
-        
-        # Automatically show preprocessing dialog for new data
-        if (!rv$dialog_shown) {
-          # Only first time after loading data, we'll use recommended settings
-          # For this first dialog, we'll use default/recommended values
-          rv$ui_settings$do_log_transform <- !rv$has_negative && rv$skewness > 1
-          rv$ui_settings$center_scale <- guess_transform(rv$processed_data)
+          delimiter <- input$import_delimiter
+          if(is.null(delimiter)) return()
           
-          # Directly show the preprocessing dialog
-          showPreprocessingDialog()
-          rv$dialog_shown <- TRUE
+          if(delimiter == "\t") {
+            sample_data <- read.delim(
+              input$file$datapath,
+              header = input$import_header,
+              sep = delimiter,
+              nrows = 10,
+              stringsAsFactors = FALSE,
+              check.names = FALSE
+            )
+          } else {
+            sample_data <- read.csv(
+              input$file$datapath,
+              header = input$import_header,
+              sep = delimiter,
+              nrows = 10,
+              stringsAsFactors = FALSE,
+              check.names = FALSE
+            )
+          }
+        }
+        
+        # Re-evaluate if first column can be used as row names
+        if(ncol(sample_data) > 1) {
+          can_use_rownames(is_likely_rownames(sample_data[[1]]))
+        } else {
+          can_use_rownames(FALSE)
+        }
+        
+      }, error = function(e) {
+        can_use_rownames(FALSE)
+      })
+    })
+    
+    # Watch for file uploads
+    observeEvent(input$file, {
+      req(input$file)
+      
+      # Get file extension
+      file_ext <- tolower(file_ext(input$file$name))
+      rv$file_extension <- file_ext
+      
+      # Initialize settings based on file type
+      has_header <- TRUE
+      has_rownames <- FALSE
+      delimiter <- ","
+      sheet <- 1
+      
+      # Read a sample of the file to analyze
+      if(file_ext %in% c("xls", "xlsx")) {
+        # For Excel files, get sheet names
+        sheets <- excel_sheets(input$file$datapath)
+        
+        # Read first few rows to check for headers and row names
+        sample_data <- read_excel(input$file$datapath, sheet = 1, n_max = 10)
+        
+        # Check if first column might be row names
+        if(ncol(sample_data) > 1) {
+          has_rownames <- is_likely_rownames(sample_data[[1]])
+          # Store this value in the reactive for later use
+          can_use_rownames(has_rownames)
+        }
+        
+        # Default to having headers for Excel
+        has_header <- TRUE
+        
+      } else {
+        # For text files, read first few lines to analyze
+        file_con <- file(input$file$datapath, "r")
+        file_lines <- readLines(file_con, n = 10)
+        close(file_con)
+        
+        # Determine the most likely delimiter by counting occurrences
+        if(length(file_lines) > 0) {
+          delim_counts <- count_delimiters(paste(file_lines, collapse = "\n"))
+          delimiter <- names(which.max(delim_counts))
+          
+          # If space was detected as the delimiter, double-check if tab is more appropriate
+          if(delimiter == " " && grepl("\t", paste(file_lines, collapse = ""))) {
+            delimiter <- "\t"
+          }
+          
+          # Try parsing first 10 rows to check for headers and row names
+          if(delimiter == "\t") {
+            sample_data <- read.delim(input$file$datapath, nrows = 10, sep = delimiter, header = FALSE, stringsAsFactors = FALSE)
+          } else {
+            sample_data <- read.csv(input$file$datapath, nrows = 10, sep = delimiter, header = FALSE, stringsAsFactors = FALSE)
+          }
+          
+          # Check if first row looks like a header
+          if(nrow(sample_data) > 1) {
+            has_header <- is_likely_header(as.character(unlist(sample_data[1, ])))
+          }
+          
+          # Check if first column might be row names
+          if(ncol(sample_data) > 1) {
+            has_rownames <- is_likely_rownames(sample_data[[1]])
+            # Store this value in the reactive for later use
+            can_use_rownames(has_rownames)
+          }
         }
       }
-    })
-    
-    # Trigger preprocessing modal from button
-    observeEvent(input$show_preprocess, {
-      if (!is.null(rv$original_data)) {
-        showPreprocessingDialog()
-      } else {
-        showNotification("No data available to preprocess.", type = "error")
-      }
-    })
-    
-    # Show the preprocessing dialog
-    showPreprocessingDialog <- function() {
-      # Set automatic recommended centering and scaling
-      if (is.null(input$center_scale)) {
-        rv$ui_settings$center_scale <- guess_transform(rv$processed_data)
-      }
       
-      # Show modal dialog with controls - using the stored UI settings
+      # Display a modal dialog with configurable import settings
       showModal(modalDialog(
-        title = "Transform Data",
+        title = "Data Import",
         
-        fluidRow(
-          column(6,
-                 # Missing value handling (only show if missing values are detected)
-                 conditionalPanel(
-                   condition = "output.has_missing", ns = ns,
-                   wellPanel(
-                     selectInput(ns("na_method"), "Missing value handling:",
-                                 choices = c("Leave as missing" = "leave",
-                                             "Replace with zero" = "zero",
-                                             "Replace with mean" = "mean",
-                                             "Replace with median" = "median"),
-                                 selected = rv$ui_settings$na_method)
-                   )
-                 ),
-                 
-                 # Log transformation
-                 wellPanel(
-                   checkboxInput(ns("do_log_transform"), "Apply log10 transformation", 
-                                 value = rv$ui_settings$do_log_transform),
-                   conditionalPanel(
-                     condition = "input.do_log_transform && output.needs_constant", ns = ns,
-                     numericInput(ns("log_constant"), "Constant to add (c in log10(x + c)):",
-                                  value = rv$ui_settings$log_constant, min = rv$min_constant)
-                   )
-                 ),
-                 
-                 # Centering and scaling - changed to selectInput
-                 wellPanel(
-                   selectInput(ns("center_scale"), "Centering and Scaling:",
-                               choices = data_transforms,
-                               selected = rv$ui_settings$center_scale)
-                 ),
-                 
-                 # Z-score cutoff for outlier capping - now on by default
-                 wellPanel(
-                   checkboxInput(ns("do_zscore_cap"), "Cap outliers based on Z-score", 
-                                 value = rv$ui_settings$do_zscore_cap),
-                   conditionalPanel(
-                     condition = "input.do_zscore_cap", ns = ns,
-                     numericInput(ns("zscore_cutoff"), "Z-score cutoff value:",
-                                  value = rv$ui_settings$zscore_cutoff, min = 0.1, step = 0.1)
-                   )
-                 ),
-                 
-                 # Variable row filtering - now ON by default
-                 wellPanel(
-                   checkboxInput(ns("do_filter_rows"), "Keep top most variable rows", 
-                                 value = rv$ui_settings$do_filter_rows),
-                   conditionalPanel(
-                     condition = "input.do_filter_rows", ns = ns,
-                     numericInput(ns("top_n_rows"), "Number of rows to keep:",
-                                  value = rv$ui_settings$top_n_rows, min = 1, max = 10000000, step = 100)
-                   )
-                 )
-          ),
-          
-          column(6,
-                 # Display data statistics
-                 wellPanel(
-                   strong("Data Statistics:"),
-                   tags$ul(
-                     tags$li(paste("Matrix Size:", nrow(rv$original_data_matrix), "rows ×", ncol(rv$original_data_matrix), "columns")),
-                     tags$li(paste("Missing Values:", ifelse(rv$has_missing, "Yes", "No"))),
-                     tags$li(paste("Negative Values:", ifelse(rv$has_negative, "Yes", "No"))),
-                     tags$li(paste("Skewness:", round(rv$skewness, 2))),
-                     tags$li(paste("Data Range:", round(rv$data_range[1], 2), "to", round(rv$data_range[2], 2)))
-                   )
-                 ),
-                 
-                 # Dynamic histogram visualization
-                 plotOutput(ns("data_histogram"), height = "400px"),
-                 
-                 # Download button for transformed data
-                 tags$div(
-                   style = "margin-top: 15px;",
-                   downloadButton(ns("download_data"), "Download Transformed Data", class = "btn-info")
-                 )
+        # File type-specific controls
+        if(file_ext %in% c("xls", "xlsx")) {
+          tagList(
+            selectInput(ns("import_sheet"), "Sheet:", choices = sheets, selected = sheet),
+            fluidRow(
+              column(6, checkboxInput(ns("import_header"), "First Row as Header", value = has_header)),
+              column(6, uiOutput(ns("rownames_ui")))
+            )
           )
-        ),
+        } else {
+          fluidRow(
+            column(4, 
+              div(style = "display: flex; align-items: center;", 
+                span("Delimiter:", style = "margin-right: 10px;"),
+                selectInput(ns("import_delimiter"), NULL,
+                          choices = c(Comma = ",", Tab = "\t", Semicolon = ";", Pipe = "|", Space = " "),
+                          selected = delimiter, width = "120px")
+              )
+            ),
+            column(4, checkboxInput(ns("import_header"), "First Row as Header", value = has_header)),
+            column(4, uiOutput(ns("rownames_ui")))
+          )
+        },
+        
+        # Preview table
+        div(style = "overflow-x: auto; max-width: 100%;",
+            tableOutput(ns("import_preview"))),
         
         footer = tagList(
-          actionButton(ns("cancel"), "Cancel", class = "btn-default"),
-          actionButton(ns("reset_all"), "Reset to Original", class = "btn-warning"),
-          actionButton(ns("done"), "Apply Changes", class = "btn-success")
+          actionButton(ns("import_cancel"), "Cancel"),
+          actionButton(ns("import_confirm"), "Import Data", class = "btn-primary")
         ),
         
         size = "l",
-        easyClose = TRUE
+        easyClose = FALSE
       ))
-      
-      # After dialog is shown, update the current settings
-      rv$current_settings <- capture_current_settings()
-    }
-    
-    # Boolean outputs for conditional UI
-    output$has_missing <- reactive({
-      return(rv$has_missing)
     })
-    outputOptions(output, "has_missing", suspendWhenHidden = FALSE)
     
-    output$needs_constant <- reactive({
-      return(rv$has_zeros || rv$has_negative)
-    })
-    outputOptions(output, "needs_constant", suspendWhenHidden = FALSE)
-    
-    # Create histogram of current data values
-    output$data_histogram <- renderPlot({
-      req(rv$processed_data)
-      
-      # Flatten the matrix and remove NAs
-      flat_data <- as.numeric(rv$processed_data)
-      flat_data <- flat_data[!is.na(flat_data) & is.finite(flat_data)]
-      
-      if (length(flat_data) == 0) {
-        # Handle case with no valid data
-        return(ggplot() + 
-                 annotate("text", x = 0.5, y = 0.5, 
-                          label = "No valid data to display") + 
-                 theme_void())
+    # Dynamic UI for rownames checkbox - only show if first column can be used as row names
+    output$rownames_ui <- renderUI({
+      if (can_use_rownames()) {
+        checkboxInput(ns("import_rownames"), "First Column as Row Names", value = can_use_rownames())
       }
-      
-      # Create histogram
-      ggplot(data.frame(value = flat_data), aes(x = value)) +
-        geom_histogram(bins = 30, fill = "steelblue", color = "white") +
-        labs(x = "Value", y = "Frequency", title = "Current Data Distribution") +
-        theme_minimal()
     })
     
-    # Download handler for transformed data
-    output$download_data <- downloadHandler(
-      filename = function() {
-        paste("transformed_data_", format(Sys.time(), "%Y%m%d_%H%M%S"), ".csv", sep = "")
-      },
-      content = function(file) {
-        if (is.null(rv$processed_data)) {
-          # If no processed data exists, use original data
-          data_to_save <- rv$original_data_matrix
+    # Update import preview based on selected options
+    output$import_preview <- renderTable({
+      req(input$file)
+      
+      file_ext <- rv$file_extension
+      # Make sure using_rownames is a logical value, not NULL
+      using_rownames <- isTRUE(!is.null(input$import_rownames) && input$import_rownames)
+      
+      tryCatch({
+        # Get preview data based on selected import options
+        if(file_ext %in% c("xls", "xlsx")) {
+          if(!is.null(input$import_sheet)) {
+            preview_data <- read_excel(
+              input$file$datapath,
+              sheet = input$import_sheet,
+              col_names = input$import_header,
+              n_max = 10
+            )
+            # Convert to data.frame to ensure compatibility with rownames
+            preview_data <- as.data.frame(preview_data, stringsAsFactors = FALSE)
+          } else {
+            preview_data <- read_excel(
+              input$file$datapath,
+              col_names = TRUE,
+              n_max = 10
+            )
+            # Convert to data.frame to ensure compatibility with rownames
+            preview_data <- as.data.frame(preview_data, stringsAsFactors = FALSE)
+          }
         } else {
-          data_to_save <- rv$processed_data
+          delimiter <- input$import_delimiter
+          if(is.null(delimiter)) delimiter <- ","
+          
+          if(delimiter == "\t") {
+            preview_data <- read.delim(
+              input$file$datapath,
+              header = input$import_header,
+              sep = delimiter,
+              nrows = 10,
+              stringsAsFactors = FALSE,
+              check.names = FALSE
+            )
+          } else {
+            preview_data <- read.csv(
+              input$file$datapath,
+              header = input$import_header,
+              sep = delimiter,
+              nrows = 10,
+              stringsAsFactors = FALSE,
+              check.names = FALSE
+            )
+          }
         }
         
-        # Convert to data frame for easier writing
-        data_df <- as.data.frame(data_to_save)
+        # Process row names if selected for preview - with safe logical checks
+        if(isTRUE(using_rownames) && !is.null(preview_data) && ncol(preview_data) > 1) {
+          row_names <- preview_data[[1]]
+          preview_data <- preview_data[, -1, drop = FALSE]
+          # Set custom row names for the preview
+          rownames(preview_data) <- row_names
+        }
         
-        # Write to CSV
-        write.csv(data_df, file, row.names = TRUE)
-      }
-    )
+        return(preview_data)
+        
+      }, error = function(e) {
+        return(data.frame(Error = paste("Could not parse file with current settings:", e$message)))
+      })
+    }, 
+    # Control whether to show row names in the table 
+    rownames = function() {
+      # Only show row names when using first column as row names
+      return(isTRUE(!is.null(input$import_rownames) && input$import_rownames))
+    },
+    striped = TRUE, 
+    bordered = TRUE)
     
-    # Update data preview whenever settings change
-    observeEvent(input$na_method, { apply_preprocessing() })
-    observeEvent(input$do_log_transform, { apply_preprocessing() })
-    observeEvent(input$log_constant, { apply_preprocessing() })
-    observeEvent(input$center_scale, { apply_preprocessing() })
-    observeEvent(input$do_zscore_cap, { apply_preprocessing() })
-    observeEvent(input$zscore_cutoff, { apply_preprocessing() })
-    observeEvent(input$do_filter_rows, { apply_preprocessing() })
-    observeEvent(input$top_n_rows, { apply_preprocessing() })
-    
-    # Update stored UI settings whenever user changes them
-    observe({
-      # Only run this if dialog is active (inputs exist)
-      if (!is.null(input$na_method)) {
-        update_ui_settings()
-      }
-    })
-    
-    # Reset to original data and reset all controls to default "do nothing" state
-    observeEvent(input$reset_all, {
-      # Reset processed data to original
-      rv$processed_data <- rv$original_data_matrix
-      
-      # Reset all controls to default values that do no processing
-      if(rv$has_missing) {
-        updateSelectInput(session, "na_method", selected = "leave")
-        rv$ui_settings$na_method <- "leave"
-      }
-      
-      updateCheckboxInput(session, "do_log_transform", value = FALSE)
-      rv$ui_settings$do_log_transform <- FALSE
-      
-      updateSelectInput(session, "center_scale", selected = "none")
-      rv$ui_settings$center_scale <- "none"
-      
-      updateCheckboxInput(session, "do_zscore_cap", value = FALSE)
-      rv$ui_settings$do_zscore_cap <- FALSE
-      updateNumericInput(session, "zscore_cutoff", value = 2)
-      rv$ui_settings$zscore_cutoff <- 2
-      
-      updateCheckboxInput(session, "do_filter_rows", value = TRUE)  # Changed to TRUE as default
-      rv$ui_settings$do_filter_rows <- TRUE
-      updateNumericInput(session, "top_n_rows", value = rv$top_n_default)
-      rv$ui_settings$top_n_rows <- rv$top_n_default
-    })
-    
-    # Cancel button closes the modal without applying changes
-    observeEvent(input$cancel, {
-      # Update UI settings before closing
-      update_ui_settings()
+    # Cancel import
+    observeEvent(input$import_cancel, {
       removeModal()
     })
     
-    # Apply transformations and close modal
-    observeEvent(input$done, {
-      # Update UI settings before processing
-      update_ui_settings()
+            # Confirm import and load the full dataset
+    observeEvent(input$import_confirm, {
+      req(input$file)
       
-      # Capture final settings after dialog
-      final_settings <- capture_current_settings()
+      file_ext <- rv$file_extension
+      # Make sure using_rownames is a logical value, not NULL
+      using_rownames <- isTRUE(!is.null(input$import_rownames) && input$import_rownames)
       
-      # Check if settings have changed compared to previously applied settings
-      if (settings_have_changed(final_settings, rv$applied_settings)) {
-        # Apply the transformations and store the applied settings
-        apply_preprocessing()
-        rv$applied_settings <- final_settings
-        rv$changes_applied <- TRUE
+      # Import full dataset based on selected options
+      tryCatch({
+        if(file_ext %in% c("xls", "xlsx")) {
+          df <- read_excel(
+            input$file$datapath,
+            sheet = input$import_sheet,
+            col_names = input$import_header
+          )
+          df <- as.data.frame(df)
+        } else {
+          delimiter <- input$import_delimiter
+          
+          if(delimiter == "\t") {
+            df <- read.delim(
+              input$file$datapath,
+              header = input$import_header,
+              sep = delimiter,
+              stringsAsFactors = FALSE,
+              check.names = FALSE
+            )
+          } else {
+            df <- read.csv(
+              input$file$datapath,
+              header = input$import_header,
+              sep = delimiter,
+              stringsAsFactors = FALSE,
+              check.names = FALSE
+            )
+          }
+        }
         
-        # Notify user that changes were applied
-        showNotification("Transformations applied successfully", type = "message")
-      } else {
-        # Notify user that no changes were made
-        showNotification("No changes detected in transformation settings", type = "message")
-      }
-      
-      removeModal()
+        # Process row names if selected - with safe logical checks
+        if(isTRUE(using_rownames) && !is.null(df) && ncol(df) > 1) {
+          row_names <- df[[1]]
+          df <- df[, -1, drop = FALSE]
+          rownames(df) <- row_names
+        }
+        
+        
+        # Store the data
+        rv$data <- df
+        rv$data_loaded <- TRUE
+        
+        removeModal()
+        
+      }, error = function(e) {
+        showNotification(
+          paste("Error importing data:", e$message),
+          type = "error",
+          duration = 10
+        )
+      })
     })
     
-    # Return processed data and state information
+    # Return a list of reactive values to be used in the main app
     return(list(
-      processed_data = reactive({ 
-        if (rv$changes_applied) {
-          rv$processed_data 
-        } else {
-          NULL
-        }
-      }),
-      has_transformed = reactive({ rv$changes_applied })
+      data = reactive({ rv$data }),
+      data_loaded = reactive({ rv$data_loaded })
     ))
   })
 }

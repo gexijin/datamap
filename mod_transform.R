@@ -62,7 +62,7 @@ transform_server <- function(id, data) {
         center_scale = "none",
         do_zscore_cap = TRUE,
         zscore_cutoff = 2,
-        do_filter_rows = TRUE,      # Changed to TRUE as default
+        do_filter_rows = FALSE,
         top_n_rows = NULL
       )
     )
@@ -177,7 +177,7 @@ transform_server <- function(id, data) {
           settings$top_n_rows <- input$top_n_rows
         }
       } else {
-        settings$do_filter_rows <- TRUE  # Changed to TRUE as default
+        settings$do_filter_rows <- FALSE
       }
       
       return(settings)
@@ -424,11 +424,6 @@ transform_server <- function(id, data) {
     
     # Show the preprocessing dialog
     showPreprocessingDialog <- function() {
-      # Set automatic recommended centering and scaling
-      if (is.null(input$center_scale)) {
-        rv$ui_settings$center_scale <- guess_transform(rv$processed_data)
-      }
-      
       # Show modal dialog with controls - using the stored UI settings
       showModal(modalDialog(
         title = "Transform Data",
@@ -477,7 +472,7 @@ transform_server <- function(id, data) {
                    )
                  ),
                  
-                 # Variable row filtering - now ON by default
+                 # Variable row filtering
                  wellPanel(
                    checkboxInput(ns("do_filter_rows"), "Keep top most variable rows", 
                                  value = rv$ui_settings$do_filter_rows),
@@ -490,7 +485,7 @@ transform_server <- function(id, data) {
           ),
           
           column(6,
-                 # Display data statistics
+                 # Display data statistics moved to right side
                  wellPanel(
                    strong("Data Statistics:"),
                    tags$ul(
@@ -503,7 +498,11 @@ transform_server <- function(id, data) {
                  ),
                  
                  # Dynamic histogram visualization
-                 plotOutput(ns("data_histogram"), height = "400px"),
+                 plotOutput(ns("data_histogram"), height = "280px"),
+                 
+                 # Data preview (before/after transformation)
+                 h4("Data Preview (First 5 rows and columns)"),
+                 DTOutput(ns("data_preview")),
                  
                  # Download button for transformed data
                  tags$div(
@@ -561,26 +560,22 @@ transform_server <- function(id, data) {
         theme_minimal()
     })
     
-    # Download handler for transformed data
-    output$download_data <- downloadHandler(
-      filename = function() {
-        paste("transformed_data_", format(Sys.time(), "%Y%m%d_%H%M%S"), ".csv", sep = "")
-      },
-      content = function(file) {
-        if (is.null(rv$processed_data)) {
-          # If no processed data exists, use original data
-          data_to_save <- rv$original_data_matrix
-        } else {
-          data_to_save <- rv$processed_data
-        }
-        
-        # Convert to data frame for easier writing
-        data_df <- as.data.frame(data_to_save)
-        
-        # Write to CSV
-        write.csv(data_df, file, row.names = TRUE)
-      }
-    )
+    # Show data preview in table
+    output$data_preview <- renderDT({
+      req(rv$processed_data)
+      
+      # Get preview of data (first 5 rows and columns)
+      preview_rows <- min(5, nrow(rv$processed_data))
+      preview_cols <- min(5, ncol(rv$processed_data))
+      
+      preview_data <- rv$processed_data[1:preview_rows, 1:preview_cols, drop = FALSE]
+      
+      datatable(
+        preview_data,
+        options = list(dom = 't', pageLength = 5),
+        rownames = TRUE
+      )
+    })
     
     # Update data preview whenever settings change
     observeEvent(input$na_method, { apply_preprocessing() })
@@ -622,8 +617,8 @@ transform_server <- function(id, data) {
       updateNumericInput(session, "zscore_cutoff", value = 2)
       rv$ui_settings$zscore_cutoff <- 2
       
-      updateCheckboxInput(session, "do_filter_rows", value = TRUE)  # Changed to TRUE as default
-      rv$ui_settings$do_filter_rows <- TRUE
+      updateCheckboxInput(session, "do_filter_rows", value = FALSE)
+      rv$ui_settings$do_filter_rows <- FALSE
       updateNumericInput(session, "top_n_rows", value = rv$top_n_default)
       rv$ui_settings$top_n_rows <- rv$top_n_default
     })
@@ -659,6 +654,27 @@ transform_server <- function(id, data) {
       
       removeModal()
     })
+    
+    # Download handler for transformed data
+    output$download_data <- downloadHandler(
+      filename = function() {
+        paste("transformed_data_", format(Sys.time(), "%Y%m%d_%H%M%S"), ".csv", sep = "")
+      },
+      content = function(file) {
+        if (is.null(rv$processed_data)) {
+          # If no processed data exists, use original data
+          data_to_save <- rv$original_data_matrix
+        } else {
+          data_to_save <- rv$processed_data
+        }
+        
+        # Convert to data frame for easier writing
+        data_df <- as.data.frame(data_to_save)
+        
+        # Write to CSV
+        write.csv(data_df, file, row.names = TRUE)
+      }
+    )
     
     # Return processed data and state information
     return(list(
