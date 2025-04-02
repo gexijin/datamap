@@ -10,7 +10,7 @@ library(ggplot2) # Required for the preprocessing module (histogram)
 # Load the custom modules
 source("mod_file_upload.R")
 source("mod_preprocess.R")
-
+source("utilities.R")
 ui <- fluidPage(
   titlePanel("Interactive Heatmap Generator"),
   

@@ -6,6 +6,14 @@ library(ggplot2)
 library(DT)
 library(e1071)  # For skewness calculation
 
+data_transforms <- c(
+  "None" = "none",
+  "Center by row" = "center_row",
+  "Scale by row (Z-score)" = "scale_row",
+  "Center by column" = "center_col",
+  "Scale by column (Z-score)" = "scale_col"
+)
+
 #' UI function for preprocessing module
 #'
 #' @param id The module namespace id
@@ -22,6 +30,7 @@ preprocessUI <- function(id) {
                    class = "btn-info")
   )
 }
+
 
 #' UI function for preprocessing module button
 #'
@@ -302,6 +311,7 @@ preprocessServer <- function(id, data) {
       }
     })
     
+
     # Show the preprocessing dialog
     showPreprocessingDialog <- function() {
       # Show modal dialog with controls
@@ -337,12 +347,8 @@ preprocessServer <- function(id, data) {
                  # Centering and scaling - changed to selectInput
                  wellPanel(
                    selectInput(ns("center_scale"), "Centering and Scaling:",
-                               choices = c("None" = "none",
-                                           "Center by row" = "center_row",
-                                           "Scale by row (Z-score)" = "scale_row",
-                                           "Center by column" = "center_col",
-                                           "Scale by column (Z-score)" = "scale_col"),
-                               selected = "center_row")
+                               choices = data_transforms,
+                               selected = data_transforms[guess_transform(rv$processed_data)])
                  ),
                  
                  # Z-score cutoff for outlier capping - now on by default
