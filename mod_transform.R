@@ -325,44 +325,24 @@ transform_server <- function(id, data) {
         }
       }
       
-      # 4. Apply Z-score cutoff for outlier capping
+      # 4. Apply Z-score cutoff for outlier capping (applied to the entire matrix)
       if (!is.null(input$do_zscore_cap) && input$do_zscore_cap) {
         z_cutoff <- as.numeric(input$zscore_cutoff)
         
         # To fix the hclust error, ensure we're not passing NAs or Infs
-        processed <- pmin(pmax(processed, -1e300), 1e300)  # Cap extreme values
+        processed <- pmin(pmax(processed, -1e300), 1e300)
         
-        if (!is.null(input$center_scale) && input$center_scale %in% c("center_row", "scale_row")) {
-          # Cap by row if row-wise centering/scaling was applied
-          for (i in 1:nrow(processed)) {
-            row_data <- processed[i, ]
-            row_data <- row_data[is.finite(row_data)]  # Remove Inf/NaN
-            if (length(row_data) > 0) {
-              row_mean <- mean(row_data, na.rm = TRUE)
-              row_sd <- sd(row_data, na.rm = TRUE)
-              if (!is.na(row_sd) && row_sd > 0) {
-                upper_bound <- row_mean + z_cutoff * row_sd
-                lower_bound <- row_mean - z_cutoff * row_sd
-                processed[i, processed[i,] > upper_bound] <- upper_bound
-                processed[i, processed[i,] < lower_bound] <- lower_bound
-              }
-            }
-          }
-        } else {
-          # Cap by column if column-wise centering/scaling was applied or none
-          for (j in 1:ncol(processed)) {
-            col_data <- processed[, j]
-            col_data <- col_data[is.finite(col_data)]  # Remove Inf/NaN
-            if (length(col_data) > 0) {
-              col_mean <- mean(col_data, na.rm = TRUE)
-              col_sd <- sd(col_data, na.rm = TRUE)
-              if (!is.na(col_sd) && col_sd > 0) {
-                upper_bound <- col_mean + z_cutoff * col_sd
-                lower_bound <- col_mean - z_cutoff * col_sd
-                processed[processed[,j] > upper_bound, j] <- upper_bound
-                processed[processed[,j] < lower_bound, j] <- lower_bound
-              }
-            }
+        # Calculate overall mean and standard deviation for the entire matrix
+        flat_data <- as.numeric(processed)
+        flat_data <- flat_data[is.finite(flat_data)]
+        if (length(flat_data) > 0) {
+          overall_mean <- mean(flat_data, na.rm = TRUE)
+          overall_sd <- sd(flat_data, na.rm = TRUE)
+          if (!is.na(overall_sd) && overall_sd > 0) {
+            upper_bound <- overall_mean + z_cutoff * overall_sd
+            lower_bound <- overall_mean - z_cutoff * overall_sd
+            processed[processed > upper_bound] <- upper_bound
+            processed[processed < lower_bound] <- lower_bound
           }
         }
       }
