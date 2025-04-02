@@ -1,7 +1,5 @@
 # mod_transform.R
 library(shiny)
-library(ggplot2)
-library(DT)
 library(e1071)  # For skewness calculation
 
 data_transforms <- c(
@@ -62,6 +60,7 @@ transform_server <- function(id, data) {
       applied_settings = NULL,      # Track applied transformation settings
       dialog_shown = FALSE,         # Track if dialog has been shown
       changes_applied = FALSE,      # Track if changes have been applied
+      modal_closed = TRUE,  
       ui_settings = list(           # Store UI input values to preserve between sessions
         na_method = "leave",
         do_log_transform = FALSE,
@@ -353,15 +352,10 @@ transform_server <- function(id, data) {
       }
     })
     
-    # Add a reactive value to track whether the modal is closed (initially TRUE)
-    rv$modal_closed <- TRUE  
-
-    # Updated: Show the preprocessing dialog. Use guess_transform only the first time.
+    # Show the preprocessing dialog. Use guess_transform only the first time.
     showPreprocessingDialog <- function() {
-      # Mark that the modal is now open
-      rv$modal_closed <- FALSE
-      
-      # Only update the recommended centering/scaling option if the dialog has not been shown before
+     rv$modal_closed <- FALSE  # Modal is now open
+
       if (!rv$dialog_shown) {
         rv$ui_settings$center_scale <- map_transform_code(guess_transform(rv$processed_data))
       }
@@ -370,95 +364,155 @@ transform_server <- function(id, data) {
         title = "Transform Data",
         fluidRow(
           column(6,
-                conditionalPanel(
-                  condition = "output.has_missing", ns = ns,
-                  wellPanel(
-                    selectInput(ns("na_method"), "Missing value handling:",
-                                choices = c("Leave as missing" = "leave",
-                                            "Replace with zero" = "zero",
-                                            "Replace with mean" = "mean",
-                                            "Replace with median" = "median"),
-                                selected = rv$ui_settings$na_method)
-                  )
-                ),
-                
-                wellPanel(
-                  checkboxInput(ns("do_log_transform"), "Apply log10 transformation", 
-                                value = rv$ui_settings$do_log_transform),
-                  conditionalPanel(
-                    condition = "input.do_log_transform && output.needs_constant", ns = ns,
-                    numericInput(ns("log_constant"), "Constant to add (c in log10(x + c)):",
+                 conditionalPanel(
+                   condition = "output.has_missing", ns = ns,
+                   wellPanel(
+                     selectInput(ns("na_method"), "Missing value handling:",
+                                 choices = c("Leave as missing" = "leave",
+                                             "Replace with zero" = "zero",
+                                             "Replace with mean" = "mean",
+                                             "Replace with median" = "median"),
+                                 selected = rv$ui_settings$na_method)
+                   )
+                 ),
+                 
+                 wellPanel(
+                   checkboxInput(ns("do_log_transform"), "Apply log10 transformation", 
+                                 value = rv$ui_settings$do_log_transform),
+                   conditionalPanel(
+                     condition = "input.do_log_transform && output.needs_constant", ns = ns,
+                     numericInput(ns("log_constant"), "Constant to add (c in log10(x + c)):",
                                   value = rv$ui_settings$log_constant, min = rv$min_constant)
-                  )
-                ),
-                
-                wellPanel(
-                  selectInput(ns("center_scale"), "Centering and Scaling:",
-                              choices = data_transforms,
-                              selected = rv$ui_settings$center_scale)
-                ),
-                
-                wellPanel(
-                  checkboxInput(ns("do_zscore_cap"), "Cap outliers based on Z-score", 
-                                value = rv$ui_settings$do_zscore_cap),
-                  conditionalPanel(
-                    condition = "input.do_zscore_cap", ns = ns,
-                    numericInput(ns("zscore_cutoff"), "Z-score cutoff value:",
+                   )
+                 ),
+                 
+                 # Use the recommended setting (or last user setting) in the select input below
+                 wellPanel(
+                   selectInput(ns("center_scale"), "Centering and Scaling:",
+                               choices = data_transforms,
+                               selected = rv$ui_settings$center_scale)
+                 ),
+                 
+                 wellPanel(
+                   checkboxInput(ns("do_zscore_cap"), "Cap outliers based on Z-score", 
+                                 value = rv$ui_settings$do_zscore_cap),
+                   conditionalPanel(
+                     condition = "input.do_zscore_cap", ns = ns,
+                     numericInput(ns("zscore_cutoff"), "Z-score cutoff value:",
                                   value = rv$ui_settings$zscore_cutoff, min = 0.1, step = 0.1)
-                  )
-                ),
-                
-                wellPanel(
-                  checkboxInput(ns("do_filter_rows"), "Keep top most variable rows", 
-                                value = rv$ui_settings$do_filter_rows),
-                  conditionalPanel(
-                    condition = "input.do_filter_rows", ns = ns,
-                    numericInput(ns("top_n_rows"), "Number of rows to keep:",
+                   )
+                 ),
+                 
+                 wellPanel(
+                   checkboxInput(ns("do_filter_rows"), "Keep top most variable rows", 
+                                 value = rv$ui_settings$do_filter_rows),
+                   conditionalPanel(
+                     condition = "input.do_filter_rows", ns = ns,
+                     numericInput(ns("top_n_rows"), "Number of rows to keep:",
                                   value = rv$ui_settings$top_n_rows, min = 1, max = 10000000, step = 100)
-                  )
-                )
+                   )
+                 )
+          ),
+          
+          column(6,
+                 wellPanel(
+                   strong("Data Statistics:"),
+                   tags$ul(
+                     tags$li(paste("Matrix Size:", nrow(rv$original_data_matrix), "rows ×", ncol(rv$original_data_matrix), "columns")),
+                     tags$li(paste("Missing Values:", ifelse(rv$has_missing, "Yes", "No"))),
+                     tags$li(paste("Negative Values:", ifelse(rv$has_negative, "Yes", "No"))),
+                     tags$li(paste("Skewness:", round(rv$skewness, 2))),
+                     tags$li(paste("Data Range:", round(rv$data_range[1], 2), "to", round(rv$data_range[2], 2)))
+                   )
+                 ),
+                 
+                 plotOutput(ns("data_histogram"), height = "400px")
+          )
         ),
-        
-        column(6,
-              wellPanel(
-                strong("Data Statistics:"),
-                tags$ul(
-                  tags$li(paste("Matrix Size:", nrow(rv$original_data_matrix), "rows ×", ncol(rv$original_data_matrix), "columns")),
-                  tags$li(paste("Missing Values:", ifelse(rv$has_missing, "Yes", "No"))),
-                  tags$li(paste("Negative Values:", ifelse(rv$has_negative, "Yes", "No"))),
-                  tags$li(paste("Skewness:", round(rv$skewness, 2))),
-                  tags$li(paste("Data Range:", round(rv$data_range[1], 2), "to", round(rv$data_range[2], 2)))
-                )
-              ),
-              
-              plotOutput(ns("data_histogram"), height = "400px"),
-              
-              tags$div(
-                style = "margin-top: 15px;",
-                downloadButton(ns("download_data"), "Download Transformed Data", class = "btn-info")
-              )
-        )
-      ),
-      footer = tagList(
-        actionButton(ns("cancel"), "Cancel", class = "btn-default"),
-        actionButton(ns("reset_all"), "Reset to Original", class = "btn-warning"),
-        actionButton(ns("done"), "Apply Changes", class = "btn-success")
-      ),
-      size = "l",
-      easyClose = TRUE
+        footer = tagList(
+          actionButton(ns("cancel"), "Cancel", class = "btn-default"),
+          actionButton(ns("reset_all"), "Reset to Original", class = "btn-warning"),
+          actionButton(ns("done"), "Apply Changes", class = "btn-success")
+        ),
+        size = "l",
+        easyClose = TRUE
       ))
       
       rv$current_settings <- capture_current_settings()
     }
+    
+    output$has_missing <- reactive({
+      return(rv$has_missing)
+    })
+    outputOptions(output, "has_missing", suspendWhenHidden = FALSE)
+    
+    output$needs_constant <- reactive({
+      return(rv$has_zeros || rv$has_negative)
+    })
+    outputOptions(output, "needs_constant", suspendWhenHidden = FALSE)
+    
+    output$data_histogram <- renderPlot({
+      req(rv$processed_data)
+      flat_data <- as.numeric(rv$processed_data)
+      flat_data <- flat_data[!is.na(flat_data) & is.finite(flat_data)]
+      
+      if (length(flat_data) == 0) {
+        plot.new()
+        text(0.5, 0.5, "No valid data to display", cex = 1.2)
+        return()
+      }
+      
+      hist(flat_data, breaks = 30, col = "steelblue", border = "white",
+          main = "Current Data Distribution", xlab = "Value")
 
-    # When user clicks "Cancel"
+    })
+    
+    observeEvent(input$na_method, { apply_preprocessing() })
+    observeEvent(input$do_log_transform, { apply_preprocessing() })
+    observeEvent(input$log_constant, { apply_preprocessing() })
+    observeEvent(input$center_scale, { apply_preprocessing() })
+    observeEvent(input$do_zscore_cap, { apply_preprocessing() })
+    observeEvent(input$zscore_cutoff, { apply_preprocessing() })
+    observeEvent(input$do_filter_rows, { apply_preprocessing() })
+    observeEvent(input$top_n_rows, { apply_preprocessing() })
+    
+    observe({
+      if (!is.null(input$na_method)) {
+        update_ui_settings()
+      }
+    })
+    
+    observeEvent(input$reset_all, {
+      rv$processed_data <- rv$original_data_matrix
+      
+      if(rv$has_missing) {
+        updateSelectInput(session, "na_method", selected = "leave")
+        rv$ui_settings$na_method <- "leave"
+      }
+      
+      updateCheckboxInput(session, "do_log_transform", value = FALSE)
+      rv$ui_settings$do_log_transform <- FALSE
+      
+      updateSelectInput(session, "center_scale", selected = "none")
+      rv$ui_settings$center_scale <- "none"
+      
+      updateCheckboxInput(session, "do_zscore_cap", value = FALSE)
+      rv$ui_settings$do_zscore_cap <- FALSE
+      updateNumericInput(session, "zscore_cutoff", value = 2)
+      rv$ui_settings$zscore_cutoff <- 2
+      
+      updateCheckboxInput(session, "do_filter_rows", value = TRUE)
+      rv$ui_settings$do_filter_rows <- TRUE
+      updateNumericInput(session, "top_n_rows", value = rv$top_n_default)
+      rv$ui_settings$top_n_rows <- rv$top_n_default
+    })
+    
     observeEvent(input$cancel, {
       update_ui_settings()
       removeModal()
-      rv$modal_closed <- TRUE   # Mark the modal as closed
+      rv$modal_closed <- TRUE 
     })
-
-    # When user clicks "Apply Changes" (done)
+    
     observeEvent(input$done, {
       update_ui_settings()
       final_settings <- capture_current_settings()
@@ -473,10 +527,9 @@ transform_server <- function(id, data) {
       }
       
       removeModal()
-      rv$modal_closed <- TRUE   # Mark the modal as closed
+      rv$modal_closed <- TRUE
     })
-
-    # Return the modal_closed reactive along with other values
+    
     return(list(
       processed_data = reactive({ 
         if (rv$changes_applied) {
@@ -486,8 +539,7 @@ transform_server <- function(id, data) {
         }
       }),
       has_transformed = reactive({ rv$changes_applied }),
-      modal_closed = reactive({ rv$modal_closed })
+      modal_closed = reactive({ rv$modal_closed }) 
     ))
-
   })
 }
