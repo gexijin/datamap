@@ -83,48 +83,7 @@ ui <- fluidPage(
         tabPanel("Data Preview", 
                  h4("Raw Data Preview"),
                  DTOutput("data_preview")
-        ),
-        tabPanel("Help",
-                 h3("How to Use This App"),
-                 p("This Shiny app allows you to upload a data matrix, preprocess it, and generate a customized heatmap using the pheatmap package."),
-                 tags$ol(
-                   tags$li(strong("Upload Data:"), " Use the file upload button to select a CSV, TSV, or Excel file containing your data matrix."),
-                   tags$li(strong("Configure Import:"), " A pop-up window will appear with auto-detected settings for your file. You can adjust these settings if needed."),
-                   tags$li(strong("Preprocess Data:"), " After uploading, a preprocessing dialog will automatically appear (or use the Preprocess Data button to open it later):"),
-                   tags$ul(
-                     tags$li(em("Missing Values:"), " Options to handle NA values"),
-                     tags$li(em("Log Transformation:"), " Apply log10 transformation with customizable constant"),
-                     tags$li(em("Centering/Scaling:"), " Apply various normalization methods by row or column"),
-                     tags$li(em("Outlier Capping:"), " Cap extreme values based on z-score")
-                   ),
-                   tags$li(strong("Customize Heatmap:"), " Adjust the various settings in the sidebar to customize your heatmap:"),
-                   tags$ul(
-                     tags$li(em("Color Palette:"), " Choose from various color schemes"),
-                     tags$li(em("Clustering:"), " Enable/disable row and column clustering"),
-                     tags$li(em("Scaling:"), " Scale data by row, column, or leave unscaled"),
-                     tags$li(em("Font Size:"), " Adjust text size in cells"),
-                     tags$li(em("Heatmap Size:"), " Control the dimensions of the heatmap")
-                   ),
-                   tags$li(strong("Download:"), " Save your heatmap as a PDF or PNG file")
-                 ),
-                 h4("Data Format Requirements"),
-                 p("Your input file can be:"),
-                 tags$ul(
-                   tags$li("Excel file (.xls, .xlsx)"),
-                   tags$li("CSV file (.csv)"),
-                   tags$li("TSV file (.tsv) or other delimited text files")
-                 ),
-                 h4("Preprocessing Features"),
-                 p("The Preprocess Data button provides powerful options to transform your data:"),
-                 tags$ul(
-                   tags$li(strong("Log Transformation:"), " Convert data to log10 scale, automatically suggested for skewed data"),
-                   tags$li(strong("Missing Value Handling:"), " Multiple options to handle NA values"),
-                   tags$li(strong("Centering and Scaling:"), " Normalize data by row or column"),
-                   tags$li(strong("Outlier Capping:"), " Control extreme values with z-score thresholds"),
-                   tags$li(strong("Visual Feedback:"), " Dynamic histogram showing data distribution")
-                 )
         )
-      )
     )
   )
 )
