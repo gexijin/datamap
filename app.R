@@ -122,19 +122,25 @@ server <- function(input, output, session) {
     file_data$data()
   }))
   
-  # Create a reactive that provides the data for processing
-  # It will first use the file upload data, then switch to transformed data if available
-  current_data <- reactive({
-    # Get uploaded data
-    uploaded_data <- file_data$data()
-    
-    # If transformation has been applied, use that data instead
-    if (!is.null(transform_data$processed_data()) && transform_data$has_transformed()) {
-      return(transform_data$processed_data())
-    } else {
-      return(uploaded_data)
-    }
-  })
+# Create a reactive that provides the data for processing.
+# It will first use the file upload data, then switch to transformed data if available.
+current_data <- reactive({
+  # Ensure that the heatmap is generated only when the transform modal is closed
+  if (!transform_data$modal_closed()) {
+    return(NULL)  # Do not generate heatmap if the transformation dialog is still open
+  }
+  
+  # Get uploaded data
+  uploaded_data <- file_data$data()
+  
+  # If transformation has been applied, use that data instead
+  if (!is.null(transform_data$processed_data()) && transform_data$has_transformed()) {
+    return(transform_data$processed_data())
+  } else {
+    return(uploaded_data)
+  }
+})
+
   
   # Show transform status
   output$transform_status <- renderUI({
