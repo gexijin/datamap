@@ -14,23 +14,6 @@ data_transforms <- c(
   "Scale by column (Z-score)" = "scale_col"
 )
 
-#' UI function for preprocessing module
-#'
-#' @param id The module namespace id
-#' @return A UI element containing the preprocessing button
-#'
-transform_ui_backup <- function(id) {
-  ns <- NS(id)
-  
-  tagList(
-    actionButton(ns("show_preprocess"), "Preprocess Data", 
-                 icon = icon("filter"),
-                 class = "btn-primary"),
-    downloadButton(ns("download_data"), "Download Data", 
-                   class = "btn-info")
-  )
-}
-
 
 #' UI function for preprocessing module button
 #'
@@ -40,7 +23,7 @@ transform_ui_backup <- function(id) {
 transform_ui <- function(id) {
   ns <- NS(id)
   
-  actionButton(ns("show_preprocess"), "Preprocess Data", 
+  actionButton(ns("show_preprocess"), "Transform Data", 
                icon = icon("filter"),
                class = "btn-primary")
 }

@@ -25,7 +25,6 @@ ui <- fluidPage(
       conditionalPanel(
         condition = "output.data_loaded",
         hr(),
-        h4("Data Transformation"),
         transform_ui("transform"),
         tags$div(style = "margin-top: 10px;", uiOutput("transform_status"))
       ),
@@ -34,22 +33,10 @@ ui <- fluidPage(
       conditionalPanel(
         condition = "output.data_loaded",
         hr(),
-        h4("Heatmap Customization"),
-        
-        # Color scheme selection - Added GreenBlackRed as default
-        selectInput("color", "Color Palette",
-                   choices = c("GreenBlackRed", "RdBu", "RdYlBu", "YlOrRd", 
-                               "YlGnBu", "Blues", "Greens", "Purples", "Reds", "OrRd"),
-                   selected = "GreenBlackRed"),
-        
-        checkboxInput("color_reverse", "Reverse Colors", FALSE),
         
         # Clustering options
         checkboxInput("cluster_rows", "Cluster Rows", TRUE),
         checkboxInput("cluster_cols", "Cluster Columns", TRUE),
-        
-        hr(),
-        h4("Clustering Settings"),
         
         # Linkage method
         selectInput("clustering_method", "Linkage Method",
@@ -60,15 +47,6 @@ ui <- fluidPage(
         selectInput("distance_method", "Distance Method",
                    choices = c("euclidean", "manhattan", "maximum", "canberra", "binary", "minkowski", "pearson", "spearman", "kendall"),
                    selected = "pearson"),
-        
-        # Font size
-        sliderInput("fontsize", "Font Size", min = 4, max = 25, value = 12),
-        
-        # Size adjustments
-        hr(),
-        h4("Heatmap Size"),
-        sliderInput("width", "Width (px)", min = 400, max = 1200, value = 600),
-        sliderInput("height", "Height (px)", min = 400, max = 1200, value = 600),
         
         # Download buttons
         hr(),
@@ -81,6 +59,27 @@ ui <- fluidPage(
       width = 9,
       tabsetPanel(
         tabPanel("Heatmap", 
+                # Added control row above the heatmap
+                conditionalPanel(
+                  condition = "output.data_loaded",
+                  fluidRow(
+                    column(3,
+                      selectInput("color", "Color Palette",
+                               choices = c("GreenBlackRed", "RdBu", "RdYlBu", "YlOrRd", 
+                                          "YlGnBu", "Blues", "Greens", "Purples", "Reds", "OrRd"),
+                               selected = "GreenBlackRed")
+                    ),
+                    column(3,
+                      sliderInput("fontsize", "Font Size", min = 4, max = 25, value = 12)
+                    ),
+                    column(3,
+                      sliderInput("width", "Width (px)", min = 400, max = 2000, value = 600, step = 100)
+                    ),
+                    column(3,
+                      sliderInput("height", "Height (px)", min = 400, max = 2000, value = 600, step = 100)
+                    )
+                  )
+                ),
                 plotOutput("heatmap", width = "100%", height = "600px")
         ),
         tabPanel("Data Preview", 
@@ -172,17 +171,13 @@ server <- function(input, output, session) {
     # Convert the data to a numeric matrix for the heatmap
     heatmap_data <- prepare_heatmap_data(current_data())
     
-    # Get the color palette and reverse if needed
+    # Get the color palette
     if (input$color == "GreenBlackRed") {
       # Custom green-black-red color palette
       colors <- colorRampPalette(c("green", "black", "red"))(100)
     } else {
       # RColorBrewer palettes
       colors <- colorRampPalette(rev(brewer.pal(11, input$color)))(100)
-    }
-    
-    if (input$color_reverse) {
-      colors <- rev(colors)
     }
     
     # Prepare clustering distance methods
