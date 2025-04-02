@@ -84,6 +84,11 @@ transform_server <- function(id, data) {
       }))
       
       data_matrix <- as.matrix(numeric_data)
+      # Remove rows that are completely missing
+      row_all_na <- apply(data_matrix, 1, function(x) all(is.na(x)))
+      if (any(row_all_na)) {
+        data_matrix <- data_matrix[!row_all_na, , drop = FALSE]
+      }
       rv$original_data_matrix <- data_matrix
       
       # Remove columns that are entirely NA (i.e. non-numeric) and notify user
