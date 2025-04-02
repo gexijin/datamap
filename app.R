@@ -25,8 +25,10 @@ ui <- fluidPage(
       conditionalPanel(
         condition = "output.data_loaded",
         hr(),
-        transform_ui("transform"),
-        tags$div(style = "margin-top: 10px;", uiOutput("transform_status"))
+        fluidRow(
+          column(8, transform_ui("transform")),
+          column(4, uiOutput("transform_status"))
+        )
       ),
       
       # Heatmap customization section - only shown after data is loaded
@@ -34,24 +36,59 @@ ui <- fluidPage(
         condition = "output.data_loaded",
         hr(),
         
-        # Clustering options
-        checkboxInput("cluster_rows", "Cluster Rows", TRUE),
-        checkboxInput("cluster_cols", "Cluster Columns", TRUE),
+        # Clustering options - compact layout
+        fluidRow(
+          column(6, checkboxInput("cluster_rows", "Cluster Rows", TRUE)),
+          column(6, checkboxInput("cluster_cols", "Cluster Columns", TRUE))
+        ),
         
-        # Linkage method
-        selectInput("clustering_method", "Linkage Method",
-                   choices = c("complete", "average", "single", "ward.D", "ward.D2", "mcquitty", "median", "centroid"),
-                   selected = "average"),
+        # Linkage method - label to the left
+        fluidRow(
+          column(3, p("Linkage:", style="padding-top: 7px; text-align: right;")),
+          column(9, selectInput("clustering_method", NULL,
+                  choices = c("complete", "average", "single", "ward.D", "ward.D2", "mcquitty", "median", "centroid"),
+                  selected = "average"))
+        ),
                    
-        # Distance method
-        selectInput("distance_method", "Distance Method",
+        # Distance method - label to the left
+        fluidRow(
+          column(3, p("Distance:", style="padding-top: 7px; text-align: right;")),
+          column(9, selectInput("distance_method", NULL,
                    choices = c("euclidean", "manhattan", "maximum", "canberra", "binary", "minkowski", "pearson", "spearman", "kendall"),
-                   selected = "pearson"),
+                   selected = "pearson"))
+        ),
+        
+        # Color palette - compact
+        hr(),
+        fluidRow(
+          column(3, p("Colors:", style="padding-top: 7px; text-align: right;")),
+          column(9, selectInput("color", NULL,
+                   choices = c("GreenBlackRed", "RdBu", "RdYlBu", "YlOrRd", 
+                               "YlGnBu", "Blues", "Greens", "Purples", "Reds", "OrRd"),
+                   selected = "GreenBlackRed"))
+        ),
+        
+        # Font size - more compact
+        fluidRow(
+          column(3, p("Font:", style="padding-top: 7px; text-align: right;")),
+          column(9, sliderInput("fontsize", NULL, min = 5, max = 25, value = 12))
+        ),
+        
+        # Width & Height in more compact form
+        fluidRow(
+          column(3, p("Width:", style="padding-top: 7px; text-align: right;")),
+          column(9, sliderInput("width", NULL, min = 500, max = 2000, value = 600, step = 100))
+        ),
+        
+        fluidRow(
+          column(3, p("Height:", style="padding-top: 7px; text-align: right;")),
+          column(9, sliderInput("height", NULL, min = 500, max = 2000, value = 600, step = 100))
+        ),
         
         # Download buttons
         hr(),
-        downloadButton("download_pdf", "Download PDF"),
-        downloadButton("download_png", "Download PNG")
+        downloadButton("download_pdf", "PDF"),
+        downloadButton("download_png", "PNG")
       )
     ),
     
@@ -59,27 +96,7 @@ ui <- fluidPage(
       width = 9,
       tabsetPanel(
         tabPanel("Heatmap", 
-                # Added control row above the heatmap
-                conditionalPanel(
-                  condition = "output.data_loaded",
-                  fluidRow(
-                    column(3,
-                      selectInput("color", "Color Palette",
-                               choices = c("GreenBlackRed", "RdBu", "RdYlBu", "YlOrRd", 
-                                          "YlGnBu", "Blues", "Greens", "Purples", "Reds", "OrRd"),
-                               selected = "GreenBlackRed")
-                    ),
-                    column(3,
-                      sliderInput("fontsize", "Font Size", min = 4, max = 25, value = 12)
-                    ),
-                    column(3,
-                      sliderInput("width", "Width (px)", min = 400, max = 2000, value = 600, step = 100)
-                    ),
-                    column(3,
-                      sliderInput("height", "Height (px)", min = 400, max = 2000, value = 600, step = 100)
-                    )
-                  )
-                ),
+
                 plotOutput("heatmap", width = "100%", height = "600px")
         ),
         tabPanel("Data Preview", 
@@ -120,24 +137,37 @@ server <- function(input, output, session) {
     file_data$data()
   }))
   
+  # Track if transformation has been explicitly applied
+  transform_data$has_transformed <- reactiveVal(FALSE)
+  
+  # Override the processed_data function to track when transformation happens
+  original_processed_data <- transform_data$processed_data
+  transform_data$processed_data <- reactive({
+    result <- original_processed_data()
+    if (!is.null(result)) {
+      transform_data$has_transformed(TRUE)
+    }
+    return(result)
+  })
+  
   # Get the transformed data
   transformed_data <- reactive({
     return(transform_data$processed_data())
   })
   
-  # Show transform status
+  # Show transform status - only show Done after explicitly transforming
   output$transform_status <- renderUI({
-    if (!is.null(transformed_data()) && file_data$data_loaded()) {
+    if (!is.null(transformed_data()) && file_data$data_loaded() && transform_data$has_transformed()) {
       tags$div(
         icon("check-circle"), 
-        "Data has been transformed", 
-        style = "color: green; font-style: italic;"
+        "Done", 
+        style = "color: green; margin-top: 7px;"
       )
     } else {
       tags$div(
         icon("info-circle"), 
-        "Data uses original values", 
-        style = "color: grey; font-style: italic;"
+        "Original", 
+        style = "color: grey; margin-top: 7px;"
       )
     }
   })
