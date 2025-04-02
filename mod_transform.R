@@ -97,6 +97,7 @@ transform_server <- function(id, data) {
           type = "warning"
         )
         data_matrix <- data_matrix[, !col_all_na, drop = FALSE]
+        rv$original_data_matrix <- data_matrix
       }
       
       rv$has_missing <- any(is.na(data_matrix))

@@ -185,7 +185,7 @@ current_data <- reactive({
     req(current_data())
     # Convert the data to a numeric matrix for the heatmap
     heatmap_data <- prepare_heatmap_data(current_data())
-    
+    browser()
     # Get the color palette
     if (input$color == "GreenBlackRed") {
       # Custom green-black-red color palette
