@@ -11,6 +11,7 @@ library(ggplot2) # Required for the preprocessing module (histogram)
 source("mod_file_upload.R")
 source("mod_preprocess.R")
 source("utilities.R")
+
 ui <- fluidPage(
   titlePanel("Interactive Heatmap Generator"),
   
@@ -38,8 +39,9 @@ ui <- fluidPage(
         
         # Color scheme selection - Added GreenBlackRed as default
         selectInput("color", "Color Palette",
-                    choices = c("GreenBlackRed", "RdBu", "RdYlBu", "YlOrRd", "YlGnBu", "Blues", "Greens", "Purples", "Reds", "OrRd"),
-                    selected = "GreenBlackRed"),
+                   choices = c("GreenBlackRed", "RdBu", "RdYlBu", "YlOrRd", 
+                               "YlGnBu", "Blues", "Greens", "Purples", "Reds", "OrRd"),
+                   selected = "GreenBlackRed"),
         
         checkboxInput("color_reverse", "Reverse Colors", FALSE),
         
@@ -67,12 +69,11 @@ ui <- fluidPage(
       width = 9,
       tabsetPanel(
         tabPanel("Heatmap", 
-                 plotOutput("heatmap", width = "100%", height = "600px")
-                 # Removed the Heatmap Settings Summary section
+                plotOutput("heatmap", width = "100%", height = "600px")
         ),
         tabPanel("Data Preview", 
-                 h4("Raw Data Preview"),
-                 DTOutput("data_preview")
+                h4("Raw Data Preview"),
+                DTOutput("data_preview")
         )
       )
     )
@@ -139,7 +140,7 @@ server <- function(input, output, session) {
   # Helper function to convert data to a numeric matrix before creating the heatmap
   prepare_heatmap_data <- function(data) {
     # Check if data is already a matrix
-    if(!is.matrix(data)) {
+    if (!is.matrix(data)) {
       # Convert all columns to numeric if possible
       numeric_data <- as.data.frame(lapply(data, function(x) {
         as.numeric(as.character(x))
@@ -160,7 +161,7 @@ server <- function(input, output, session) {
     heatmap_data <- prepare_heatmap_data(current_data())
     
     # Get the color palette and reverse if needed
-    if(input$color == "GreenBlackRed") {
+    if (input$color == "GreenBlackRed") {
       # Custom green-black-red color palette
       colors <- colorRampPalette(c("green", "black", "red"))(100)
     } else {
@@ -168,7 +169,7 @@ server <- function(input, output, session) {
       colors <- colorRampPalette(rev(brewer.pal(11, input$color)))(100)
     }
     
-    if(input$color_reverse) {
+    if (input$color_reverse) {
       colors <- rev(colors)
     }
     
@@ -182,8 +183,6 @@ server <- function(input, output, session) {
     )
   }, width = function() input$width, height = function() input$height)
   
-  # Removed the settings_summary output code
-  
   # Download handlers using current data
   output$downloadPDF <- downloadHandler(
     filename = function() {
@@ -196,7 +195,7 @@ server <- function(input, output, session) {
       heatmap_data <- prepare_heatmap_data(current_data())
       
       # Get the color palette and reverse if needed
-      if(input$color == "GreenBlackRed") {
+      if (input$color == "GreenBlackRed") {
         # Custom green-black-red color palette
         colors <- colorRampPalette(c("green", "black", "red"))(100)
       } else {
@@ -204,7 +203,7 @@ server <- function(input, output, session) {
         colors <- colorRampPalette(rev(brewer.pal(11, input$color)))(100)
       }
       
-      if(input$color_reverse) {
+      if (input$color_reverse) {
         colors <- rev(colors)
       }
       
@@ -232,7 +231,7 @@ server <- function(input, output, session) {
       heatmap_data <- prepare_heatmap_data(current_data())
       
       # Get the color palette and reverse if needed
-      if(input$color == "GreenBlackRed") {
+      if (input$color == "GreenBlackRed") {
         # Custom green-black-red color palette
         colors <- colorRampPalette(c("green", "black", "red"))(100)
       } else {
@@ -240,7 +239,7 @@ server <- function(input, output, session) {
         colors <- colorRampPalette(rev(brewer.pal(11, input$color)))(100)
       }
       
-      if(input$color_reverse) {
+      if (input$color_reverse) {
         colors <- rev(colors)
       }
       
@@ -250,9 +249,7 @@ server <- function(input, output, session) {
         color = colors,
         cluster_rows = input$cluster_rows,
         cluster_cols = input$cluster_cols,
-        scale = input$scale,
-        fontsize = input$fontsize,
-        main = "Customized Heatmap"
+        fontsize = input$fontsize
       )
       
       dev.off()
