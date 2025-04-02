@@ -4,7 +4,6 @@
 library(shiny)
 library(readxl)
 library(tools)
-library(DT)
 
 #' UI function for file upload module
 #'
@@ -15,7 +14,7 @@ file_upload_ui <- function(id) {
   ns <- NS(id)
   
   tagList(
-    fileInput(ns("file"), "Upload Data Matrix",
+    fileInput(ns("file"), "Data Import",
               accept = c(
                 "text/csv",
                 "text/comma-separated-values,text/plain",
@@ -147,28 +146,35 @@ file_upload_server <- function(id) {
       
       # Display a modal dialog with configurable import settings
       showModal(modalDialog(
-        title = "Configure Data Import",
+        title = "Data Import",
         
         # File type-specific controls
         if(file_ext %in% c("xls", "xlsx")) {
           tagList(
             selectInput(ns("import_sheet"), "Sheet:", choices = sheets, selected = sheet),
-            checkboxInput(ns("import_header"), "First Row as Header", value = has_header),
-            checkboxInput(ns("import_rownames"), "First Column as Row Names", value = has_rownames)
+            fluidRow(
+              checkboxInput(ns("import_header"), "First Row as Header", value = has_header),
+              checkboxInput(ns("import_rownames"), "First Column as Row Names", value = has_rownames)
+            )
           )
         } else {
-          tagList(
-            selectInput(ns("import_delimiter"), "Delimiter:",
-                        choices = c(Comma = ",", Tab = "\t", Semicolon = ";", Pipe = "|", Space = " "),
-                        selected = delimiter),
-            checkboxInput(ns("import_header"), "First Row as Header", value = has_header),
-            checkboxInput(ns("import_rownames"), "First Column as Row Names", value = has_rownames)
+          fluidRow(
+            column(4, 
+              div(style = "display: flex; align-items: center;", 
+                span("Delimiter:", style = "margin-right: 10px;"),
+                selectInput(ns("import_delimiter"), NULL,
+                          choices = c(Comma = ",", Tab = "\t", Semicolon = ";", Pipe = "|", Space = " "),
+                          selected = delimiter, width = "120px")
+              )
+            ),
+            column(4, checkboxInput(ns("import_header"), "First Row as Header", value = has_header)),
+            column(4, checkboxInput(ns("import_rownames"), "First Column as Row Names", value = has_rownames))
           )
         },
         
         # Preview table
-        h4("Data Preview (First 5 Rows)"),
-        DTOutput(ns("import_preview")),
+        div(style = "overflow-x: auto; max-width: 100%;",
+            tableOutput(ns("import_preview"))),
         
         footer = tagList(
           actionButton(ns("import_cancel"), "Cancel"),
@@ -181,7 +187,7 @@ file_upload_server <- function(id) {
     })
     
     # Update import preview based on selected options
-    output$import_preview <- renderDT({
+    output$import_preview <- renderTable({
       req(input$file)
       
       file_ext <- rv$file_extension
@@ -194,13 +200,13 @@ file_upload_server <- function(id) {
               input$file$datapath,
               sheet = input$import_sheet,
               col_names = input$import_header,
-              n_max = 5
+              n_max = 10
             )
           } else {
             preview_data <- read_excel(
               input$file$datapath,
               col_names = TRUE,
-              n_max = 5
+              n_max = 10
             )
           }
         } else {
@@ -212,7 +218,7 @@ file_upload_server <- function(id) {
               input$file$datapath,
               header = input$import_header,
               sep = delimiter,
-              nrows = 5,
+              nrows = 10,
               stringsAsFactors = FALSE,
               check.names = FALSE
             )
@@ -221,19 +227,19 @@ file_upload_server <- function(id) {
               input$file$datapath,
               header = input$import_header,
               sep = delimiter,
-              nrows = 5,
+              nrows = 10,
               stringsAsFactors = FALSE,
               check.names = FALSE
             )
           }
         }
         
-        datatable(preview_data, options = list(scrollX = TRUE, dom = 't'))
+        return(preview_data)
         
       }, error = function(e) {
-        data.frame(Error = paste("Could not parse file with current settings:", e$message))
+        return(data.frame(Error = paste("Could not parse file with current settings:", e$message)))
       })
-    })
+    }, rownames = TRUE, striped = TRUE, bordered = TRUE)
     
     # Cancel import
     observeEvent(input$import_cancel, {
