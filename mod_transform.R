@@ -1,4 +1,3 @@
-# mod_transform.R
 library(shiny)
 library(e1071)  # For skewness calculation
 
@@ -136,79 +135,20 @@ transform_server <- function(id, data) {
       rv$processed_data <- data_matrix
     }
     
-    capture_current_settings <- function() {
-      settings <- list()
-      if (rv$has_missing && !is.null(input$na_method)) {
-        settings$na_method <- input$na_method
-      } else {
-        settings$na_method <- "leave"
-      }
-      
-      if (!is.null(input$do_log_transform)) {
-        settings$do_log_transform <- input$do_log_transform
-        if (settings$do_log_transform && !is.null(input$log_constant)) {
-          settings$log_constant <- input$log_constant
-        }
-      } else {
-        settings$do_log_transform <- FALSE
-      }
-      
-      if (!is.null(input$center_scale)) {
-        settings$center_scale <- input$center_scale
-      } else {
-        settings$center_scale <- "none"
-      }
-      
-      if (!is.null(input$do_zscore_cap)) {
-        settings$do_zscore_cap <- input$do_zscore_cap
-        if (settings$do_zscore_cap && !is.null(input$zscore_cutoff)) {
-          settings$zscore_cutoff <- input$zscore_cutoff
-        }
-      } else {
-        settings$do_zscore_cap <- FALSE
-      }
-      
-      if (!is.null(input$do_filter_rows)) {
-        settings$do_filter_rows <- input$do_filter_rows
-        if (settings$do_filter_rows && !is.null(input$top_n_rows)) {
-          settings$top_n_rows <- input$top_n_rows
-        }
-      } else {
-        settings$do_filter_rows <- TRUE
-      }
-      
+    # Consolidated function to update and capture UI settings
+    update_and_capture_ui_settings <- function() {
+      settings <- list(
+        na_method = if (!is.null(input$na_method)) input$na_method else "leave",
+        do_log_transform = if (!is.null(input$do_log_transform)) input$do_log_transform else FALSE,
+        log_constant = if (!is.null(input$log_constant)) input$log_constant else rv$ui_settings$log_constant,
+        center_scale = if (!is.null(input$center_scale)) input$center_scale else "none",
+        do_zscore_cap = if (!is.null(input$do_zscore_cap)) input$do_zscore_cap else FALSE,
+        zscore_cutoff = if (!is.null(input$zscore_cutoff)) input$zscore_cutoff else rv$ui_settings$zscore_cutoff,
+        do_filter_rows = if (!is.null(input$do_filter_rows)) input$do_filter_rows else TRUE,
+        top_n_rows = if (!is.null(input$top_n_rows)) input$top_n_rows else rv$ui_settings$top_n_rows
+      )
+      rv$ui_settings <- settings
       return(settings)
-    }
-    
-    update_ui_settings <- function() {
-      if (!is.null(input$na_method)) {
-        rv$ui_settings$na_method <- input$na_method
-      }
-      
-      if (!is.null(input$do_log_transform)) {
-        rv$ui_settings$do_log_transform <- input$do_log_transform
-        if (!is.null(input$log_constant)) {
-          rv$ui_settings$log_constant <- input$log_constant
-        }
-      }
-      
-      if (!is.null(input$center_scale)) {
-        rv$ui_settings$center_scale <- input$center_scale
-      }
-      
-      if (!is.null(input$do_zscore_cap)) {
-        rv$ui_settings$do_zscore_cap <- input$do_zscore_cap
-        if (!is.null(input$zscore_cutoff)) {
-          rv$ui_settings$zscore_cutoff <- input$zscore_cutoff
-        }
-      }
-      
-      if (!is.null(input$do_filter_rows)) {
-        rv$ui_settings$do_filter_rows <- input$do_filter_rows
-        if (!is.null(input$top_n_rows)) {
-          rv$ui_settings$top_n_rows <- input$top_n_rows
-        }
-      }
     }
     
     settings_have_changed <- function(settings1, settings2) {
@@ -355,7 +295,7 @@ transform_server <- function(id, data) {
     
     # Show the preprocessing dialog. Use guess_transform only the first time.
     showPreprocessingDialog <- function() {
-     rv$modal_closed <- FALSE  # Modal is now open
+      rv$modal_closed <- FALSE  # Modal is now open
 
       if (!rv$dialog_shown) {
         rv$ui_settings$center_scale <- map_transform_code(guess_transform(rv$processed_data))
@@ -439,7 +379,7 @@ transform_server <- function(id, data) {
         easyClose = TRUE
       ))
       
-      rv$current_settings <- capture_current_settings()
+      rv$current_settings <- update_and_capture_ui_settings()
     }
     
     output$has_missing <- reactive({
@@ -465,7 +405,7 @@ transform_server <- function(id, data) {
       
       hist(flat_data, breaks = 30, col = "steelblue", border = "white",
           main = "Current Data Distribution", xlab = "Value")
-
+      
     })
     
     observeEvent(input$na_method, { apply_preprocessing() })
@@ -479,7 +419,7 @@ transform_server <- function(id, data) {
     
     observe({
       if (!is.null(input$na_method)) {
-        update_ui_settings()
+        update_and_capture_ui_settings()
       }
     })
     
@@ -509,14 +449,14 @@ transform_server <- function(id, data) {
     })
     
     observeEvent(input$cancel, {
-      update_ui_settings()
+      update_and_capture_ui_settings()
       removeModal()
       rv$modal_closed <- TRUE 
     })
     
     observeEvent(input$done, {
-      update_ui_settings()
-      final_settings <- capture_current_settings()
+      update_and_capture_ui_settings()
+      final_settings <- update_and_capture_ui_settings()
       
       if (settings_have_changed(final_settings, rv$applied_settings)) {
         apply_preprocessing()
