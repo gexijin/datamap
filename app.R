@@ -48,6 +48,19 @@ ui <- fluidPage(
         checkboxInput("cluster_rows", "Cluster Rows", TRUE),
         checkboxInput("cluster_cols", "Cluster Columns", TRUE),
         
+        hr(),
+        h4("Clustering Settings"),
+        
+        # Linkage method
+        selectInput("clustering_method", "Linkage Method",
+                   choices = c("complete", "average", "single", "ward.D", "ward.D2", "mcquitty", "median", "centroid"),
+                   selected = "average"),
+                   
+        # Distance method
+        selectInput("distance_method", "Distance Method",
+                   choices = c("euclidean", "manhattan", "maximum", "canberra", "binary", "minkowski", "pearson", "spearman", "kendall"),
+                   selected = "pearson"),
+        
         # Font size
         sliderInput("fontsize", "Font Size", min = 4, max = 25, value = 12),
         
@@ -172,12 +185,34 @@ server <- function(input, output, session) {
       colors <- rev(colors)
     }
     
+    # Prepare clustering distance methods
+    distance_method <- if(!is.null(input$distance_method)) input$distance_method else "euclidean"
+    correlation_method <- "pearson" # default
+    
+    # Handle correlation-based distances
+    if(distance_method %in% c("pearson", "spearman", "kendall")) {
+      correlation_method <- distance_method
+      distance_method <- "correlation"
+    }
+    
+    # Ensure clustering_method has a valid value
+    clustering_method <- if(!is.null(input$clustering_method)) input$clustering_method else "complete"
+    
     # Create the heatmap with silent=TRUE to return the gtable object without drawing
     pheatmap(
       mat = heatmap_data,
       color = colors,
       cluster_rows = input$cluster_rows,
       cluster_cols = input$cluster_cols,
+      clustering_method = clustering_method,
+      clustering_distance_rows = distance_method,
+      clustering_distance_cols = distance_method,
+      clustering_distance_cols_fun = if(distance_method == "correlation") {
+        function(x) as.dist(1 - cor(x, method = correlation_method, use = "pairwise.complete.obs"))
+      } else NULL,
+      clustering_distance_rows_fun = if(distance_method == "correlation") {
+        function(x) as.dist(1 - cor(t(x), method = correlation_method, use = "pairwise.complete.obs"))
+      } else NULL,
       fontsize = input$fontsize,
       silent = TRUE
     )
