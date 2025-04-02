@@ -84,6 +84,7 @@ ui <- fluidPage(
                  h4("Raw Data Preview"),
                  DTOutput("data_preview")
         )
+      )
     )
   )
 )
