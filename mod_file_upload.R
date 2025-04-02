@@ -26,7 +26,7 @@ file_upload_ui <- function(id) {
 #' Server function for file upload module
 #'
 #' @param id The module namespace id
-#' @return A list of reactive values: data, matrix, and data_loaded
+#' @return A list of reactive values: data and data_loaded
 #'
 file_upload_server <- function(id) {
   moduleServer(id, function(input, output, session) {
@@ -35,7 +35,6 @@ file_upload_server <- function(id) {
     # Reactive values for storing processed data and flags
     rv <- reactiveValues(
       data = NULL,
-      matrix = NULL,
       file_extension = NULL,
       data_loaded = FALSE
     )
@@ -44,9 +43,16 @@ file_upload_server <- function(id) {
     count_delimiters <- function(text_sample) {
       delimiters <- c(",", "\t", ";", "|", " ")
       counts <- sapply(delimiters, function(d) {
-        sum(sapply(strsplit(text_sample, "\n"), function(line) {
-          sum(gregexpr(d, line, fixed = TRUE)[[1]] > 0)
-        }))
+        total_count <- 0
+        lines <- strsplit(text_sample, "\n")[[1]]
+        for (line in lines) {
+          # Count actual occurrences of delimiter in each line
+          positions <- gregexpr(d, line, fixed = TRUE)[[1]]
+          # When delimiter isn't found, gregexpr returns -1
+          occurrences <- sum(positions != -1)
+          total_count <- total_count + occurrences
+        }
+        return(total_count)
       })
       names(counts) <- delimiters
       return(counts)
@@ -79,6 +85,70 @@ file_upload_server <- function(id) {
       return(FALSE)
     }
     
+    # Reactive value to track if first column is suitable for row names
+    can_use_rownames <- reactiveVal(FALSE)
+    
+    # Re-evaluate first column when delimiter or sheet changes
+    observeEvent(list(input$import_delimiter, input$import_sheet), {
+      req(input$file)
+      
+      # Skip if we're just initializing
+      if (is.null(input$import_delimiter) && is.null(input$import_sheet)) {
+        return()
+      }
+      
+      file_ext <- rv$file_extension
+      
+      tryCatch({
+        # Get current data based on selected options
+        if(file_ext %in% c("xls", "xlsx")) {
+          if(!is.null(input$import_sheet)) {
+            sample_data <- read_excel(
+              input$file$datapath,
+              sheet = input$import_sheet,
+              col_names = input$import_header,
+              n_max = 10
+            )
+          } else {
+            return()
+          }
+        } else {
+          delimiter <- input$import_delimiter
+          if(is.null(delimiter)) return()
+          
+          if(delimiter == "\t") {
+            sample_data <- read.delim(
+              input$file$datapath,
+              header = input$import_header,
+              sep = delimiter,
+              nrows = 10,
+              stringsAsFactors = FALSE,
+              check.names = FALSE
+            )
+          } else {
+            sample_data <- read.csv(
+              input$file$datapath,
+              header = input$import_header,
+              sep = delimiter,
+              nrows = 10,
+              stringsAsFactors = FALSE,
+              check.names = FALSE
+            )
+          }
+        }
+        
+        # Re-evaluate if first column can be used as row names
+        if(ncol(sample_data) > 1) {
+          can_use_rownames(is_likely_rownames(sample_data[[1]]))
+        } else {
+          can_use_rownames(FALSE)
+        }
+        
+      }, error = function(e) {
+        can_use_rownames(FALSE)
+      })
+    })
+    
     # Watch for file uploads
     observeEvent(input$file, {
       req(input$file)
@@ -104,6 +174,8 @@ file_upload_server <- function(id) {
         # Check if first column might be row names
         if(ncol(sample_data) > 1) {
           has_rownames <- is_likely_rownames(sample_data[[1]])
+          # Store this value in the reactive for later use
+          can_use_rownames(has_rownames)
         }
         
         # Default to having headers for Excel
@@ -140,6 +212,8 @@ file_upload_server <- function(id) {
           # Check if first column might be row names
           if(ncol(sample_data) > 1) {
             has_rownames <- is_likely_rownames(sample_data[[1]])
+            # Store this value in the reactive for later use
+            can_use_rownames(has_rownames)
           }
         }
       }
@@ -153,8 +227,8 @@ file_upload_server <- function(id) {
           tagList(
             selectInput(ns("import_sheet"), "Sheet:", choices = sheets, selected = sheet),
             fluidRow(
-              checkboxInput(ns("import_header"), "First Row as Header", value = has_header),
-              checkboxInput(ns("import_rownames"), "First Column as Row Names", value = has_rownames)
+              column(6, checkboxInput(ns("import_header"), "First Row as Header", value = has_header)),
+              column(6, uiOutput(ns("rownames_ui")))
             )
           )
         } else {
@@ -168,7 +242,7 @@ file_upload_server <- function(id) {
               )
             ),
             column(4, checkboxInput(ns("import_header"), "First Row as Header", value = has_header)),
-            column(4, checkboxInput(ns("import_rownames"), "First Column as Row Names", value = has_rownames))
+            column(4, uiOutput(ns("rownames_ui")))
           )
         },
         
@@ -186,11 +260,19 @@ file_upload_server <- function(id) {
       ))
     })
     
+    # Dynamic UI for rownames checkbox - only show if first column can be used as row names
+    output$rownames_ui <- renderUI({
+      if (can_use_rownames()) {
+        checkboxInput(ns("import_rownames"), "First Column as Row Names", value = can_use_rownames())
+      }
+    })
+    
     # Update import preview based on selected options
     output$import_preview <- renderTable({
       req(input$file)
       
       file_ext <- rv$file_extension
+      using_rownames <- !is.null(input$import_rownames) && input$import_rownames
       
       tryCatch({
         # Get preview data based on selected import options
@@ -202,12 +284,16 @@ file_upload_server <- function(id) {
               col_names = input$import_header,
               n_max = 10
             )
+            # Convert to data.frame to ensure compatibility with rownames
+            preview_data <- as.data.frame(preview_data, stringsAsFactors = FALSE)
           } else {
             preview_data <- read_excel(
               input$file$datapath,
               col_names = TRUE,
               n_max = 10
             )
+            # Convert to data.frame to ensure compatibility with rownames
+            preview_data <- as.data.frame(preview_data, stringsAsFactors = FALSE)
           }
         } else {
           delimiter <- input$import_delimiter
@@ -234,12 +320,24 @@ file_upload_server <- function(id) {
           }
         }
         
+        # Process row names if selected for preview
+        if(using_rownames && ncol(preview_data) > 1) {
+          row_names <- preview_data[[1]]
+          preview_data <- preview_data[, -1, drop = FALSE]
+          # Set custom row names for the preview
+          rownames(preview_data) <- row_names
+        }
+        
         return(preview_data)
         
       }, error = function(e) {
         return(data.frame(Error = paste("Could not parse file with current settings:", e$message)))
       })
-    }, rownames = TRUE, striped = TRUE, bordered = TRUE)
+    }, 
+    # Control whether to show row names in the table
+    rownames = TRUE,  # Always show row names column - we'll control display by setting/not setting values
+    striped = TRUE, 
+    bordered = TRUE)
     
     # Cancel import
     observeEvent(input$import_cancel, {
@@ -305,7 +403,6 @@ file_upload_server <- function(id) {
         )
       })
     })
-    
     # Return a list of reactive values to be used in the main app
     return(list(
       data = reactive({ rv$data }),
