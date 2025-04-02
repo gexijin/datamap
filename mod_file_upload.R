@@ -272,7 +272,8 @@ file_upload_server <- function(id) {
       req(input$file)
       
       file_ext <- rv$file_extension
-      using_rownames <- !is.null(input$import_rownames) && input$import_rownames
+      # Make sure using_rownames is a logical value, not NULL
+      using_rownames <- isTRUE(!is.null(input$import_rownames) && input$import_rownames)
       
       tryCatch({
         # Get preview data based on selected import options
@@ -320,8 +321,8 @@ file_upload_server <- function(id) {
           }
         }
         
-        # Process row names if selected for preview
-        if(using_rownames && ncol(preview_data) > 1) {
+        # Process row names if selected for preview - with safe logical checks
+        if(isTRUE(using_rownames) && !is.null(preview_data) && ncol(preview_data) > 1) {
           row_names <- preview_data[[1]]
           preview_data <- preview_data[, -1, drop = FALSE]
           # Set custom row names for the preview
@@ -334,8 +335,11 @@ file_upload_server <- function(id) {
         return(data.frame(Error = paste("Could not parse file with current settings:", e$message)))
       })
     }, 
-    # Control whether to show row names in the table
-    rownames = TRUE,  # Always show row names column - we'll control display by setting/not setting values
+    # Control whether to show row names in the table 
+    rownames = function() {
+      # Only show row names when using first column as row names
+      return(isTRUE(!is.null(input$import_rownames) && input$import_rownames))
+    },
     striped = TRUE, 
     bordered = TRUE)
     
@@ -344,11 +348,13 @@ file_upload_server <- function(id) {
       removeModal()
     })
     
-    # Confirm import and load the full dataset
+            # Confirm import and load the full dataset
     observeEvent(input$import_confirm, {
       req(input$file)
       
       file_ext <- rv$file_extension
+      # Make sure using_rownames is a logical value, not NULL
+      using_rownames <- isTRUE(!is.null(input$import_rownames) && input$import_rownames)
       
       # Import full dataset based on selected options
       tryCatch({
@@ -381,8 +387,8 @@ file_upload_server <- function(id) {
           }
         }
         
-        # Process row names if selected
-        if(input$import_rownames && ncol(df) > 1) {
+        # Process row names if selected - with safe logical checks
+        if(isTRUE(using_rownames) && !is.null(df) && ncol(df) > 1) {
           row_names <- df[[1]]
           df <- df[, -1, drop = FALSE]
           rownames(df) <- row_names
@@ -403,6 +409,7 @@ file_upload_server <- function(id) {
         )
       })
     })
+    
     # Return a list of reactive values to be used in the main app
     return(list(
       data = reactive({ rv$data }),
