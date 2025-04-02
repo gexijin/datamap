@@ -6,12 +6,15 @@ library(DT)
 library(readxl)  # Required for the file upload module
 library(e1071)   # Required for the preprocessing module (skewness calculation)
 library(ggplot2) # Required for the preprocessing module (histogram)
+library(shinyjs) # Required for programmatically clicking buttons
 
 # Load the custom modules
 source("mod_file_upload.R")
 source("mod_preprocess.R")
 source("utilities.R")
+
 ui <- fluidPage(
+  useShinyjs(), # Enable shinyjs for programmatic UI interactions
   titlePanel("Interactive Heatmap Generator"),
   
   sidebarLayout(
@@ -38,8 +41,8 @@ ui <- fluidPage(
         
         # Color scheme selection
         selectInput("color", "Color Palette",
-                    choices = c("RdBu", "RdYlBu", "YlOrRd", "YlGnBu", "Blues", "Greens", "Purples", "Reds", "OrRd"),
-                    selected = "RdYlBu"),
+                    choices = c("GreenBlackRed", "RdBu", "RdYlBu", "YlOrRd", "YlGnBu", "Blues", "Greens", "Purples", "Reds", "OrRd"),
+                    selected = "GreenBlackRed"),
         
         checkboxInput("color_reverse", "Reverse Colors", FALSE),
         
@@ -72,13 +75,7 @@ ui <- fluidPage(
       width = 9,
       tabsetPanel(
         tabPanel("Heatmap", 
-                 plotOutput("heatmap", width = "100%", height = "600px"),
-                 conditionalPanel(
-                   condition = "output.dataLoaded",
-                   hr(),
-                   h4("Heatmap Settings Summary"),
-                   verbatimTextOutput("settings_summary")
-                 )
+                 plotOutput("heatmap", width = "100%", height = "600px")
         ),
         tabPanel("Data Preview", 
                  h4("Raw Data Preview"),
@@ -99,6 +96,21 @@ server <- function(input, output, session) {
   })
   outputOptions(output, "dataLoaded", suspendWhenHidden = FALSE)
   
+  # Use the preprocessing module with automatic trigger
+  preprocessingData <- preprocessServer("preprocess", reactive({
+    fileData$data()
+  }))
+  
+  # Observer to automatically trigger preprocessing when data is loaded
+  observeEvent(fileData$data_loaded(), {
+    if(fileData$data_loaded()) {
+      # Find the preprocess button and click it automatically
+      shinyjs::delay(500, {
+        shinyjs::click("preprocess-button")
+      })
+    }
+  })
+  
   # Create a reactive that provides the data for processing
   # It will first use the file upload data, then switch to preprocessed data if available
   current_data <- reactive({
@@ -113,10 +125,7 @@ server <- function(input, output, session) {
     }
   })
   
-  # Use the preprocessing module
-  preprocessingData <- preprocessServer("preprocess", reactive({
-    fileData$data()
-  }))
+  # Remove duplicate declaration (already moved above)
   
   # Get the preprocessed data
   preprocessed_data <- reactive({
@@ -169,8 +178,16 @@ server <- function(input, output, session) {
     # Convert the data to a numeric matrix for the heatmap
     heatmap_data <- prepare_heatmap_data(current_data())
     
-    # Get the color palette and reverse if needed
-    colors <- colorRampPalette(rev(brewer.pal(11, input$color)))(100)
+    # Setup colors based on selection
+    if(input$color == "GreenBlackRed") {
+      # Custom green-black-red color palette
+      colors <- colorRampPalette(c("green", "black", "red"))(100)
+    } else {
+      # Standard RColorBrewer palettes
+      colors <- colorRampPalette(rev(brewer.pal(11, input$color)))(100)
+    }
+    
+    # Reverse colors if needed
     if(input$color_reverse) {
       colors <- rev(colors)
     }
@@ -187,27 +204,6 @@ server <- function(input, output, session) {
     )
   }, width = function() input$width, height = function() input$height)
   
-  # Display settings summary
-  output$settings_summary <- renderText({
-    req(current_data())
-    
-    # Determine if we're using preprocessed data
-    data_status <- if (!is.null(preprocessed_data()) && fileData$data_loaded()) {
-      "Data has been preprocessed"
-    } else {
-      "Using original data"
-    }
-    
-    paste0(
-      "Data Matrix Size: ", nrow(current_data()), " rows × ", ncol(current_data()), " columns\n",
-      "Status: ", data_status, "\n",
-      "Color Palette: ", input$color, (if(input$color_reverse) " (Reversed)" else ""), "\n",
-      "Clustering: ", (if(input$cluster_rows) "Rows, " else ""), (if(input$cluster_cols) "Columns" else ""), "\n",
-      "Scaling: ", input$scale, "\n",
-      "Display Size: ", input$width, " × ", input$height, " pixels"
-    )
-  })
-  
   # Download handlers using current data
   output$downloadPDF <- downloadHandler(
     filename = function() {
@@ -219,8 +215,16 @@ server <- function(input, output, session) {
       # Convert the data to a numeric matrix for the heatmap
       heatmap_data <- prepare_heatmap_data(current_data())
       
-      # Get the color palette and reverse if needed
-      colors <- colorRampPalette(rev(brewer.pal(11, input$color)))(100)
+      # Setup colors based on selection
+      if(input$color == "GreenBlackRed") {
+        # Custom green-black-red color palette
+        colors <- colorRampPalette(c("green", "black", "red"))(100)
+      } else {
+        # Standard RColorBrewer palettes
+        colors <- colorRampPalette(rev(brewer.pal(11, input$color)))(100)
+      }
+      
+      # Reverse colors if needed
       if(input$color_reverse) {
         colors <- rev(colors)
       }
@@ -250,8 +254,16 @@ server <- function(input, output, session) {
       # Convert the data to a numeric matrix for the heatmap
       heatmap_data <- prepare_heatmap_data(current_data())
       
-      # Get the color palette and reverse if needed
-      colors <- colorRampPalette(rev(brewer.pal(11, input$color)))(100)
+      # Setup colors based on selection
+      if(input$color == "GreenBlackRed") {
+        # Custom green-black-red color palette
+        colors <- colorRampPalette(c("green", "black", "red"))(100)
+      } else {
+        # Standard RColorBrewer palettes
+        colors <- colorRampPalette(rev(brewer.pal(11, input$color)))(100)
+      }
+      
+      # Reverse colors if needed
       if(input$color_reverse) {
         colors <- rev(colors)
       }
