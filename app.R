@@ -2,7 +2,6 @@ library(shiny)
 library(pheatmap)
 library(RColorBrewer)
 library(readxl)  # file upload module
-library(DT)
 library(e1071)   # transform module (skewness calculation)
 library(grid)    # needed for grid.draw
 
@@ -11,15 +10,27 @@ source("mod_transform.R")
 source("utilities.R")
 
 ui <- fluidPage(
-  titlePanel("Interactive Heatmap Generator"),
+
   
   sidebarLayout(
     sidebarPanel(
       width = 3,
-      
+      titlePanel("DataMap"),
+      hr(),
       # File upload module UI for main data
+      h4("Upload file:"),
       file_upload_ui("file_upload"),
-      
+
+      # Transform module UI - only shown after data is loaded
+      conditionalPanel(
+        condition = "output.data_loaded",
+        hr(),
+        fluidRow(
+          column(8, transform_ui("transform")),
+          column(4, uiOutput("transform_status"))
+        )
+      ),
+            
       # Column annotation file upload widget
       tags$div(
         tags$h4("Column Annotations", style="margin-top: 15px;"),
@@ -44,16 +55,7 @@ ui <- fluidPage(
         uiOutput("row_annotation_select_ui")
       ),
       
-      # Transform module UI - only shown after data is loaded
-      conditionalPanel(
-        condition = "output.data_loaded",
-        hr(),
-        fluidRow(
-          column(8, transform_ui("transform")),
-          column(4, uiOutput("transform_status"))
-        )
-      ),
-      
+
       # Heatmap customization section - only shown after data is loaded
       conditionalPanel(
         condition = "output.data_loaded",
@@ -120,10 +122,6 @@ ui <- fluidPage(
       tabsetPanel(
         tabPanel("Heatmap", 
                 plotOutput("heatmap", width = "100%", height = "600px")
-        ),
-        tabPanel("Data Preview", 
-                h4("Raw Data Preview"),
-                DTOutput("data_preview")
         )
       )
     )
@@ -209,13 +207,11 @@ server <- function(input, output, session) {
     if (transform_data$has_transformed()) {
       tags$div(
         icon("check-circle"), 
-        "Transformed", 
         style = "color: green; margin-top: 7px;"
       )
     } else {
       tags$div(
         icon("info-circle"), 
-        "Original", 
         style = "color: grey; margin-top: 7px;"
       )
     }

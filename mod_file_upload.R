@@ -14,7 +14,7 @@ file_upload_ui <- function(id) {
   ns <- NS(id)
   
   tagList(
-    fileInput(ns("file"), "Data Import",
+    fileInput(ns("file"), NULL,
               accept = c(
                 "text/csv",
                 "text/comma-separated-values,text/plain",
