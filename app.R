@@ -20,13 +20,28 @@ ui <- fluidPage(
       # File upload module UI for main data
       file_upload_ui("file_upload"),
       
-      # New annotation file upload widget
-      file_upload_ui("annotation_file_upload"),
+      # Column annotation file upload widget
+      tags$div(
+        tags$h4("Column Annotations", style="margin-top: 15px;"),
+        file_upload_ui("col_annotation_file_upload")
+      ),
       
-      # Dynamic UI for selecting annotation rows (shown when annotation file is uploaded)
+      # Dynamic UI for selecting column annotation rows
       conditionalPanel(
-        condition = "output.annotation_uploaded",
-        uiOutput("annotation_select_ui")
+        condition = "output.col_annotation_uploaded",
+        uiOutput("col_annotation_select_ui")
+      ),
+      
+      # Row annotation file upload widget
+      tags$div(
+        tags$h4("Row Annotations", style="margin-top: 15px;"),
+        file_upload_ui("row_annotation_file_upload")
+      ),
+      
+      # Dynamic UI for selecting row annotation columns
+      conditionalPanel(
+        condition = "output.row_annotation_uploaded",
+        uiOutput("row_annotation_select_ui")
       ),
       
       # Transform module UI - only shown after data is loaded
@@ -119,8 +134,11 @@ server <- function(input, output, session) {
   # Use the file upload module for main data
   file_data <- file_upload_server("file_upload")
   
-  # Use a separate file upload module for the annotation file
-  annotation_file_data <- file_upload_server("annotation_file_upload")
+  # Use a separate file upload module for the column annotation file
+  col_annotation_file_data <- file_upload_server("col_annotation_file_upload")
+  
+  # Use a separate file upload module for the row annotation file
+  row_annotation_file_data <- file_upload_server("row_annotation_file_upload")
   
   # Track if main data is loaded for UI conditionals
   output$data_loaded <- reactive({
@@ -128,22 +146,40 @@ server <- function(input, output, session) {
   })
   outputOptions(output, "data_loaded", suspendWhenHidden = FALSE)
   
-  # Reactive to indicate if annotation file is uploaded
-  output$annotation_uploaded <- reactive({
-    !is.null(annotation_file_data$data())
+  # Reactive to indicate if column annotation file is uploaded
+  output$col_annotation_uploaded <- reactive({
+    !is.null(col_annotation_file_data$data())
   })
-  outputOptions(output, "annotation_uploaded", suspendWhenHidden = FALSE)
+  outputOptions(output, "col_annotation_uploaded", suspendWhenHidden = FALSE)
   
-  # Render UI for annotation row selection
-  output$annotation_select_ui <- renderUI({
-    req(annotation_file_data$data())
-    annot_df <- annotation_file_data$data()
+  # Reactive to indicate if row annotation file is uploaded
+  output$row_annotation_uploaded <- reactive({
+    !is.null(row_annotation_file_data$data())
+  })
+  outputOptions(output, "row_annotation_uploaded", suspendWhenHidden = FALSE)
+  
+  # Render UI for column annotation row selection
+  output$col_annotation_select_ui <- renderUI({
+    req(col_annotation_file_data$data())
+    annot_df <- col_annotation_file_data$data()
     row_choices <- rownames(annot_df)
     if (is.null(row_choices) || length(row_choices) == 0) {
       row_choices <- as.character(seq_len(nrow(annot_df)))
     }
-    selectInput("annotation_select", "Select annotation rows", 
+    selectInput("col_annotation_select", "Select column annotation rows", 
                 choices = row_choices, selected = row_choices[1], multiple = TRUE)
+  })
+  
+  # Render UI for row annotation column selection
+  output$row_annotation_select_ui <- renderUI({
+    req(row_annotation_file_data$data())
+    annot_df <- row_annotation_file_data$data()
+    col_choices <- colnames(annot_df)
+    if (is.null(col_choices) || length(col_choices) == 0) {
+      col_choices <- as.character(seq_len(ncol(annot_df)))
+    }
+    selectInput("row_annotation_select", "Select row annotation columns", 
+                choices = col_choices, selected = col_choices[1], multiple = TRUE)
   })
   
   # Use the transform module
@@ -207,13 +243,14 @@ server <- function(input, output, session) {
     return(data_matrix)
   }
   
-  annotation_for_heatmap <- reactive({
+  # Column annotation for heatmap
+  col_annotation_for_heatmap <- reactive({
     req(current_data())
-    # If no annotation file is uploaded, return NULL
-    if (is.null(annotation_file_data$data())) {
+    # If no column annotation file is uploaded, return NULL
+    if (is.null(col_annotation_file_data$data())) {
       return(NULL)
     }
-    annot_df <- annotation_file_data$data()
+    annot_df <- col_annotation_file_data$data()
     main_cols <- colnames(current_data())
     annot_cols <- colnames(annot_df)
     
@@ -226,7 +263,7 @@ server <- function(input, output, session) {
     annot_df <- annot_df[, main_cols, drop = FALSE]
     
     # Use the selected annotation rows; default to the first if none selected
-    selected <- input$annotation_select
+    selected <- input$col_annotation_select
     if (is.null(selected)) {
       selected <- if (nrow(annot_df) > 0) rownames(annot_df)[1] else NULL
     }
@@ -236,6 +273,38 @@ server <- function(input, output, session) {
     annot_selected <- annot_df[selected, , drop = FALSE]
     # Transpose so that each row corresponds to a sample (column in main data)
     as.data.frame(t(annot_selected))
+  })
+  
+  # Row annotation for heatmap
+  row_annotation_for_heatmap <- reactive({
+    req(current_data())
+    # If no row annotation file is uploaded, return NULL
+    if (is.null(row_annotation_file_data$data())) {
+      return(NULL)
+    }
+    annot_df <- row_annotation_file_data$data()
+    main_rows <- rownames(current_data())
+    annot_rows <- rownames(annot_df)
+    
+    # Tolerate extra samples in the annotation file:
+    # Proceed as long as all data matrix rows are present in the annotation file.
+    if (!all(main_rows %in% annot_rows)) {
+      return(NULL)
+    }
+    # Subset and reorder annotation file rows to match the main data matrix
+    annot_df <- annot_df[main_rows, , drop = FALSE]
+    
+    # Use the selected annotation columns; default to the first if none selected
+    selected <- input$row_annotation_select
+    if (is.null(selected)) {
+      selected <- if (ncol(annot_df) > 0) colnames(annot_df)[1] else NULL
+    }
+    if (is.null(selected))
+      return(NULL)
+    
+    annot_selected <- annot_df[, selected, drop = FALSE]
+    # No need to transpose as it's already in the correct orientation
+    as.data.frame(annot_selected)
   })
 
   heatmap_obj <- reactive({
@@ -278,7 +347,8 @@ server <- function(input, output, session) {
         function(x) as.dist(1 - cor(t(x), method = correlation_method, use = "pairwise.complete.obs"))
       } else NULL,
       fontsize = input$fontsize,
-      annotation_col = annotation_for_heatmap(),
+      annotation_col = col_annotation_for_heatmap(),
+      annotation_row = row_annotation_for_heatmap(),
       show_rownames = show_row_names,  # Conditionally display row names
       silent = TRUE
     )
