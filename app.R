@@ -11,13 +11,10 @@ source("utilities.R")
 
 ui <- fluidPage(
 
-  
+  titlePanel("DataMap"),  
   sidebarLayout(
     sidebarPanel(
       width = 3,
-      titlePanel("DataMap"),
-      hr(),
-      
       # Button to open file upload modal
       actionButton("show_upload_modal", "Upload Files", 
                   icon = icon("upload"), 
@@ -143,7 +140,7 @@ server <- function(input, output, session) {
       footer = tagList(
         modalButton("Close")
       ),
-      size = "l",
+      size = "s",
       easyClose = TRUE
     ))
   })
@@ -204,9 +201,10 @@ server <- function(input, output, session) {
     file_data$data()
   }))
   
+  heatmap_rendered <- reactiveVal(FALSE)
   # Create a reactive that provides the main data for processing.
   current_data <- reactive({
-    if (!transform_data$modal_closed()) {
+    if (!transform_data$modal_closed() && !heatmap_rendered()) {
       return(NULL)  # Do not generate heatmap if the transformation dialog is still open
     }
     
@@ -215,6 +213,7 @@ server <- function(input, output, session) {
     
     # If transformation has been applied, use that data instead
     if (!is.null(transform_data$processed_data()) && transform_data$has_transformed()) {
+      heatmap_rendered(TRUE)
       return(transform_data$processed_data())
     } else {
       return(uploaded_data)
