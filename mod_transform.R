@@ -87,14 +87,17 @@ transform_server <- function(id, data) {
       data_matrix <- as.matrix(numeric_data)
       rownames(data_matrix) <- original_row_names
       # Remove rows that are completely missing
-      row_all_na <- apply(data_matrix, 1, function(x) all(is.na(x)))
+      row_na_count <- rowSums(is.na(data_matrix))
+      row_all_na <- row_na_count == ncol(data_matrix)
       if (any(row_all_na)) {
         data_matrix <- data_matrix[!row_all_na, , drop = FALSE]
       }
-      rv$original_data_matrix <- data_matrix
       
       # Remove columns that are entirely NA (i.e. non-numeric) and notify user
-      col_all_na <- apply(data_matrix, 2, function(x) all(is.na(x)))
+      col_na_count <- colSums(is.na(data_matrix))
+      col_all_na <- col_na_count == nrow(data_matrix)
+      rv$original_data_matrix <- data_matrix
+
       if (any(col_all_na)) {
         removed_cols <- colnames(data_matrix)[col_all_na]
         showNotification(
@@ -176,14 +179,7 @@ transform_server <- function(id, data) {
       
       # 1. Handle missing values
       if (rv$has_missing) {
-        row_all_na <- apply(processed, 1, function(x) all(is.na(x)))
-        if (any(row_all_na)) {
-          processed <- processed[!row_all_na, , drop = FALSE]
-        }
-        col_all_na <- apply(processed, 2, function(x) all(is.na(x)))
-        if (any(col_all_na)) {
-          processed <- processed[, !col_all_na, drop = FALSE]
-        }
+
         if (!is.null(input$na_method) && input$na_method != "leave") {
           if (input$na_method == "zero") {
             processed[is.na(processed)] <- 0
