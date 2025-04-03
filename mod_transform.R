@@ -76,10 +76,19 @@ transform_server <- function(id, data) {
     analyze_data <- function(data_frame) {
       if (is.null(data_frame)) return()
       
+      # Create a progress object
+      progress <- shiny::Progress$new()
+      on.exit(progress$close())
+      
+      # Set up progress
+      progress$set(message = "Analyzing data", value = 0)
+      
       # Store the original data frame
       rv$original_data <- data_frame
       original_row_names <- rownames(data_frame)
-
+      
+      progress$set(value = 0.1, detail = "Identifying factor columns")
+      
       factor_like_cols <- list()
       for (col_name in names(data_frame)) {
         col_data <- data_frame[[col_name]]
@@ -101,7 +110,9 @@ transform_server <- function(id, data) {
       } else {
         rv$factor_columns <- NULL
       }
-
+      
+      progress$set(value = 0.3, detail = "Converting to numeric format")
+      
       # Create a numeric matrix version for analysis and processing
       numeric_data <- as.data.frame(
         lapply(data_frame, function(x) as.numeric(as.character(x))),
@@ -110,6 +121,9 @@ transform_server <- function(id, data) {
       
       data_matrix <- as.matrix(numeric_data)
       rownames(data_matrix) <- original_row_names
+      
+      progress$set(value = 0.5, detail = "Handling missing values")
+      
       # Remove rows that are completely missing
       row_na_count <- rowSums(is.na(data_matrix))
       row_all_na <- row_na_count == ncol(data_matrix)
@@ -133,6 +147,8 @@ transform_server <- function(id, data) {
         rv$original_data_matrix <- data_matrix
       }
       
+      progress$set(value = 0.7, detail = "Calculating data statistics")
+      
       rv$has_missing <- any(is.na(data_matrix))
       rv$has_negative <- any(data_matrix < 0, na.rm = TRUE)
       rv$has_zeros <- any(data_matrix == 0, na.rm = TRUE)
@@ -142,6 +158,8 @@ transform_server <- function(id, data) {
       rv$data_range <- c(min(flat_data), max(flat_data))
       
       rv$skewness <- skewness(flat_data)
+      
+      progress$set(value = 0.9, detail = "Setting default parameters")
       
       # Set log constant based on data
       if (rv$has_zeros) {
@@ -165,6 +183,8 @@ transform_server <- function(id, data) {
       if (is.null(rv$ui_settings$top_n_rows)) {
         rv$ui_settings$top_n_rows <- rv$top_n_default
       }
+      
+      progress$set(value = 1, detail = "Analysis complete")
       
       rv$processed_data <- data_matrix
     }
@@ -199,11 +219,19 @@ transform_server <- function(id, data) {
     
     apply_preprocessing <- function() {
       if (is.null(rv$original_data_matrix)) return()
+      
+      # Create a progress object
+      progress <- shiny::Progress$new()
+      on.exit(progress$close())
+      
+      # Set up progress
+      progress$set(message = "Applying transformations", value = 0)
+      
       processed <- rv$original_data_matrix
       
       # 1. Handle missing values
       if (rv$has_missing) {
-
+        progress$set(value = 0.1, detail = "Handling missing values")
         if (!is.null(input$na_method) && input$na_method != "leave") {
           if (input$na_method == "zero") {
             processed[is.na(processed)] <- 0
@@ -223,6 +251,7 @@ transform_server <- function(id, data) {
       
       # 2. Apply log transformation if selected
       if (!is.null(input$do_log_transform) && input$do_log_transform) {
+        progress$set(value = 0.3, detail = "Applying log transformation")
         if (any(processed < 0, na.rm = TRUE)) {
           processed[processed < 0] <- 0
         }
@@ -236,6 +265,7 @@ transform_server <- function(id, data) {
       
       # 3. Apply centering and scaling
       if (!is.null(input$center_scale) && input$center_scale != "none") {
+        progress$set(value = 0.5, detail = paste("Applying", input$center_scale, "transformation"))
         if (input$center_scale == "center_row") {
           row_means <- rowMeans(processed, na.rm = TRUE)
           processed <- t(t(processed) - row_means)
@@ -264,6 +294,7 @@ transform_server <- function(id, data) {
       
       # 4. Apply Z-score cutoff for outlier capping (applied to the entire matrix)
       if (!is.null(input$do_zscore_cap) && input$do_zscore_cap) {
+        progress$set(value = 0.7, detail = "Capping outliers")
         z_cutoff <- as.numeric(input$zscore_cutoff)
         processed <- pmin(pmax(processed, -1e300), 1e300)
         flat_data <- as.numeric(processed)
@@ -282,6 +313,7 @@ transform_server <- function(id, data) {
       
       # 5. Filter to keep only top N most variable rows (by SD)
       if (!is.null(input$do_filter_rows) && input$do_filter_rows) {
+        progress$set(value = 0.9, detail = "Filtering rows by variability")
         row_sds <- apply(processed, 1, sd, na.rm = TRUE)
         top_n <- min(as.numeric(input$top_n_rows), nrow(processed))
         if (top_n < nrow(processed)) {
@@ -289,6 +321,8 @@ transform_server <- function(id, data) {
           processed <- processed[top_indices, , drop = FALSE]
         }
       }
+      
+      progress$set(value = 1, detail = "Transformations complete")
       
       rv$processed_data <- processed
     }
@@ -325,7 +359,22 @@ transform_server <- function(id, data) {
       rv$modal_closed <- FALSE  # Modal is now open
 
       if (!rv$dialog_shown) {
-        rv$ui_settings$center_scale <- map_transform_code(guess_transform(rv$processed_data))
+        # Create a progress notification for the guess_transform operation
+        withProgress(
+          message = "Analyzing data for optimal transformations",
+          detail = "This may take a moment...",
+          value = 0,
+          {
+            # Update progress
+            setProgress(0.3, detail = "Calculating statistics")
+            
+            # Determine recommended transformation
+            rv$ui_settings$center_scale <- map_transform_code(guess_transform(rv$processed_data))
+            
+            # Update progress
+            setProgress(1, detail = "Analysis complete")
+          }
+        )
       }
       
       showModal(modalDialog(
@@ -421,28 +470,139 @@ transform_server <- function(id, data) {
     
     output$data_histogram <- renderPlot({
       req(rv$processed_data)
-      flat_data <- as.numeric(rv$processed_data)
-      flat_data <- flat_data[!is.na(flat_data) & is.finite(flat_data)]
       
-      if (length(flat_data) == 0) {
-        plot.new()
-        text(0.5, 0.5, "No valid data to display", cex = 1.2)
-        return()
-      }
-      
-      hist(flat_data, breaks = 30, col = "steelblue", border = "white",
-          main = "Current Data Distribution", xlab = "Value")
-      
+      # Show progress for generating the histogram
+      withProgress(
+        message = "Generating histogram",
+        detail = "Analyzing data distribution...",
+        value = 0,
+        {
+          setProgress(0.3, detail = "Processing data points")
+          
+          flat_data <- as.numeric(rv$processed_data)
+          flat_data <- flat_data[!is.na(flat_data) & is.finite(flat_data)]
+          
+          setProgress(0.7, detail = "Creating visualization")
+          
+          if (length(flat_data) == 0) {
+            plot.new()
+            text(0.5, 0.5, "No valid data to display", cex = 1.2)
+            return()
+          }
+          
+          hist(flat_data, breaks = 30, col = "steelblue", border = "white",
+              main = "Current Data Distribution", xlab = "Value")
+          
+          setProgress(1, detail = "Histogram complete")
+        }
+      )
     })
     
-    observeEvent(input$na_method, { apply_preprocessing() })
-    observeEvent(input$do_log_transform, { apply_preprocessing() })
-    observeEvent(input$log_constant, { apply_preprocessing() })
-    observeEvent(input$center_scale, { apply_preprocessing() })
-    observeEvent(input$do_zscore_cap, { apply_preprocessing() })
-    observeEvent(input$zscore_cutoff, { apply_preprocessing() })
-    observeEvent(input$do_filter_rows, { apply_preprocessing() })
-    observeEvent(input$top_n_rows, { apply_preprocessing() })
+    # Use debounced event handlers to reduce recalculation frequency
+    # for UI inputs that might change rapidly
+    observeEvent(input$na_method, { 
+      isolate({
+        withProgress(
+          message = "Updating transformations",
+          detail = "Processing missing values...",
+          value = 0.5,
+          {
+            apply_preprocessing()
+          }
+        )
+      })
+    })
+    
+    observeEvent(input$do_log_transform, { 
+      isolate({
+        withProgress(
+          message = "Updating transformations",
+          detail = "Applying log transformation...",
+          value = 0.5,
+          {
+            apply_preprocessing()
+          }
+        )
+      })
+    })
+    
+    observeEvent(input$log_constant, { 
+      isolate({
+        withProgress(
+          message = "Updating transformations", 
+          detail = "Adjusting log constant...",
+          value = 0.5,
+          {
+            apply_preprocessing()
+          }
+        )
+      })
+    })
+    
+    observeEvent(input$center_scale, { 
+      isolate({
+        withProgress(
+          message = "Updating transformations",
+          detail = "Centering and scaling data...",
+          value = 0.5,
+          {
+            apply_preprocessing()
+          }
+        )
+      }) 
+    })
+    
+    observeEvent(input$do_zscore_cap, { 
+      isolate({
+        withProgress(
+          message = "Updating transformations",
+          detail = "Adjusting outlier handling...",
+          value = 0.5,
+          {
+            apply_preprocessing()
+          }
+        )
+      })
+    })
+    
+    observeEvent(input$zscore_cutoff, { 
+      isolate({
+        withProgress(
+          message = "Updating transformations",
+          detail = "Recapping outliers...",
+          value = 0.5,
+          {
+            apply_preprocessing()
+          }
+        )
+      })
+    })
+    
+    observeEvent(input$do_filter_rows, { 
+      isolate({
+        withProgress(
+          message = "Updating transformations",
+          detail = "Adjusting row filtering...",
+          value = 0.5,
+          {
+            apply_preprocessing()
+          }
+        )
+      })
+    })
+    
+    observeEvent(input$top_n_rows, { 
+      isolate({
+        withProgress(
+          message = "Updating transformations",
+          detail = "Refiltering rows...",
+          value = 0.5,
+          {
+            apply_preprocessing()
+          }
+        )
+      })
+    })
     
     observe({
       if (!is.null(input$na_method)) {
@@ -451,28 +611,35 @@ transform_server <- function(id, data) {
     })
     
     observeEvent(input$reset_all, {
-      rv$processed_data <- rv$original_data_matrix
-      
-      if(rv$has_missing) {
-        updateSelectInput(session, "na_method", selected = "leave")
-        rv$ui_settings$na_method <- "leave"
-      }
-      
-      updateCheckboxInput(session, "do_log_transform", value = FALSE)
-      rv$ui_settings$do_log_transform <- FALSE
-      
-      updateSelectInput(session, "center_scale", selected = "none")
-      rv$ui_settings$center_scale <- "none"
-      
-      updateCheckboxInput(session, "do_zscore_cap", value = FALSE)
-      rv$ui_settings$do_zscore_cap <- FALSE
-      updateNumericInput(session, "zscore_cutoff", value = 2)
-      rv$ui_settings$zscore_cutoff <- 2
-      
-      updateCheckboxInput(session, "do_filter_rows", value = TRUE)
-      rv$ui_settings$do_filter_rows <- TRUE
-      updateNumericInput(session, "top_n_rows", value = rv$top_n_default)
-      rv$ui_settings$top_n_rows <- rv$top_n_default
+      withProgress(
+        message = "Resetting data",
+        detail = "Restoring original data...",
+        value = 0.5,
+        {
+          rv$processed_data <- rv$original_data_matrix
+          
+          if(rv$has_missing) {
+            updateSelectInput(session, "na_method", selected = "leave")
+            rv$ui_settings$na_method <- "leave"
+          }
+          
+          updateCheckboxInput(session, "do_log_transform", value = FALSE)
+          rv$ui_settings$do_log_transform <- FALSE
+          
+          updateSelectInput(session, "center_scale", selected = "none")
+          rv$ui_settings$center_scale <- "none"
+          
+          updateCheckboxInput(session, "do_zscore_cap", value = FALSE)
+          rv$ui_settings$do_zscore_cap <- FALSE
+          updateNumericInput(session, "zscore_cutoff", value = 2)
+          rv$ui_settings$zscore_cutoff <- 2
+          
+          updateCheckboxInput(session, "do_filter_rows", value = TRUE)
+          rv$ui_settings$do_filter_rows <- TRUE
+          updateNumericInput(session, "top_n_rows", value = rv$top_n_default)
+          rv$ui_settings$top_n_rows <- rv$top_n_default
+        }
+      )
     })
     
     observeEvent(input$cancel, {
@@ -482,20 +649,36 @@ transform_server <- function(id, data) {
     })
     
     observeEvent(input$done, {
-      update_and_capture_ui_settings()
-      final_settings <- update_and_capture_ui_settings()
-      
-      if (settings_have_changed(final_settings, rv$applied_settings)) {
-        apply_preprocessing()
-        rv$applied_settings <- final_settings
-        rv$changes_applied <- TRUE
-        showNotification("Transformations applied successfully", type = "message")
-      } else {
-        showNotification("No changes detected in transformation settings", type = "message")
-      }
-      
-      removeModal()
-      rv$modal_closed <- TRUE
+      # Create a progress notification for applying final transformations
+      withProgress(
+        message = "Finalizing transformations",
+        detail = "Applying all changes...",
+        value = 0,
+        {
+          update_and_capture_ui_settings()
+          final_settings <- update_and_capture_ui_settings()
+          
+          setProgress(0.3, detail = "Checking for changes")
+          
+          if (settings_have_changed(final_settings, rv$applied_settings)) {
+            setProgress(0.5, detail = "Processing data")
+            apply_preprocessing()
+            
+            setProgress(0.8, detail = "Saving settings")
+            rv$applied_settings <- final_settings
+            rv$changes_applied <- TRUE
+            
+            setProgress(1, detail = "Complete")
+            showNotification("Transformations applied successfully", type = "message")
+          } else {
+            setProgress(1, detail = "No changes detected")
+            showNotification("No changes detected in transformation settings", type = "message")
+          }
+          
+          removeModal()
+          rv$modal_closed <- TRUE
+        }
+      )
     })
 
     return(list(

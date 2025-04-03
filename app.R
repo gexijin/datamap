@@ -201,22 +201,29 @@ server <- function(input, output, session) {
     file_data$data()
   }))
   
-  heatmap_rendered <- reactiveVal(FALSE)
+  initial_loading <- reactiveVal(TRUE)
   # Create a reactive that provides the main data for processing.
   current_data <- reactive({
-    if (!transform_data$modal_closed() && !heatmap_rendered()) {
-      return(NULL)  # Do not generate heatmap if the transformation dialog is still open
+    # If there's no data uploaded yet, return NULL
+    if (is.null(file_data$data())) {
+      return(NULL)
     }
     
-    # Get uploaded main data
-    uploaded_data <- file_data$data()
+    # During initial loading, don't show heatmap if transform dialog is open
+    if (initial_loading() && !transform_data$modal_closed()) {
+      return(NULL)
+    }
     
-    # If transformation has been applied, use that data instead
+    # Once transformation is applied for the first time, mark initial loading as complete
+    if (transform_data$has_transformed()) {
+      initial_loading(FALSE)
+    }
+    
+    # Return appropriate data based on transformation state
     if (!is.null(transform_data$processed_data()) && transform_data$has_transformed()) {
-      heatmap_rendered(TRUE)
       return(transform_data$processed_data())
     } else {
-      return(uploaded_data)
+      return(file_data$data())
     }
   })
   
@@ -340,102 +347,112 @@ server <- function(input, output, session) {
 
   heatmap_obj <- reactive({
     req(current_data())
-    # Convert the current data to a numeric matrix for the heatmap
-    heatmap_data <- prepare_heatmap_data(current_data())
-    
-    # Check for and handle zero standard deviation rows/columns
-    row_sds <- apply(heatmap_data, 1, sd, na.rm = TRUE)
-    col_sds <- apply(heatmap_data, 2, sd, na.rm = TRUE)
-    
-    # Identify rows and columns with zero or NA standard deviation
-    zero_sd_rows <- which(row_sds == 0 | is.na(row_sds))
-    zero_sd_cols <- which(col_sds == 0 | is.na(col_sds))
-    
-    # Add small random noise to zero SD rows/columns
-    if(length(zero_sd_rows) > 0) {
-      for(i in zero_sd_rows) {
-        # Add tiny random noise (won't affect visualization but prevents clustering errors)
-        heatmap_data[i,] <- heatmap_data[i,] + rnorm(ncol(heatmap_data), 0, 1e-10)
+
+    withProgress(message = 'Generating heatmap', value = 0, {
+      # Convert the current data to a numeric matrix for the heatmap
+      incProgress(0.1, detail = "Preparing data")
+      heatmap_data <- prepare_heatmap_data(current_data())
+      
+      # Check for and handle zero standard deviation rows/columns
+      incProgress(0.1, detail = "Checking data variance")
+      row_sds <- apply(heatmap_data, 1, sd, na.rm = TRUE)
+      col_sds <- apply(heatmap_data, 2, sd, na.rm = TRUE)
+      
+      # Identify rows and columns with zero or NA standard deviation
+      zero_sd_rows <- which(row_sds == 0 | is.na(row_sds))
+      zero_sd_cols <- which(col_sds == 0 | is.na(col_sds))
+      
+      # Add small random noise to zero SD rows/columns
+      incProgress(0.1, detail = "Handling zero variance data")
+      if(length(zero_sd_rows) > 0) {
+        for(i in zero_sd_rows) {
+          # Add tiny random noise (won't affect visualization but prevents clustering errors)
+          heatmap_data[i,] <- heatmap_data[i,] + rnorm(ncol(heatmap_data), 0, 1e-10)
+        }
       }
-    }
-    
-    if(length(zero_sd_cols) > 0) {
-      for(j in zero_sd_cols) {
-        # Add tiny random noise
-        heatmap_data[,j] <- heatmap_data[,j] + rnorm(nrow(heatmap_data), 0, 1e-10)
+      
+      if(length(zero_sd_cols) > 0) {
+        for(j in zero_sd_cols) {
+          # Add tiny random noise
+          heatmap_data[,j] <- heatmap_data[,j] + rnorm(nrow(heatmap_data), 0, 1e-10)
+        }
       }
-    }
-    
-    # Determine whether to show row names: only if row names exist and there are fewer than 100 rows
-    show_row_names <- !is.null(rownames(heatmap_data)) && nrow(heatmap_data) < 100
-    
-    # Select the color palette
-    if (input$color == "GreenBlackRed") {
-      colors <- colorRampPalette(c("green", "black", "red"))(100)
-    } else {
-      colors <- colorRampPalette(rev(brewer.pal(11, input$color)))(100)
-    }
-    
-    # Prepare clustering parameters
-    distance_method <- if (!is.null(input$distance_method)) input$distance_method else "euclidean"
-    correlation_method <- "pearson"
-    if(distance_method %in% c("pearson", "spearman", "kendall")) {
-      correlation_method <- distance_method
-      distance_method <- "correlation"
-    }
-    
-    clustering_method <- if (!is.null(input$clustering_method)) input$clustering_method else "complete"
-    
-    # Create custom distance functions that handle NAs and zero SDs gracefully
-    custom_cor_cols <- function(x) {
-      cors <- cor(x, method = correlation_method, use = "pairwise.complete.obs")
-      # Replace NAs with 0 correlations
-      cors[is.na(cors)] <- 0
-      as.dist(1 - cors)
-    }
-    
-    custom_cor_rows <- function(x) {
-      cors <- cor(t(x), method = correlation_method, use = "pairwise.complete.obs")
-      # Replace NAs with 0 correlations
-      cors[is.na(cors)] <- 0
-      as.dist(1 - cors)
-    }
-    
-    # Try to generate the heatmap with error handling
-    tryCatch({
-      pheatmap(
-        mat = heatmap_data,
-        color = colors,
-        cluster_rows = input$cluster_rows,
-        cluster_cols = input$cluster_cols,
-        clustering_method = clustering_method,
-        clustering_distance_rows = distance_method,
-        clustering_distance_cols = distance_method,
-        clustering_distance_cols_fun = if (distance_method == "correlation") custom_cor_cols else NULL,
-        clustering_distance_rows_fun = if (distance_method == "correlation") custom_cor_rows else NULL,
-        fontsize = input$fontsize,
-        annotation_col = col_annotation_for_heatmap(),
-        annotation_row = row_annotation_for_heatmap(),
-        show_rownames = show_row_names,
-        silent = TRUE
-      )
-    }, error = function(e) {
-      # If correlation-based distances fail, fall back to euclidean
-      message("Clustering error: ", e$message, ". Falling back to euclidean distance.")
-      pheatmap(
-        mat = heatmap_data,
-        color = colors,
-        cluster_rows = input$cluster_rows,
-        cluster_cols = input$cluster_cols,
-        clustering_method = clustering_method,
-        clustering_distance_rows = "euclidean",
-        clustering_distance_cols = "euclidean",
-        fontsize = input$fontsize,
-        annotation_col = col_annotation_for_heatmap(),
-        annotation_row = row_annotation_for_heatmap(),
-        show_rownames = show_row_names,
-        silent = TRUE
-      )
+      
+      # Determine whether to show row names: only if row names exist and there are fewer than 100 rows
+      show_row_names <- !is.null(rownames(heatmap_data)) && nrow(heatmap_data) < 100
+      
+      # Select the color palette
+      incProgress(0.1, detail = "Setting up color palette")
+      if (input$color == "GreenBlackRed") {
+        colors <- colorRampPalette(c("green", "black", "red"))(100)
+      } else {
+        colors <- colorRampPalette(rev(brewer.pal(11, input$color)))(100)
+      }
+      
+      # Prepare clustering parameters
+      incProgress(0.1, detail = "Configuring clustering parameters")
+      distance_method <- if (!is.null(input$distance_method)) input$distance_method else "euclidean"
+      correlation_method <- "pearson"
+      if(distance_method %in% c("pearson", "spearman", "kendall")) {
+        correlation_method <- distance_method
+        distance_method <- "correlation"
+      }
+      
+      clustering_method <- if (!is.null(input$clustering_method)) input$clustering_method else "complete"
+      
+      # Create custom distance functions that handle NAs and zero SDs gracefully
+      incProgress(0.1, detail = "Setting up distance functions")
+      custom_cor_cols <- function(x) {
+        cors <- cor(x, method = correlation_method, use = "pairwise.complete.obs")
+        # Replace NAs with 0 correlations
+        cors[is.na(cors)] <- 0
+        as.dist(1 - cors)
+      }
+      
+      custom_cor_rows <- function(x) {
+        cors <- cor(t(x), method = correlation_method, use = "pairwise.complete.obs")
+        # Replace NAs with 0 correlations
+        cors[is.na(cors)] <- 0
+        as.dist(1 - cors)
+      }
+      # Try to generate the heatmap with error handling
+      incProgress(0.3, detail = "Rendering heatmap")
+      tryCatch({
+        pheatmap(
+          mat = heatmap_data,
+          color = colors,
+          cluster_rows = input$cluster_rows,
+          cluster_cols = input$cluster_cols,
+          clustering_method = clustering_method,
+          clustering_distance_rows = distance_method,
+          clustering_distance_cols = distance_method,
+          clustering_distance_cols_fun = if (distance_method == "correlation") custom_cor_cols else NULL,
+          clustering_distance_rows_fun = if (distance_method == "correlation") custom_cor_rows else NULL,
+          fontsize = input$fontsize,
+          annotation_col = col_annotation_for_heatmap(),
+          annotation_row = row_annotation_for_heatmap(),
+          show_rownames = show_row_names,
+          silent = TRUE
+        )
+      }, error = function(e) {
+        # If correlation-based distances fail, fall back to euclidean
+        incProgress(0.1, detail = "Clustering error, falling back to euclidean distance")
+        message("Clustering error: ", e$message, ". Falling back to euclidean distance.")
+        pheatmap(
+          mat = heatmap_data,
+          color = colors,
+          cluster_rows = input$cluster_rows,
+          cluster_cols = input$cluster_cols,
+          clustering_method = clustering_method,
+          clustering_distance_rows = "euclidean",
+          clustering_distance_cols = "euclidean",
+          fontsize = input$fontsize,
+          annotation_col = col_annotation_for_heatmap(),
+          annotation_row = row_annotation_for_heatmap(),
+          show_rownames = show_row_names,
+          silent = TRUE
+        )
+      })
     })
   })
 
