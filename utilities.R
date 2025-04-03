@@ -1,22 +1,7 @@
-#' Guess Data Transformation for Scaling
-#'
-#' This function examines a given matrix or data frame of numeric values to determine a suitable data transformation strategy based on the calculated medians and variability measures.
-#'
-#'
-#' @param data_matrix A matrix or data frame containing numeric data that will be analyzed.
-#'
-#' @return An integer code representing the recommendation:
-#' \describe{
-#'   \item{0}{Returned when the input is invalid, the conversion fails, or all computed metrics are NA or zero.}
-#'   \item{2}{Indicates that rows have sufficient homogeneity (largest row median less than 10 times the smallest row median).}
-#'   \item{3}{Indicates that rows are recommended for scaling when the above condition is not met.}
-#'   \item{4}{Indicates that columns have sufficient homogeneity (largest column median less than 10 times the smallest column median).}
-#'   \item{5}{Indicates that columns are recommended for scaling when the above condition is not met.}
-#' }
-#'
-#' @export
-
 guess_transform <- function(data_matrix) {
+  # sample this meany rows or columns
+  n_sample <- 500
+
   # Check if input is valid
   if (!is.matrix(data_matrix) && !is.data.frame(data_matrix)) {
     return(0)  # Return 0 for invalid input
@@ -36,6 +21,17 @@ guess_transform <- function(data_matrix) {
   # Check if matrix is empty or contains only NAs
   if (nrow(data_matrix) == 0 || ncol(data_matrix) == 0 || all(is.na(data_matrix))) {
     return(0)
+  }
+  
+  if (nrow(data_matrix) > n_sample) {
+    sampled_rows <- sample(1:nrow(data_matrix), n_sample)
+    data_matrix <- data_matrix[sampled_rows, , drop = FALSE]
+  }
+  
+  # Sample columns if more than 500
+  if (ncol(data_matrix) > n_sample) {
+    sampled_cols <- sample(1:ncol(data_matrix), n_sample)
+    data_matrix <- data_matrix[, sampled_cols, drop = FALSE]
   }
   
   # Calculate row and column medians, ignoring NA values
