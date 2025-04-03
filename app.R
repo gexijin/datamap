@@ -285,36 +285,58 @@ server <- function(input, output, session) {
     as.data.frame(t(annot_selected))
   })
   
-  # Row annotation for heatmap
+   auto_row_annotation <- reactive({
+    # Return the factor columns identified during data transformation
+    transform_data$factor_columns()
+  })
+
   row_annotation_for_heatmap <- reactive({
     req(current_data())
-    # If no row annotation file is uploaded, return NULL
-    if (is.null(row_annotation_file_data$data())) {
-      return(NULL)
-    }
-    annot_df <- row_annotation_file_data$data()
-    main_rows <- rownames(current_data())
-    annot_rows <- rownames(annot_df)
     
-    # Tolerate extra samples in the annotation file:
-    # Proceed as long as all data matrix rows are present in the annotation file.
-    if (!all(main_rows %in% annot_rows)) {
-      return(NULL)
+    # First try to use uploaded row annotation file
+    if (!is.null(row_annotation_file_data$data())) {
+      annot_df <- row_annotation_file_data$data()
+      main_rows <- rownames(current_data())
+      annot_rows <- rownames(annot_df)
+      
+      # Proceed as long as all data matrix rows are present in the annotation file
+      if (!all(main_rows %in% annot_rows)) {
+        return(NULL)
+      }
+      
+      # Subset and reorder annotation file rows to match the main data matrix
+      annot_df <- annot_df[main_rows, , drop = FALSE]
+      
+      # Use selected annotation columns
+      selected <- input$row_annotation_select
+      if (is.null(selected)) {
+        selected <- if (ncol(annot_df) > 0) colnames(annot_df)[1] else NULL
+      }
+      if (is.null(selected))
+        return(NULL)
+      
+      return(as.data.frame(annot_df[, selected, drop = FALSE]))
     }
-    # Subset and reorder annotation file rows to match the main data matrix
-    annot_df <- annot_df[main_rows, , drop = FALSE]
     
-    # Use the selected annotation columns; default to the first if none selected
-    selected <- input$row_annotation_select
-    if (is.null(selected)) {
-      selected <- if (ncol(annot_df) > 0) colnames(annot_df)[1] else NULL
+    # If no row annotation file, try auto-detected factor columns
+    if (!is.null(auto_row_annotation())) {
+      annot_df <- auto_row_annotation()
+      main_rows <- rownames(current_data())
+      
+      # Make sure row names match
+      if (!all(main_rows %in% rownames(annot_df))) {
+        return(NULL)
+      }
+      
+      # Subset and reorder rows to match main data
+      annot_df <- annot_df[main_rows, , drop = FALSE]
+      
+      # Use all detected factor columns automatically
+      return(as.data.frame(annot_df))
     }
-    if (is.null(selected))
-      return(NULL)
     
-    annot_selected <- annot_df[, selected, drop = FALSE]
-    # No need to transpose as it's already in the correct orientation
-    as.data.frame(annot_selected)
+    # If neither source is available, return NULL
+    return(NULL)
   })
 
   heatmap_obj <- reactive({

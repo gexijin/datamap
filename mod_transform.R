@@ -60,6 +60,7 @@ transform_server <- function(id, data) {
       dialog_shown = FALSE,         # Track if dialog has been shown
       changes_applied = FALSE,      # Track if changes have been applied
       modal_closed = TRUE,  
+      factor_columns = NULL,
       ui_settings = list(           # Store UI input values to preserve between sessions
         na_method = "zero",
         do_log_transform = FALSE,
@@ -78,6 +79,29 @@ transform_server <- function(id, data) {
       # Store the original data frame
       rv$original_data <- data_frame
       original_row_names <- rownames(data_frame)
+
+      factor_like_cols <- list()
+      for (col_name in names(data_frame)) {
+        col_data <- data_frame[[col_name]]
+        
+        # Check if column is character or factor
+        if ((is.character(col_data) || is.factor(col_data)) && 
+            length(unique(col_data)) < min(50, nrow(data_frame) * 0.5)) {
+          factor_like_cols[[col_name]] <- col_data
+        }
+      }
+      
+      # If factor-like columns were found, store them
+      if (length(factor_like_cols) > 0) {
+        rv$factor_columns <- as.data.frame(factor_like_cols, check.names = FALSE)
+        rownames(rv$factor_columns) <- rownames(data_frame)
+        
+        # Remove factor columns from the data_frame before numeric conversion
+        data_frame <- data_frame[, !names(data_frame) %in% names(factor_like_cols), drop = FALSE]
+      } else {
+        rv$factor_columns <- NULL
+      }
+
       # Create a numeric matrix version for analysis and processing
       numeric_data <- as.data.frame(
         lapply(data_frame, function(x) as.numeric(as.character(x))),
@@ -483,7 +507,8 @@ transform_server <- function(id, data) {
         }
       }),
       has_transformed = reactive({ rv$changes_applied }),
-      modal_closed = reactive({ rv$modal_closed }) 
+      modal_closed = reactive({ rv$modal_closed }),
+      factor_columns = reactive({ rv$factor_columns })   
     ))
   })
 }
