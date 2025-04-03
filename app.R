@@ -17,9 +17,24 @@ ui <- fluidPage(
       width = 3,
       titlePanel("DataMap"),
       hr(),
-      # File upload module UI for main data
-      h4("Upload file:"),
-      file_upload_ui("file_upload"),
+      
+      # Button to open file upload modal
+      actionButton("show_upload_modal", "Upload Files", 
+                  icon = icon("upload"), 
+                  style = "width: 100%; margin-bottom: 15px;"),
+      
+      # Dynamic UI for selecting column annotation rows
+      conditionalPanel(
+        condition = "output.col_annotation_uploaded",
+        uiOutput("col_annotation_select_ui")
+      ),
+      
+      # Dynamic UI for selecting row annotation columns
+      conditionalPanel(
+        condition = "output.row_annotation_uploaded",
+        uiOutput("row_annotation_select_ui")
+      ),
+      
 
       # Transform module UI - only shown after data is loaded
       conditionalPanel(
@@ -31,31 +46,6 @@ ui <- fluidPage(
         )
       ),
             
-      # Column annotation file upload widget
-      tags$div(
-        tags$h4("Column Annotations", style="margin-top: 15px;"),
-        file_upload_ui("col_annotation_file_upload")
-      ),
-      
-      # Dynamic UI for selecting column annotation rows
-      conditionalPanel(
-        condition = "output.col_annotation_uploaded",
-        uiOutput("col_annotation_select_ui")
-      ),
-      
-      # Row annotation file upload widget
-      tags$div(
-        tags$h4("Row Annotations", style="margin-top: 15px;"),
-        file_upload_ui("row_annotation_file_upload")
-      ),
-      
-      # Dynamic UI for selecting row annotation columns
-      conditionalPanel(
-        condition = "output.row_annotation_uploaded",
-        uiOutput("row_annotation_select_ui")
-      ),
-      
-
       # Heatmap customization section - only shown after data is loaded
       conditionalPanel(
         condition = "output.data_loaded",
@@ -129,6 +119,35 @@ ui <- fluidPage(
 )
 
 server <- function(input, output, session) {
+  # Show the modal when the button is clicked
+  observeEvent(input$show_upload_modal, {
+    showModal(modalDialog(
+      title = "Upload Files",
+      
+      # Main data file upload
+      h4("Upload file:"),
+      file_upload_ui("file_upload"),
+      
+      # Column annotation file upload widget
+      tags$div(
+        tags$h4("Column Annotations", style="margin-top: 15px;"),
+        file_upload_ui("col_annotation_file_upload")
+      ),
+      
+      # Row annotation file upload widget
+      tags$div(
+        tags$h4("Row Annotations", style="margin-top: 15px;"),
+        file_upload_ui("row_annotation_file_upload")
+      ),
+      
+      footer = tagList(
+        modalButton("Close")
+      ),
+      size = "l",
+      easyClose = TRUE
+    ))
+  })
+  
   # Use the file upload module for main data
   file_data <- file_upload_server("file_upload")
   
@@ -217,11 +236,6 @@ server <- function(input, output, session) {
     }
   })
   
-  # Preview of the current data (original or transformed)
-  output$data_preview <- renderDT({
-    req(current_data())
-    datatable(current_data(), options = list(scrollX = TRUE, pageLength = 10))
-  })
   
   # Helper function to convert data to a numeric matrix before creating the heatmap
   prepare_heatmap_data <- function(data) {
@@ -308,6 +322,29 @@ server <- function(input, output, session) {
     # Convert the current data to a numeric matrix for the heatmap
     heatmap_data <- prepare_heatmap_data(current_data())
     
+    # Check for and handle zero standard deviation rows/columns
+    row_sds <- apply(heatmap_data, 1, sd, na.rm = TRUE)
+    col_sds <- apply(heatmap_data, 2, sd, na.rm = TRUE)
+    
+    # Identify rows and columns with zero or NA standard deviation
+    zero_sd_rows <- which(row_sds == 0 | is.na(row_sds))
+    zero_sd_cols <- which(col_sds == 0 | is.na(col_sds))
+    
+    # Add small random noise to zero SD rows/columns
+    if(length(zero_sd_rows) > 0) {
+      for(i in zero_sd_rows) {
+        # Add tiny random noise (won't affect visualization but prevents clustering errors)
+        heatmap_data[i,] <- heatmap_data[i,] + rnorm(ncol(heatmap_data), 0, 1e-10)
+      }
+    }
+    
+    if(length(zero_sd_cols) > 0) {
+      for(j in zero_sd_cols) {
+        # Add tiny random noise
+        heatmap_data[,j] <- heatmap_data[,j] + rnorm(nrow(heatmap_data), 0, 1e-10)
+      }
+    }
+    
     # Determine whether to show row names: only if row names exist and there are fewer than 100 rows
     show_row_names <- !is.null(rownames(heatmap_data)) && nrow(heatmap_data) < 100
     
@@ -327,27 +364,58 @@ server <- function(input, output, session) {
     }
     
     clustering_method <- if (!is.null(input$clustering_method)) input$clustering_method else "complete"
-    # Generate the heatmap with conditional row names display
-    pheatmap(
-      mat = heatmap_data,
-      color = colors,
-      cluster_rows = input$cluster_rows,
-      cluster_cols = input$cluster_cols,
-      clustering_method = clustering_method,
-      clustering_distance_rows = distance_method,
-      clustering_distance_cols = distance_method,
-      clustering_distance_cols_fun = if (distance_method == "correlation") {
-        function(x) as.dist(1 - cor(x, method = correlation_method, use = "pairwise.complete.obs"))
-      } else NULL,
-      clustering_distance_rows_fun = if (distance_method == "correlation") {
-        function(x) as.dist(1 - cor(t(x), method = correlation_method, use = "pairwise.complete.obs"))
-      } else NULL,
-      fontsize = input$fontsize,
-      annotation_col = col_annotation_for_heatmap(),
-      annotation_row = row_annotation_for_heatmap(),
-      show_rownames = show_row_names,  # Conditionally display row names
-      silent = TRUE
-    )
+    
+    # Create custom distance functions that handle NAs and zero SDs gracefully
+    custom_cor_cols <- function(x) {
+      cors <- cor(x, method = correlation_method, use = "pairwise.complete.obs")
+      # Replace NAs with 0 correlations
+      cors[is.na(cors)] <- 0
+      as.dist(1 - cors)
+    }
+    
+    custom_cor_rows <- function(x) {
+      cors <- cor(t(x), method = correlation_method, use = "pairwise.complete.obs")
+      # Replace NAs with 0 correlations
+      cors[is.na(cors)] <- 0
+      as.dist(1 - cors)
+    }
+    
+    # Try to generate the heatmap with error handling
+    tryCatch({
+      pheatmap(
+        mat = heatmap_data,
+        color = colors,
+        cluster_rows = input$cluster_rows,
+        cluster_cols = input$cluster_cols,
+        clustering_method = clustering_method,
+        clustering_distance_rows = distance_method,
+        clustering_distance_cols = distance_method,
+        clustering_distance_cols_fun = if (distance_method == "correlation") custom_cor_cols else NULL,
+        clustering_distance_rows_fun = if (distance_method == "correlation") custom_cor_rows else NULL,
+        fontsize = input$fontsize,
+        annotation_col = col_annotation_for_heatmap(),
+        annotation_row = row_annotation_for_heatmap(),
+        show_rownames = show_row_names,
+        silent = TRUE
+      )
+    }, error = function(e) {
+      # If correlation-based distances fail, fall back to euclidean
+      message("Clustering error: ", e$message, ". Falling back to euclidean distance.")
+      pheatmap(
+        mat = heatmap_data,
+        color = colors,
+        cluster_rows = input$cluster_rows,
+        cluster_cols = input$cluster_cols,
+        clustering_method = clustering_method,
+        clustering_distance_rows = "euclidean",
+        clustering_distance_cols = "euclidean",
+        fontsize = input$fontsize,
+        annotation_col = col_annotation_for_heatmap(),
+        annotation_row = row_annotation_for_heatmap(),
+        show_rownames = show_row_names,
+        silent = TRUE
+      )
+    })
   })
 
   
