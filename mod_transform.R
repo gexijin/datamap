@@ -67,7 +67,7 @@ transform_server <- function(id, data) {
         log_constant = NULL,
         center_scale = "none",
         do_zscore_cap = TRUE,
-        zscore_cutoff = 2,
+        zscore_cutoff = 3,
         do_filter_rows = TRUE,      # Changed to TRUE as default
         top_n_rows = NULL
       )
@@ -367,7 +367,7 @@ transform_server <- function(id, data) {
                    conditionalPanel(
                      condition = "input.do_zscore_cap", ns = ns,
                      numericInput(ns("zscore_cutoff"), "Z-score cutoff value:",
-                                  value = rv$ui_settings$zscore_cutoff, min = 0.1, step = 0.1)
+                                  value = rv$ui_settings$zscore_cutoff, min = 1, step = 1)
                    )
                  ),
                  
