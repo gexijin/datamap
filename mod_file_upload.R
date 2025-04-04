@@ -103,11 +103,11 @@ file_upload_server <- function(id) {
         # Get current data based on selected options
         if(file_ext %in% c("xls", "xlsx")) {
           if(!is.null(input$import_sheet)) {
+            # Read entire dataset to check for duplicate row names
             sample_data <- read_excel(
               input$file$datapath,
               sheet = input$import_sheet,
-              col_names = input$import_header,
-              n_max = 10
+              col_names = input$import_header
             )
           } else {
             return()
@@ -116,12 +116,12 @@ file_upload_server <- function(id) {
           delimiter <- input$import_delimiter
           if(is.null(delimiter)) return()
           
+          # Read entire dataset to check for duplicate row names
           if(delimiter == "\t") {
             sample_data <- read.delim(
               input$file$datapath,
               header = input$import_header,
               sep = delimiter,
-              nrows = 10,
               stringsAsFactors = FALSE,
               check.names = FALSE
             )
@@ -130,7 +130,6 @@ file_upload_server <- function(id) {
               input$file$datapath,
               header = input$import_header,
               sep = delimiter,
-              nrows = 10,
               stringsAsFactors = FALSE,
               check.names = FALSE
             )
@@ -168,8 +167,8 @@ file_upload_server <- function(id) {
         # For Excel files, get sheet names
         sheets <- excel_sheets(input$file$datapath)
         
-        # Read first few rows to check for headers and row names
-        sample_data <- read_excel(input$file$datapath, sheet = 1, n_max = 10)
+        # Read the entire Excel sheet to check for uniqueness in the first column
+        sample_data <- read_excel(input$file$datapath, sheet = 1)
         
         # Check if first column might be row names
         if(ncol(sample_data) > 1) {
@@ -197,11 +196,11 @@ file_upload_server <- function(id) {
             delimiter <- "\t"
           }
           
-          # Try parsing first 10 rows to check for headers and row names
+          # Read the entire file to check for uniqueness in the first column
           if(delimiter == "\t") {
-            sample_data <- read.delim(input$file$datapath, nrows = 10, sep = delimiter, header = FALSE, stringsAsFactors = FALSE)
+            sample_data <- read.delim(input$file$datapath, sep = delimiter, header = FALSE, stringsAsFactors = FALSE)
           } else {
-            sample_data <- read.csv(input$file$datapath, nrows = 10, sep = delimiter, header = FALSE, stringsAsFactors = FALSE)
+            sample_data <- read.csv(input$file$datapath, sep = delimiter, header = FALSE, stringsAsFactors = FALSE)
           }
           
           # Check if first row looks like a header
