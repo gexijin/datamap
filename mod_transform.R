@@ -36,7 +36,7 @@ transform_ui <- function(id) {
 #'
 #' @param id The module namespace id
 #' @param data Reactive data frame to process
-#' @return A list with the processed data reactive
+#' @return A list with the processed data reactive and reproducible code
 #'
 transform_server <- function(id, data) {
   moduleServer(id, function(input, output, session) {
@@ -61,6 +61,7 @@ transform_server <- function(id, data) {
       changes_applied = FALSE,      # Track if changes have been applied
       modal_closed = TRUE,  
       factor_columns = NULL,
+      code = NULL,     # NEW: String to store reproducible R code
       ui_settings = list(           # Store UI input values to preserve between sessions
         na_method = "zero",
         do_log_transform = FALSE,
@@ -168,6 +169,168 @@ transform_server <- function(id, data) {
       }
       
       rv$processed_data <- data_matrix
+    }
+    
+    # Function to generate reproducible R code
+    generate_code <- function(settings) {
+      code_lines <- c(
+        "# Reproducible Data Transformation Code",
+        "# This code will transform your data using the same settings applied in the app",
+        "",
+        "# Load required package for skewness calculation if needed",
+        "if (!requireNamespace(\"e1071\", quietly = TRUE)) {",
+        "  install.packages(\"e1071\")",
+        "}",
+        "library(e1071)",
+        "",
+        "transform_data <- function(data) {",
+        "  # Create a copy of the data to avoid modifying the original",
+        "  processed <- data",
+        "",
+        "  # Step 1: Convert data frame to numeric matrix and handle factor columns",
+        "  original_row_names <- rownames(processed)",
+        "  factor_like_cols <- list()",
+        "  ",
+        "  for (col_name in names(processed)) {",
+        "    col_data <- processed[[col_name]]",
+        "    if ((is.character(col_data) || is.factor(col_data)) && ",
+        "        length(unique(col_data)) < min(50, nrow(processed) * 0.5)) {",
+        "      factor_like_cols[[col_name]] <- col_data",
+        "    }",
+        "  }",
+        "  ",
+        "  # Remove factor columns before numeric conversion",
+        "  if (length(factor_like_cols) > 0) {",
+        "    factor_columns <- as.data.frame(factor_like_cols, check.names = FALSE)",
+        "    rownames(factor_columns) <- rownames(processed)",
+        "    processed <- processed[, !names(processed) %in% names(factor_like_cols), drop = FALSE]",
+        "  }",
+        "  ",
+        "  # Convert to numeric matrix",
+        "  numeric_data <- as.data.frame(",
+        "    lapply(processed, function(x) as.numeric(as.character(x))),",
+        "    row.names = original_row_names",
+        "  )",
+        "  ",
+        "  processed <- as.matrix(numeric_data)",
+        "  rownames(processed) <- original_row_names",
+        "  ",
+        "  # Remove rows that are completely missing",
+        "  row_na_count <- rowSums(is.na(processed))",
+        "  row_all_na <- row_na_count == ncol(processed)",
+        "  if (any(row_all_na)) {",
+        "    processed <- processed[!row_all_na, , drop = FALSE]",
+        "  }",
+        "  ",
+        "  # Remove columns that are entirely NA",
+        "  col_na_count <- colSums(is.na(processed))",
+        "  col_all_na <- col_na_count == nrow(processed)",
+        "  if (any(col_all_na)) {",
+        "    removed_cols <- colnames(processed)[col_all_na]",
+        "    cat(\"Removed non-numeric columns:\", paste(removed_cols, collapse = \", \"), \"\\n\")",
+        "    processed <- processed[, !col_all_na, drop = FALSE]",
+        "  }"
+      )
+      
+      # Handle missing values
+      if (settings$na_method != "leave") {
+        code_lines <- c(code_lines, "", "  # Handle missing values")
+        if (settings$na_method == "zero") {
+          code_lines <- c(code_lines, "  processed[is.na(processed)] <- 0")
+        } else if (settings$na_method == "mean") {
+          code_lines <- c(code_lines, 
+                          "  means <- colMeans(processed, na.rm = TRUE)",
+                          "  idx <- which(is.na(processed), arr.ind = TRUE)",
+                          "  processed[idx] <- means[idx[, 2]]")
+        } else if (settings$na_method == "median") {
+          code_lines <- c(code_lines,
+                          "  medians <- apply(processed, 2, median, na.rm = TRUE)",
+                          "  idx <- which(is.na(processed), arr.ind = TRUE)",
+                          "  processed[idx] <- medians[idx[, 2]]")
+        }
+      }
+      
+      # Apply log transformation
+      if (settings$do_log_transform) {
+        code_lines <- c(code_lines, "", "  # Apply log10 transformation")
+        code_lines <- c(code_lines, "  if (any(processed < 0, na.rm = TRUE)) {",
+                        "    processed[processed < 0] <- 0",
+                        "  }")
+        code_lines <- c(code_lines, paste0("  const <- ", settings$log_constant))
+        code_lines <- c(code_lines, "  processed <- log10(processed + const)")
+      }
+      
+      # Filter to keep only top N most variable rows
+      if (settings$do_filter_rows) {
+        code_lines <- c(code_lines, "", "  # Keep top most variable rows")
+        code_lines <- c(code_lines, "  row_sds <- apply(processed, 1, sd, na.rm = TRUE)")
+        code_lines <- c(code_lines, paste0("  top_n <- ", settings$top_n_rows))
+        code_lines <- c(code_lines, 
+                        "  if (top_n < nrow(processed)) {",
+                        "    top_indices <- order(row_sds, decreasing = TRUE)[1:top_n]",
+                        "    processed <- processed[top_indices, , drop = FALSE]",
+                        "  }")
+      }
+      
+      # Apply centering and scaling
+      if (settings$center_scale != "none") {
+        code_lines <- c(code_lines, "", paste0("  # Apply ", settings$center_scale, " transformation"))
+        
+        if (settings$center_scale == "center_row") {
+          code_lines <- c(code_lines,
+                          "  row_means <- rowMeans(processed, na.rm = TRUE)",
+                          "  processed <- sweep(processed, 1, row_means, \"-\")")
+        } else if (settings$center_scale == "scale_row") {
+          code_lines <- c(code_lines,
+                          "  # Scale each row (Z-score normalization)",
+                          "  processed <- t(scale(t(processed)))",
+                          "  # Replace any NA values (from constant rows) with 0",
+                          "  processed[is.na(processed)] <- 0")
+        } else if (settings$center_scale == "center_col") {
+          code_lines <- c(code_lines,
+                          "  col_means <- colMeans(processed, na.rm = TRUE)",
+                          "  processed <- t(t(processed) - col_means)")
+        } else if (settings$center_scale == "scale_col") {
+          code_lines <- c(code_lines,
+                          "  processed <- scale(processed)",
+                          "  processed[is.na(processed)] <- 0")
+        }
+      }
+      
+      # Apply Z-score cutoff for outlier capping
+      if (settings$do_zscore_cap) {
+        code_lines <- c(code_lines, "", "  # Cap outliers based on Z-score")
+        code_lines <- c(code_lines, paste0("  z_cutoff <- ", settings$zscore_cutoff))
+        code_lines <- c(code_lines,
+                        "  flat_data <- as.numeric(processed)",
+                        "  flat_data <- flat_data[is.finite(flat_data)]",
+                        "  if (length(flat_data) > 0) {",
+                        "    overall_mean <- mean(flat_data, na.rm = TRUE)",
+                        "    overall_sd <- sd(flat_data, na.rm = TRUE)",
+                        "    if (!is.na(overall_sd) && overall_sd > 0) {",
+                        "      upper_bound <- overall_mean + z_cutoff * overall_sd",
+                        "      lower_bound <- overall_mean - z_cutoff * overall_sd",
+                        "      processed[processed > upper_bound] <- upper_bound",
+                        "      processed[processed < lower_bound] <- lower_bound",
+                        "    }",
+                        "  }")
+      }
+      
+      # Finish the function and add usage example
+      code_lines <- c(code_lines,
+                      "",
+                      "  # Merge back factor columns if any were extracted",
+                      "  if (exists(\"factor_columns\")) {",
+                      "    result_list <- list(numeric_data = processed, factor_columns = factor_columns)",
+                      "    return(result_list)",
+                      "  } else {",
+                      "    return(processed)",
+                      "  }",
+                      "}",
+                      "",
+                      "transformed_data <- transform_data(data)")
+      
+      return(paste(code_lines, collapse = "\n"))
     }
     
     # Consolidated function to update and capture UI settings
@@ -302,6 +465,9 @@ transform_server <- function(id, data) {
       }
       progress$set(value = 1, detail = "Transformations complete")
       
+      # Generate reproducible code
+      rv$code <- generate_code(update_and_capture_ui_settings())
+      
       rv$processed_data <- processed
     }
     
@@ -421,7 +587,7 @@ transform_server <- function(id, data) {
       
       rv$current_settings <- update_and_capture_ui_settings()
     }
-    
+     
     output$has_missing <- reactive({
       return(rv$has_missing)
     })
@@ -492,6 +658,9 @@ transform_server <- function(id, data) {
       rv$ui_settings$do_filter_rows <- TRUE
       updateNumericInput(session, "top_n_rows", value = rv$top_n_default)
       rv$ui_settings$top_n_rows <- rv$top_n_default
+      
+      # Reset reproducible code
+      rv$code <- generate_code(rv$ui_settings)
     })
     
     observeEvent(input$cancel, {
@@ -559,9 +728,8 @@ transform_server <- function(id, data) {
       }),
       has_transformed = reactive({ rv$changes_applied }),
       modal_closed = reactive({ rv$modal_closed }),
-      factor_columns = reactive({ rv$factor_columns })   
+      factor_columns = reactive({ rv$factor_columns }),
+      code = reactive({ rv$code })  # NEW: Return the reproducible code
     ))
   })
-
-
 }

@@ -1,5 +1,5 @@
 # mod_file_upload.R
-# A Shiny module for smart file upload and parsing
+# A Shiny module for smart file upload and parsing with reproducible code generation
 
 library(shiny)
 library(readxl)
@@ -19,14 +19,15 @@ file_upload_ui <- function(id) {
                 "text/csv",
                 "text/comma-separated-values,text/plain",
                 ".csv", ".txt", ".tsv", ".xls", ".xlsx"
-              ))
+              )),
+    uiOutput(ns("code_ui"))
   )
 }
 
 #' Server function for file upload module
 #'
 #' @param id The module namespace id
-#' @return A list of reactive values: data and data_loaded
+#' @return A list of reactive values: data, data_loaded, has_rownames, and reproducible_code
 #'
 file_upload_server <- function(id) {
   moduleServer(id, function(input, output, session) {
@@ -37,7 +38,8 @@ file_upload_server <- function(id) {
       data = NULL,
       file_extension = NULL,
       data_loaded = FALSE,
-      has_rownames = FALSE
+      has_rownames = FALSE,
+      code = NULL
     )
     
     # Helper function to count delimiters in a text sample
@@ -84,6 +86,77 @@ file_upload_server <- function(id) {
       }
       
       return(FALSE)
+    }
+    
+    # Helper function to generate reproducible code
+    generate_code <- function(file_path, file_ext, delimiter = NULL, 
+                                         sheet = NULL, header = TRUE, 
+                                         rownames = FALSE) {
+      # Start with library imports
+      code <- "# Reproducible code for data import\n"
+      
+      # Add necessary libraries
+      if (file_ext %in% c("xls", "xlsx")) {
+        code <- paste0(code, "library(readxl)\n")
+      }
+      
+      # Add the data import code
+      if (file_ext %in% c("xls", "xlsx")) {
+        code <- paste0(
+          code,
+          "data <- read_excel(\n",
+          "  path = \"", file_path, "\",\n",
+          "  sheet = \"", sheet, "\",\n",
+          "  col_names = ", as.character(header), "\n",
+          ")\n",
+          "data <- as.data.frame(data, stringsAsFactors = FALSE)\n"
+        )
+      } else {
+        # For CSV and other delimited text files
+        delimiter_name <- switch(delimiter,
+                                "," = "comma",
+                                "\t" = "tab",
+                                ";" = "semicolon",
+                                "|" = "pipe",
+                                " " = "space")
+        
+        if (delimiter == "\t") {
+          code <- paste0(
+            code,
+            "data <- read.delim(\n",
+            "  file = \"", file_path, "\",\n",
+            "  header = ", as.character(header), ",\n",
+            "  sep = \"\\t\",\n",
+            "  stringsAsFactors = FALSE,\n",
+            "  check.names = FALSE\n",
+            ")\n"
+          )
+        } else {
+          code <- paste0(
+            code,
+            "data <- read.csv(\n",
+            "  file = \"", file_path, "\",\n",
+            "  header = ", as.character(header), ",\n",
+            "  sep = \"", gsub("\\", "\\\\", delimiter, fixed = TRUE), "\",\n",
+            "  stringsAsFactors = FALSE,\n",
+            "  check.names = FALSE\n",
+            ")\n"
+          )
+        }
+      }
+      
+      # Handle row names if applicable
+      if (rownames) {
+        code <- paste0(
+          code,
+          "\n# Set row names from first column\n",
+          "row_names <- data[[1]]\n",
+          "data <- data[, -1, drop = FALSE]\n",
+          "rownames(data) <- row_names\n"
+        )
+      }
+      
+      return(code)
     }
     
     # Reactive value to track if first column is suitable for row names
@@ -348,7 +421,7 @@ file_upload_server <- function(id) {
       removeModal()
     })
     
-            # Confirm import and load the full dataset
+    # Confirm import and load the full dataset
     observeEvent(input$import_confirm, {
       req(input$file)
       
@@ -401,6 +474,16 @@ file_upload_server <- function(id) {
         rv$data <- df
         rv$data_loaded <- TRUE
         
+        # Generate reproducible code
+        rv$code <- generate_code(
+          file_path = input$file$name,
+          file_ext = file_ext,
+          delimiter = input$import_delimiter,
+          sheet = input$import_sheet,
+          header = input$import_header,
+          rownames = using_rownames
+        )
+        
         removeModal()
         
       }, error = function(e) {
@@ -416,7 +499,8 @@ file_upload_server <- function(id) {
     return(list(
       data = reactive({ rv$data }),
       data_loaded = reactive({ rv$data_loaded }),
-      has_rownames = reactive({ rv$has_rownames })
+      has_rownames = reactive({ rv$has_rownames }),
+      code = reactive({ rv$code })
     ))
   })
 }

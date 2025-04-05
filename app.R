@@ -130,6 +130,9 @@ ui <- fluidPage(
       tabsetPanel(
         tabPanel("Heatmap", 
                 plotOutput("heatmap", width = "100%", height = "600px")
+        ),
+        tabPanel("Code",
+                downloadButton("download_combined_code", "Download All Code")
         )
       )
     )
@@ -380,6 +383,10 @@ server <- function(input, output, session) {
 
   # Replace the heatmap_obj reactive function with this corrected version:
 
+  # Create a reactive to store and access the actual pheatmap parameters
+  pheatmap_params_used <- reactiveVal(NULL)
+  
+  # Modify the heatmap_obj reactive function to save the parameters:
   heatmap_obj <- reactive({
     req(current_data())
 
@@ -389,7 +396,7 @@ server <- function(input, output, session) {
       heatmap_data <- current_data()
      
       show_row_names <- file_data$has_rownames() && !is.null(rownames(heatmap_data))
-      # Use the user’s input if available; otherwise, use the default
+      # Use the user's input if available; otherwise, use the default
       if(show_row_names && !is.null(input$show_row_names)) {
         show_row_names <- input$show_row_names
       }
@@ -478,6 +485,9 @@ server <- function(input, output, session) {
               }
             }
 
+            # Store the parameters for code generation
+            pheatmap_params_used(pheatmap_params)
+            
             # Call pheatmap with the parameter list
             do.call(pheatmap, pheatmap_params)
         } else {
@@ -511,12 +521,33 @@ server <- function(input, output, session) {
               }
             }
             
+            # Store the parameters for code generation
+            pheatmap_params_used(pheatmap_params)
+            
             do.call(pheatmap, pheatmap_params)
         }
       }, error = function(e) {
         # If any clustering fails, fall back to euclidean
         incProgress(0.1, detail = "Clustering error, falling back to euclidean distance")
         message("Clustering error: ", e$message, ". Falling back to euclidean distance.")
+        fallback_params <- list(
+          mat = heatmap_data,
+          color = colors,
+          cluster_rows = input$cluster_rows,
+          cluster_cols = input$cluster_cols,
+          clustering_method = clustering_method,
+          clustering_distance_rows = "euclidean",
+          clustering_distance_cols = "euclidean",
+          fontsize = input$fontsize,
+          annotation_col = col_annotation_for_heatmap(),
+          annotation_row = row_annotation_for_heatmap(),
+          show_rownames = show_row_names,
+          silent = TRUE
+        )
+        
+        # Store the fallback parameters
+        pheatmap_params_used(fallback_params)
+        
         pheatmap(
           mat = heatmap_data,
           color = colors,
@@ -596,6 +627,180 @@ server <- function(input, output, session) {
     # Reload the page to reset the session
     session$reload()
   })
+# Create a reactive expression for generating the full code
+full_code <- reactive({
+  # Initialize an empty vector to store code parts
+  code_parts <- c()
+  
+  # Add file upload code if available
+  if (!is.null(file_data$code())) {
+    code_parts <- c(code_parts, "# Data Import Code", file_data$code(), "")
+  }
+  
+  # Add transform code if available
+  if (!is.null(transform_data$code())) {
+    code_parts <- c(code_parts, "# Data Transformation Code", transform_data$code(), "")
+  }
+  
+  # Generate heatmap code using the actual parameters that were used
+  if (!is.null(current_data()) && !is.null(pheatmap_params_used())) {
+    # Extract the params that were used
+    params <- pheatmap_params_used()
+    
+    heatmap_code <- c(
+      "# Heatmap Generation Code",
+      "library(pheatmap)",
+      "library(RColorBrewer)",
+      "library(grid)",
+      "",
+      "# Save the processed data (adjust this path as needed)",
+      "processed_data <- transformed_data$numeric_data",
+      ""
+    )
+    
+    # Add color palette code
+    if (!is.null(params$color)) {
+      if (identical(params$color, colorRampPalette(c("green", "black", "red"))(100))) {
+        heatmap_code <- c(heatmap_code, "# Define color palette",
+                          "colors <- colorRampPalette(c(\"green\", \"black\", \"red\"))(100)")
+      } else {
+        # Determine which palette was used
+        for (palette_name in c("RdBu", "RdYlBu", "YlOrRd", "YlGnBu", "Blues", "Greens", "Purples", "Reds", "OrRd")) {
+          if (identical(params$color, colorRampPalette(rev(brewer.pal(11, palette_name)))(100))) {
+            heatmap_code <- c(heatmap_code, "# Define color palette",
+                              paste0("colors <- colorRampPalette(rev(brewer.pal(11, \"", palette_name, "\")))(100)"))
+            break
+          }
+        }
+      }
+    }
+    params$silent <- FALSE # otherwise pheatmap will not show
+    # Start building pheatmap code
+    pheatmap_call <- "pheatmap(\n  processed_data"
+    
+    # Add all the non-complex parameters
+    simple_params <- c(
+      "cluster_rows", "cluster_cols", "clustering_method", 
+      "fontsize", "show_rownames", "silent", "cutree_rows", "cutree_cols"
+    )
+    
+    for (param in simple_params) {
+      if (!is.null(params[[param]])) {
+        # Format the value based on its type
+        if (is.logical(params[[param]])) {
+          value <- ifelse(params[[param]], "TRUE", "FALSE")
+        } else if (is.character(params[[param]])) {
+          value <- paste0("\"", params[[param]], "\"")
+        } else {
+          value <- as.character(params[[param]])
+        }
+        
+        pheatmap_call <- paste0(pheatmap_call, ",\n  ", param, " = ", value)
+      }
+    }
+    
+    # Handle distance methods
+    if (!is.null(params$clustering_distance_rows)) {
+      if (is.character(params$clustering_distance_rows)) {
+        pheatmap_call <- paste0(pheatmap_call, ",\n  clustering_distance_rows = \"", params$clustering_distance_rows, "\"")
+      } else {
+        # If it's a custom distance object, include the custom_cor function
+        heatmap_code <- c(heatmap_code, "", 
+                        "# Custom correlation function for distance calculation",
+                        "custom_cor <- function(x, method = \"pearson\") {",
+                        "  cors <- tryCatch({",
+                        "    cor(x, method = method, use = \"pairwise.complete.obs\")",
+                        "  }, error = function(e) {",
+                        "    warning(\"Error calculating correlation: \", e$message)",
+                        "    return(diag(nrow(x)))",
+                        "  })",
+                        "  # Replace NAs with 0 correlations",
+                        "  cors[is.na(cors)] <- 0",
+                        "  as.dist(1 - cors)",
+                        "}")
+                        
+        # Determine correlation method used
+        corr_method <- input$distance_method
+        if (corr_method %in% c("pearson", "spearman", "kendall")) {
+          pheatmap_call <- paste0(pheatmap_call, ",\n  clustering_distance_rows = custom_cor(t(processed_data), method = \"", corr_method, "\")")
+        } else {
+          pheatmap_call <- paste0(pheatmap_call, ",\n  clustering_distance_rows = custom_cor(t(processed_data))")
+        }
+      }
+    }
+    
+    if (!is.null(params$clustering_distance_cols)) {
+      if (is.character(params$clustering_distance_cols)) {
+        pheatmap_call <- paste0(pheatmap_call, ",\n  clustering_distance_cols = \"", params$clustering_distance_cols, "\"")
+      } else {
+        # If the custom_cor function was already added, don't add it again
+        corr_method <- input$distance_method
+        if (corr_method %in% c("pearson", "spearman", "kendall")) {
+          pheatmap_call <- paste0(pheatmap_call, ",\n  clustering_distance_cols = custom_cor(processed_data, method = \"", corr_method, "\")")
+        } else {
+          pheatmap_call <- paste0(pheatmap_call, ",\n  clustering_distance_cols = custom_cor(processed_data)")
+        }
+      }
+    }
+    
+    # Handle annotation data
+    if (!is.null(params$annotation_col)) {
+      heatmap_code <- c(heatmap_code, "",
+                      "# Load column annotation data (adjust this path as needed)",
+                      "col_annotation <- read.csv('your_column_annotation.csv')",
+                      "# Make sure rownames match column names in the main data",
+                      "rownames(col_annotation) <- col_annotation$column_id",
+                      "col_annotation$column_id <- NULL")
+      pheatmap_call <- paste0(pheatmap_call, ",\n  annotation_col = col_annotation")
+    }
+    
+    if (!is.null(params$annotation_row)) {
+      heatmap_code <- c(heatmap_code, "\n",
+                      "row_annotation <- NULL")
+      pheatmap_call <- paste0(pheatmap_call, ",\n  annotation_row = row_annotation")
+    }
+    
+    # Handle display_numbers if it was used
+    if (!is.null(params$display_numbers)) {
+      if (is.logical(params$display_numbers)) {
+        if (params$display_numbers) {
+          pheatmap_call <- paste0(pheatmap_call, ",\n  display_numbers = TRUE")
+        }
+      } else {
+        # If display_numbers contains a matrix of values, use round() on the data matrix
+        pheatmap_call <- paste0(pheatmap_call, ",\n  display_numbers = round(as.matrix(processed_data), 2)")
+      }
+    }
+    
+    # Add colors
+    pheatmap_call <- paste0(pheatmap_call, ",\n  color = colors")
+    
+    # Close the pheatmap call
+    pheatmap_call <- paste0(pheatmap_call, "\n)")
+    
+    # Complete the heatmap code
+    heatmap_code <- c(heatmap_code, "", "# Generate the heatmap", pheatmap_call)
+
+    
+    code_parts <- c(code_parts, heatmap_code)
+  }
+  
+  # Combine all parts and return
+  paste(code_parts, collapse = "\n")
+})
+
+# Fixed download handler
+output$download_combined_code <- downloadHandler(
+  filename = function() {
+    paste0("data_analysis_code-", format(Sys.time(), "%Y%m%d-%H%M%S"), ".R")
+  },
+  content = function(file) {
+    # Get the code as text
+    code_text <- full_code()
+    # Write it to the file
+    writeLines(code_text, file)
+  }
+)
   
 }
 
