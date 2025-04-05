@@ -109,6 +109,17 @@ ui <- fluidPage(
         checkboxInput("label_heatmap", "Label", value = FALSE, width = "100%"),
         checkboxInput("show_row_names", "Row Names", value = FALSE),
         hr(),
+        fluidRow(
+          column(6, 
+            numericInput("cutree_rows", "Cut Row Tree", value = 0, min = 0, max = 100, step = 1),
+            helpText("0 = no cutting")
+          ),
+          column(6, 
+            numericInput("cutree_cols", "Cut Col Tree", value = 0, min = 0, max = 100, step = 1),
+            helpText("0 = no cutting")
+          )
+        ),
+         hr(),
         downloadButton("download_pdf", "PDF"),
         downloadButton("download_png", "PNG")
       )
@@ -426,6 +437,10 @@ server <- function(input, output, session) {
         as.dist(1 - cors)
       }
 
+can_cutree_rows <- input$cluster_rows && input$cutree_rows > 0 && nrow(heatmap_data) > 1
+can_cutree_cols <- input$cluster_cols && input$cutree_cols > 0 && ncol(heatmap_data) > 1
+
+
       # Try to generate the heatmap with error handling
       incProgress(0.3, detail = "Rendering heatmap")
       tryCatch({
@@ -439,24 +454,35 @@ server <- function(input, output, session) {
             if (input$cluster_cols) {
               dist_cols <- custom_cor(heatmap_data)
             }
-          pheatmap(
-            mat = heatmap_data,
-            color = colors,
-            cluster_rows = input$cluster_rows,
-            cluster_cols = input$cluster_cols,
-            clustering_method = clustering_method,
-            clustering_distance_rows = dist_rows,
-            clustering_distance_cols = dist_cols,
-            fontsize = input$fontsize,
-            annotation_col = col_annotation_for_heatmap(),
-            annotation_row = row_annotation_for_heatmap(),
-            show_rownames = show_row_names,
-            silent = TRUE,
-            display_numbers = if (input$label_heatmap) round(as.matrix(current_data()), 2) else FALSE
-          )
+            pheatmap_params <- list(
+              mat = heatmap_data,
+              color = colors,
+              cluster_rows = input$cluster_rows,
+              cluster_cols = input$cluster_cols,
+              clustering_method = clustering_method,
+              clustering_distance_rows = dist_rows,
+              clustering_distance_cols = dist_cols,
+              fontsize = input$fontsize,
+              annotation_col = col_annotation_for_heatmap(),
+              annotation_row = row_annotation_for_heatmap(),
+              show_rownames = show_row_names,
+              silent = TRUE,
+              display_numbers = if (input$label_heatmap) round(as.matrix(current_data()), 2) else FALSE
+            )
+
+            # Only add cutree parameters if clustering is enabled and value > 0
+            if (input$cluster_rows && input$cutree_rows > 0) {
+              pheatmap_params$cutree_rows <- input$cutree_rows
+            }
+            if (input$cluster_cols && input$cutree_cols > 0) {
+              pheatmap_params$cutree_cols <- input$cutree_cols
+            }
+
+            # Call pheatmap with the parameter list
+            do.call(pheatmap, pheatmap_params)
         } else {
           # For non-correlation methods, use the standard distance_method
-          pheatmap(
+            pheatmap_params <- list(
             mat = heatmap_data,
             color = colors,
             cluster_rows = input$cluster_rows,
@@ -470,7 +496,16 @@ server <- function(input, output, session) {
             show_rownames = show_row_names,
             silent = TRUE,
             display_numbers = if (input$label_heatmap) round(as.matrix(current_data()), 2) else FALSE
-          )
+            )
+            
+            if (input$cluster_rows && input$cutree_rows > 0) {
+            pheatmap_params$cutree_rows <- input$cutree_rows
+            }
+            if (input$cluster_cols && input$cutree_cols > 0) {
+            pheatmap_params$cutree_cols <- input$cutree_cols
+            }
+            
+            do.call(pheatmap, pheatmap_params)
         }
       }, error = function(e) {
         # If any clustering fails, fall back to euclidean
