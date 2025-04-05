@@ -353,12 +353,12 @@ server <- function(input, output, session) {
       
       # Determine whether to show row names: only if row names exist and there are fewer than 100 rows
       show_row_names <- !is.null(rownames(heatmap_data)) && nrow(heatmap_data) < max_rows_to_show
-      if (!is.null(rownames(heatmap_data))) { # hide row names if they are auto-generated
+      if (!is.null(rownames(heatmap_data)) && show_row_names) { # hide row names if they are auto-generated
         auto_ids <- as.character(seq_len(nrow(heatmap_data)))
         if (all(rownames(heatmap_data) == auto_ids)) {
           show_row_names <- FALSE
         }
-      }      
+      }
       # Select the color palette
       if (input$color == "GreenBlackRed") {
         colors <- colorRampPalette(c("green", "black", "red"))(100)
@@ -532,7 +532,7 @@ output$heatmap2 <- renderPlot({
             
       # Determine whether to show row names based on row count
       show_row_names <- !is.null(rownames(heatmap_data)) && nrow(heatmap_data) < max_rows_to_show
-      if (!is.null(rownames(heatmap_data))) { # hide row names if they are auto-generated
+      if (!is.null(rownames(heatmap_data)) && show_row_names) { # hide row names if they are auto-generated
         auto_ids <- as.character(seq_len(nrow(heatmap_data)))
         if (all(rownames(heatmap_data) == auto_ids)) {
           show_row_names <- FALSE
