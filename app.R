@@ -138,6 +138,15 @@ ui <- fluidPage(
               selected = "row"),
           plotOutput("pca_plot", width = "100%", height = "auto")
         ),
+        tabPanel("t-SNE Plot",
+          selectInput("tsne_transpose", "t-SNE Analysis Mode:",
+            choices = c("Row vectors" = "row", 
+            "Column vectors" = "column"),
+              selected = "row"),
+          sliderInput("tsne_perplexity", "Perplexity:", 
+            min = 5, max = 50, value = 30, step = 5),
+          plotOutput("tsne_plot", width = "100%", height = "auto")
+        ),
         tabPanel("Code",
                 uiOutput("code_display")
         )
@@ -1060,12 +1069,11 @@ server <- function(input, output, session) {
     
     # Get appropriate annotations based on transposition mode
     if (transposed) {
-      # For column PCA mode (variables as points), use row annotation data
-      # This is because when transposed, columns become rows in the PCA calculation
-      point_annot <- row_annotation_for_heatmap()
-    } else {
-      # For row PCA mode (samples as points), use column annotation data
+      # For column PCA mode (columns as points), use column annotation data
       point_annot <- col_annotation_for_heatmap()
+    } else {
+      # For row PCA mode (rows as points), use row annotation data
+      point_annot <- row_annotation_for_heatmap()
     }
     
     # PC variances for axis labels
@@ -1084,11 +1092,11 @@ server <- function(input, output, session) {
     legend_items <- list()
     
     if (!is.null(point_annot) && ncol(point_annot) > 0) {
-      # Get selected annotation columns
+      # Get selected annotation columns (limit to first two)
       selected_cols <- names(point_annot)
       
       if (length(selected_cols) >= 1) {
-        # Use first column for colors
+        # Use first column for both colors and shapes if only one available
         color_col <- selected_cols[1]
         color_factor <- as.factor(point_annot[[color_col]])
         color_levels <- levels(color_factor)
@@ -1102,8 +1110,24 @@ server <- function(input, output, session) {
           palette = color_palette
         )
         
-        # Use second column for shapes if available
-        if (length(selected_cols) >= 2) {
+        # If only one column, also use it for shapes
+        if (length(selected_cols) == 1) {
+          shape_factor <- color_factor
+          shape_levels <- color_levels
+          
+          available_shapes <- c(16, 17, 15, 18, 19, 1, 2, 5, 6, 8)
+          shape_numbers <- available_shapes[1:min(length(available_shapes), length(shape_levels))]
+          point_shapes <- shape_numbers[as.numeric(shape_factor)]
+          
+          # Store shape legend info (same as color but with shapes)
+          legend_items$shapes <- list(
+            title = color_col,
+            labels = shape_levels,
+            shapes = shape_numbers
+          )
+        } 
+        # If two or more columns, use second for shapes
+        else if (length(selected_cols) >= 2) {
           shape_col <- selected_cols[2]
           shape_factor <- as.factor(point_annot[[shape_col]])
           shape_levels <- levels(shape_factor)
@@ -1123,7 +1147,7 @@ server <- function(input, output, session) {
     }
     
     # Plot title based on mode
-    plot_title <- if(transposed) "PCA of Variables (Column Vectors)" else "PCA of Samples (Row Vectors)"
+    plot_title <- ""
     
     # Create the points plot
     plot(pc_data$PC1, pc_data$PC2, 
@@ -1136,9 +1160,7 @@ server <- function(input, output, session) {
         cex.lab = input$fontsize/12,
         cex.axis = input$fontsize/12)
     
-    # Add grid lines
-    grid(lty = "dotted", col = "lightgray")
-    abline(h = 0, v = 0, lty = 2, col = "gray50")
+    # Note: Grid lines and dashed lines have been removed as requested
     
     # Add legend if using annotations
     if (length(legend_items) > 0) {
@@ -1158,8 +1180,9 @@ server <- function(input, output, session) {
               bty = "n")
       }
       
-      # Shape legend (if available)
-      if (!is.null(legend_items$shapes)) {
+      # Shape legend (if available and different from color)
+      if (!is.null(legend_items$shapes) && 
+          (!identical(legend_items$shapes$title, legend_items$colors$title) || length(selected_cols) == 1)) {
         shape_info <- legend_items$shapes
         shape_position <- if (shape_info$title == legend_items$colors$title) 0.2 else 0.3
         
@@ -1175,7 +1198,199 @@ server <- function(input, output, session) {
       par(xpd = FALSE)
     }
   }, width = function() input$width, height = function() input$height)
-  
+
+  # t-SNE data reactive
+  tsne_data <- reactive({
+    req(current_data())
+    
+    # Get the data and handle transposition based on user selection
+    data_mat <- as.matrix(current_data())
+    
+    # Transpose if column t-SNE is selected
+    if(input$tsne_transpose == "column") {
+      data_mat <- t(data_mat)
+    }
+    
+    # Use Rtsne for t-SNE calculation
+    tryCatch({
+      # Handle missing values
+      if(any(is.na(data_mat))) {
+        showNotification("Warning: Missing values found in t-SNE calculation. Using complete cases only.", type = "warning")
+        data_mat <- na.omit(data_mat)
+      }
+      
+      # Check if we have enough data points for the perplexity
+      perplexity <- min(input$tsne_perplexity, floor(nrow(data_mat)/3) - 1)
+      if(perplexity < 5) {
+        perplexity <- 5
+        showNotification(paste("Perplexity adjusted to", perplexity, "due to small sample size"), type = "warning")
+      }
+      
+      # Check if we have enough data for t-SNE (needs at least perplexity*3 + 1 points)
+      if(nrow(data_mat) < perplexity * 3 + 1) {
+        showNotification("Not enough samples for t-SNE with current perplexity. Try reducing perplexity.", type = "error")
+        return(NULL)
+      }
+      
+      # Ensure we use scaled data for t-SNE
+      scaled_data <- scale(data_mat)
+      
+      # Apply Rtsne algorithm
+      set.seed(42) # For reproducibility
+      tsne_result <- Rtsne(scaled_data, dims = 2, perplexity = perplexity, 
+                          check_duplicates = FALSE, pca = TRUE, normalize = FALSE)
+      
+      # Store the transposition information with the result
+      attr(tsne_result, "transposed") <- (input$tsne_transpose == "column")
+      
+      return(tsne_result)
+    }, error = function(e) {
+      showNotification(paste("Error in t-SNE calculation:", e$message), type = "error")
+      return(NULL)
+    })
+  })
+
+  # t-SNE plot rendering function
+  output$tsne_plot <- renderPlot({
+    req(tsne_data())
+    req(current_data())
+    
+    # Get t-SNE results and extract the two dimensions
+    tsne_result <- tsne_data()
+    tsne_coords <- as.data.frame(tsne_result$Y)
+    colnames(tsne_coords) <- c("tSNE1", "tSNE2")
+    
+    # Check if we're in transposed mode
+    transposed <- attr(tsne_result, "transposed")
+    
+    # Get appropriate annotations based on transposition mode
+    if (transposed) {
+      # For column t-SNE mode (columns as points), use column annotation data
+      point_annot <- col_annotation_for_heatmap()
+    } else {
+      # For row t-SNE mode (rows as points), use row annotation data
+      point_annot <- row_annotation_for_heatmap()
+    }
+    
+    # Set margins
+    par(mar = c(5, 5, 2, 10) + 0.1)
+    
+    # Default plot settings
+    point_colors <- "black"
+    point_shapes <- 16
+    point_sizes <- rep(input$fontsize/12, nrow(tsne_coords))
+    
+    # If annotations are available, use them for colors and shapes
+    legend_items <- list()
+    
+    if (!is.null(point_annot) && ncol(point_annot) > 0) {
+      # Get selected annotation columns (limit to first two)
+      selected_cols <- names(point_annot)
+      
+      if (length(selected_cols) >= 1) {
+        # Use first column for both colors and shapes if only one available
+        color_col <- selected_cols[1]
+        color_factor <- as.factor(point_annot[[color_col]])
+        color_levels <- levels(color_factor)
+        color_palette <- rainbow(length(color_levels))
+        point_colors <- color_palette[as.numeric(color_factor)]
+        
+        # Store color legend info
+        legend_items$colors <- list(
+          title = color_col,
+          labels = color_levels,
+          palette = color_palette
+        )
+        
+        # If only one column, also use it for shapes
+        if (length(selected_cols) == 1) {
+          shape_factor <- color_factor
+          shape_levels <- color_levels
+          
+          available_shapes <- c(16, 17, 15, 18, 19, 1, 2, 5, 6, 8)
+          shape_numbers <- available_shapes[1:min(length(available_shapes), length(shape_levels))]
+          point_shapes <- shape_numbers[as.numeric(shape_factor)]
+          
+          # Store shape legend info (same as color but with shapes)
+          legend_items$shapes <- list(
+            title = color_col,
+            labels = shape_levels,
+            shapes = shape_numbers
+          )
+        } 
+        # If two or more columns, use second for shapes
+        else if (length(selected_cols) >= 2) {
+          shape_col <- selected_cols[2]
+          shape_factor <- as.factor(point_annot[[shape_col]])
+          shape_levels <- levels(shape_factor)
+          
+          available_shapes <- c(16, 17, 15, 18, 19, 1, 2, 5, 6, 8)
+          shape_numbers <- available_shapes[1:min(length(available_shapes), length(shape_levels))]
+          point_shapes <- shape_numbers[as.numeric(shape_factor)]
+          
+          # Store shape legend info
+          legend_items$shapes <- list(
+            title = shape_col,
+            labels = shape_levels,
+            shapes = shape_numbers
+          )
+        }
+      }
+    }
+    
+    # Plot title based on mode
+    plot_title <- ""
+    
+    # Create the points plot
+    plot(tsne_coords$tSNE1, tsne_coords$tSNE2, 
+        xlab = "t-SNE Dimension 1",
+        ylab = "t-SNE Dimension 2",
+        main = plot_title,
+        pch = point_shapes,
+        col = point_colors,
+        cex = point_sizes,
+        cex.lab = input$fontsize/12,
+        cex.axis = input$fontsize/12)
+    
+    # Note: Grid lines have been removed as requested
+    
+    # Add legend if using annotations
+    if (length(legend_items) > 0) {
+      # Allow plotting outside the plot region
+      par(xpd = TRUE)
+      
+      # Color legend
+      if (!is.null(legend_items$colors)) {
+        color_info <- legend_items$colors
+        
+        legend("topright", 
+              legend = color_info$labels,
+              fill = color_info$palette,
+              title = color_info$title,
+              cex = input$fontsize/15,
+              inset = c(-0.25, 0),
+              bty = "n")
+      }
+      
+      # Shape legend (if available and different from color)
+      if (!is.null(legend_items$shapes) && 
+          (!identical(legend_items$shapes$title, legend_items$colors$title) || length(selected_cols) == 1)) {
+        shape_info <- legend_items$shapes
+        shape_position <- if (shape_info$title == legend_items$colors$title) 0.2 else 0.3
+        
+        legend("topright", 
+              legend = shape_info$labels,
+              pch = shape_info$shapes,
+              title = shape_info$title,
+              cex = input$fontsize/15,
+              inset = c(-0.25, shape_position),
+              bty = "n")
+      }
+      
+      par(xpd = FALSE)
+    }
+  }, width = function() input$width, height = function() input$height)
+
 }
 
 # Run the application
