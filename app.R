@@ -131,6 +131,9 @@ ui <- fluidPage(
         tabPanel("Heatmap", 
                 plotOutput("heatmap", width = "100%", height = "600px")
         ),
+        tabPanel("PCA Plot",
+                plotOutput("pca_plot", width = "100%", height = "auto")
+        ),
         tabPanel("Code",
                 uiOutput("code_display")
         )
@@ -809,6 +812,98 @@ server <- function(input, output, session) {
 
       
       code_parts <- c(code_parts, heatmap_code)
+
+
+      # Add PCA code if used
+      pca_code <- c(
+        "# PCA Analysis Code",
+        "library(stats)",
+        "",
+        "# Calculate PCA",
+        "pca_result <- prcomp(processed_data, center = TRUE, scale. = TRUE)",
+        "",
+        "# Extract the first two principal components",
+        "pc_data <- as.data.frame(pca_result$x[, 1:2])",
+        ""
+      )
+      
+      # Add basic plot code
+      pca_code <- c(pca_code,
+        "# Create a PCA plot",
+        "# Set margins to make room for legend",
+        "par(mar = c(5, 5, 2, 8) + 0.1)",
+        "plot(pc_data$PC1, pc_data$PC2,",
+        "     xlab = paste0(\"PC1 (\", round(summary(pca_result)$importance[2, 1] * 100, 1), \"%)\"),",
+        "     ylab = paste0(\"PC2 (\", round(summary(pca_result)$importance[2, 2] * 100, 1), \"%)\"),",
+        "     main = \"\",",
+        "     pch = 16, col = \"black\")",
+        ""
+      )
+      
+      # Add row annotation code if used
+      if (!is.null(row_annotation_for_heatmap())) {
+        pca_code <- c(pca_code,
+        "",
+        "# Use row annotations for point colors and shapes",
+        "if (!is.null(row_annotation)) {",
+        "  # Color by first annotation column",
+        "  color_col <- names(row_annotation)[1]",
+        "  color_factor <- as.factor(row_annotation[[color_col]])",
+        "  color_palette <- rainbow(length(levels(color_factor)))",
+        "  point_colors <- color_palette[as.numeric(color_factor)]",
+        "",
+        "  # If there's a second annotation column, use for shapes",
+        "  if (ncol(row_annotation) >= 2) {",
+        "    shape_col <- names(row_annotation)[2]",
+        "    shape_factor <- as.factor(row_annotation[[shape_col]])",
+        "    available_shapes <- c(16, 17, 15, 18, 19, 1, 2, 5, 6, 8)",
+        "    shape_numbers <- available_shapes[1:min(length(available_shapes), length(levels(shape_factor)))]",
+        "    point_shapes <- shape_numbers[as.numeric(shape_factor)]",
+        "  } else {",
+        "    point_shapes <- 16  # Default circle",
+        "  }",
+        "",
+        "  # Replot with annotations",
+        "  plot(pc_data$PC1, pc_data$PC2,",
+        "       xlab = paste0(\"PC1 (\", round(summary(pca_result)$importance[2, 1] * 100, 1), \"%)\"),",
+        "       ylab = paste0(\"PC2 (\", round(summary(pca_result)$importance[2, 2] * 100, 1), \"%)\"),",
+        "       main = \"\",",
+        "       pch = point_shapes,",
+        "       col = point_colors,",
+        "       cex = fontsize/12,",     
+        "       cex.lab = fontsize/12,", 
+        "       cex.axis = fontsize/12)",
+        "",
+        "  # Add reference lines",
+        "  abline(h = 0, lty = 2, col = \"gray50\")",
+        "  abline(v = 0, lty = 2, col = \"gray50\")",
+        "",
+        "  # Add legends",
+        "  par(xpd = TRUE)  # Allow plotting outside plot region",
+        "  # Color legend",
+        "  legend(\"topright\", ",
+        "         legend = levels(color_factor),",
+        "         fill = color_palette,",
+        "         title = color_col,",
+        "         cex = fontsize/15,",
+        "         inset = c(-0.15, 0),",
+        "         bty = \"n\")",
+        "",
+        "  # Shape legend if applicable",
+        "  if (ncol(row_annotation) >= 2) {",
+        "    legend(\"topright\", ",
+        "           legend = levels(shape_factor),",
+        "           pch = shape_numbers,",
+        "           title = shape_col,",
+        "           cex = 0.8,",
+        "           inset = c(-0.15, 0.3),",
+        "           bty = \"n\")",
+        "  }",
+        "  par(xpd = FALSE)",
+        "}"
+        )
+      }
+
     }
     
     # Combine all parts and return
@@ -912,6 +1007,140 @@ server <- function(input, output, session) {
       writeLines(code_text, file)
     }
   )
+
+
+  # Calculate PCA for the current data
+  pca_data <- reactive({
+    req(current_data())
+    
+    # Use prcomp for PCA calculation, scaling the data
+    tryCatch({
+      # Ensure data is numeric and handle missing values
+      data_mat <- as.matrix(current_data())
+      if(any(is.na(data_mat))) {
+        showNotification("Warning: Missing values found. Using pairwise complete observations.", type = "warning")
+        data_mat <- na.omit(data_mat)
+      }
+      
+      # Perform PCA
+      pca_result <- prcomp(data_mat, center = TRUE, scale. = TRUE)
+      return(pca_result)
+    }, error = function(e) {
+      showNotification(paste("Error in PCA calculation:", e$message), type = "error")
+      return(NULL)
+    })
+  })
+
+  # Render the PCA plot
+  output$pca_plot <- renderPlot({
+    req(pca_data())
+    req(current_data())
+    
+    # Get PCA results and extract the first two principal components
+    pca_result <- pca_data()
+    pc_data <- as.data.frame(pca_result$x[, 1:2])
+    
+    # Get row annotations if available
+    row_annot <- row_annotation_for_heatmap()
+    
+    # Setting up the plot parameters
+    par(mar = c(5, 5, 4, 8) + 0.1)  # Add extra space for legend
+    
+    # Default plot settings (no annotations)
+    point_colors <- "black"
+    point_shapes <- 16  # Default circle
+    legend_text <- NULL
+    
+    # If row annotations are available, use them for colors and shapes
+    legend_items <- list()
+    
+    if (!is.null(row_annot) && ncol(row_annot) > 0) {
+      # Get selected annotation columns (limit to the first two)
+      selected_cols <- names(row_annot)
+      
+      if (length(selected_cols) >= 1) {
+        # Use first column for colors
+        color_col <- selected_cols[1]
+        color_factor <- as.factor(row_annot[[color_col]])
+        color_levels <- levels(color_factor)
+        color_palette <- rainbow(length(color_levels))
+        point_colors <- color_palette[as.numeric(color_factor)]
+        
+        # Store color legend info
+        legend_items$colors <- list(
+          title = color_col,
+          labels = color_levels,
+          palette = color_palette
+        )
+        
+        if (length(selected_cols) >= 2) {
+          # Use second column for shapes
+          shape_col <- selected_cols[2]
+          shape_factor <- as.factor(row_annot[[shape_col]])
+          shape_levels <- levels(shape_factor)
+          
+          # R has shapes 0-25, but some look similar, so limit to a subset
+          available_shapes <- c(16, 17, 15, 18, 19, 1, 2, 5, 6, 8)
+          shape_numbers <- available_shapes[1:min(length(available_shapes), length(levels(shape_factor)))]
+          point_shapes <- shape_numbers[as.numeric(shape_factor)]
+          
+          # Store shape legend info
+          legend_items$shapes <- list(
+            title = shape_col,
+            labels = shape_levels,
+            shapes = shape_numbers
+          )
+        }
+      }
+    }
+    
+    # Create the plot
+    plot(pc_data$PC1, pc_data$PC2, 
+        xlab = paste0("PC1 (", round(summary(pca_result)$importance[2, 1] * 100, 1), "%)"),
+        ylab = paste0("PC2 (", round(summary(pca_result)$importance[2, 2] * 100, 1), "%)"),
+        main = "", 
+        pch = point_shapes,
+        col = point_colors,
+        cex = input$fontsize/12,
+        cex.axis = input$fontsize/12,
+        cex.lab = input$fontsize/12)
+    
+    # Add legend if using annotations
+    if (length(legend_items) > 0) {
+      # Adjust the margins to make room for the legend
+      par(xpd = TRUE)  # Allow plotting outside the plot region
+      
+      # Color legend
+      if (!is.null(legend_items$colors)) {
+        color_info <- legend_items$colors
+        legend_height <- length(color_info$labels) * 0.04 + 0.08  # Estimate legend height
+        
+        legend("topright", 
+              legend = color_info$labels,
+              fill = color_info$palette,
+              title = color_info$title,
+              cex = input$fontsize/15,
+              inset = c(-0.15, 0),
+              bty = "n")  # No box around legend
+      }
+      
+      # Shape legend (if available)
+      if (!is.null(legend_items$shapes)) {
+        shape_info <- legend_items$shapes
+        shape_position <- if (!is.null(legend_items$colors)) 0.3 else 0
+        
+        legend("topright", 
+              legend = shape_info$labels,
+              pch = shape_info$shapes,
+              title = shape_info$title,
+              cex = input$fontsize/15,
+              inset = c(-0.15, shape_position),
+              bty = "n")  # No box around legend
+      }
+      
+      par(xpd = FALSE)  # Reset to default
+    }
+  }, width = function() input$width, height = function() input$height)
   
 }
 
