@@ -27,7 +27,7 @@ ui <- fluidPage(
       ),
       # Button to open file upload modal
       actionButton("show_upload_modal", "Upload Files", 
-                  icon = icon("upload"), 
+                  icon = icon("upload"),
                   style = "width: 100%; margin-bottom: 15px;"),
       
       # Dynamic UI for selecting column annotation rows
@@ -119,9 +119,6 @@ ui <- fluidPage(
       tabsetPanel(
         tabPanel("Heatmap", 
                 plotOutput("heatmap", width = "100%", height = "600px")
-        ),
-        tabPanel("Heatmap.2", 
-                plotOutput("heatmap2", width = "100%", height = "600px")
         )
       )
     )
@@ -558,143 +555,6 @@ server <- function(input, output, session) {
     # Reload the page to reset the session
     session$reload()
   })
-
-output$heatmap2 <- renderPlot({
-    req(current_data())
-    
-    withProgress(message = 'Generating heatmap', value = 0, {
-      # Convert the current data to a numeric matrix for the heatmap
-      heatmap_data <- current_data()
-            
-      show_row_names <- file_data$has_rownames() && !is.null(rownames(heatmap_data))
-      # Use the user’s input if available; otherwise, use the default
-      if(show_row_names && !is.null(input$show_row_names)) {
-        show_row_names <- input$show_row_names
-      }
-
-      # Select the color palette
-      if (input$color == "GreenBlackRed") {
-        colors <- colorRampPalette(c("green", "black", "red"))(100)
-      } else {
-        colors <- colorRampPalette(rev(brewer.pal(11, input$color)))(100)
-      }
-      
-      # Get user-selected distance and clustering methods
-      distance_method <- if (!is.null(input$distance_method)) input$distance_method else "euclidean"
-      clustering_method <- if (!is.null(input$clustering_method)) input$clustering_method else "complete"
-      
-      # Define custom distance function based on user selection
-      distfun <- function(x) {
-        # For correlation-based distances
-        if(distance_method %in% c("pearson", "spearman", "kendall")) {
-          # Compute correlation matrix
-            cor_matrix <- withCallingHandlers(
-            tryCatch({
-              cor(t(x), method = distance_method, use = "pairwise.complete.obs")
-            }, error = function(e) {
-              showNotification(paste("Error in computing correlation:", e$message), type = "error")
-              diag(ncol(x))
-            }),
-            warning = function(w) {
-              showNotification(paste("Warning in computing correlation:", w$message), type = "warning")
-              invokeRestart("muffleWarning")
-            }
-            )
-          # Handle NA values
-          cor_matrix[is.na(cor_matrix)] <- 0
-          # Convert correlation to distance
-          return(as.dist(1 - cor_matrix))
-        } else {
-          # For standard distance metrics
-          return(dist(x, method = distance_method))
-        }
-      }
-      
-      # Define custom clustering function based on user selection
-      hclustfun <- function(d) {
-        return(hclust(d, method = clustering_method))
-      }
-      
-      # Determine which dendrograms to show
-      dendro_type <- if(input$cluster_rows && input$cluster_cols) "both" else 
-                     if(input$cluster_rows) "row" else 
-                     if(input$cluster_cols) "column" else "none"
-      
-      # Prepare row and column dendrograms
-      Rowv <- if(input$cluster_rows) TRUE else FALSE
-      Colv <- if(input$cluster_cols) TRUE else FALSE
-      
-      # Render the heatmap with error handling
-      incProgress(0.3, detail = "Rendering heatmap.2")
-      tryCatch({
-        # Calculate appropriate margins for labels
-        col_margin <- max(10, max(nchar(colnames(heatmap_data))) * (input$fontsize/12))
-        row_margin <- if(show_row_names) max(8, max(nchar(rownames(heatmap_data))) * (input$fontsize/12) * 0.6) else 8
-        
-        heatmap.2(
-          x = heatmap_data,
-          Rowv = Rowv,
-          Colv = Colv,
-          dendrogram = dendro_type,
-          hclustfun = hclustfun,
-          distfun = distfun,
-          col = colors,
-          scale = "none",
-          key = TRUE,
-          keysize = 0.5,
-          key.title = NA,
-          symkey = FALSE,
-          density.info = "none",
-          trace = "none",
-          cexRow = if (show_row_names) input$fontsize / 12 else 0.1,
-          labRow = if (show_row_names) rownames(heatmap_data) else NA,
-          cexCol = input$fontsize / 12,
-          margins = c(col_margin, row_margin),
-
-          # Custom layout: lmat defines panel positions; lhei sets row heights.
-          lmat = rbind(c(4, 3), # top row: color key (No. 4) and column dendrogram (no.3)
-                      c(2, 1)),  # Middle row: row dendrogram (No. 2) and heatmap (No. 1)
-          lwid = c(1, 5), # width of the columns
-          lhei = c(1, 5)  # Height of the rows
-        )
-      }, error = function(e) {
-        # Fall back to basic heatmap if error occurs
-        message("Try to adjust the figure width and height.", e$message, ". Falling back to simple version.")
-        
-        # Try again with simplified parameters
-        tryCatch({
-          heatmap.2(
-            x = heatmap_data,
-            Rowv = Rowv,
-            Colv = Colv,
-            dendrogram = dendro_type,
-            col = colors,
-            scale = "none",
-            key = TRUE,
-            keysize = 1,
-            symkey = FALSE,
-            density.info = "none",
-            trace = "none",
-            cexRow = if(show_row_names) input$fontsize / 12 else 0.1,
-            cexCol = input$fontsize / 12,
-            margins = c(10, 8)
-          )
-        }, error = function(e2) {
-          # If that still fails, show the most basic version
-          heatmap.2(
-            x = heatmap_data,
-            Rowv = FALSE,
-            Colv = FALSE,
-            dendrogram = "none",
-            col = colors,
-            scale = "none",
-            key = TRUE,
-            trace = "none"
-          )
-        })
-      })
-    })
-  }, width = function() input$width, height = function() input$height)
   
 }
 
