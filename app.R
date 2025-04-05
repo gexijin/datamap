@@ -106,7 +106,8 @@ ui <- fluidPage(
           column(3, p("Height:", style="padding-top: 7px; text-align: right;")),
           column(9, sliderInput("height", NULL, min = 500, max = 2000, value = default_height, step = 100))
         ),
-        checkboxInput("label_heatmap", "Label Heatmap", value = FALSE, width = "100%"),
+        checkboxInput("label_heatmap", "Label", value = FALSE, width = "100%"),
+        checkboxInput("show_row_names", "Row Names", value = FALSE),
         hr(),
         downloadButton("download_pdf", "PDF"),
         downloadButton("download_png", "PNG")
@@ -349,15 +350,13 @@ server <- function(input, output, session) {
       # Convert the current data to a numeric matrix for the heatmap
       incProgress(0.1, detail = "Preparing data")
       heatmap_data <- current_data()
-      
-      # Determine whether to show row names: only if row names exist and there are fewer than 100 rows
-      show_row_names <- !is.null(rownames(heatmap_data)) && nrow(heatmap_data) < max_rows_to_show
-      if (!is.null(rownames(heatmap_data)) && show_row_names) { # hide row names if they are auto-generated
-        auto_ids <- as.character(seq_len(nrow(heatmap_data)))
-        if (all(rownames(heatmap_data) == auto_ids)) {
-          show_row_names <- FALSE
-        }
+     
+      show_row_names <- file_data$has_rownames() && !is.null(rownames(heatmap_data))
+      # Use the user’s input if available; otherwise, use the default
+      if(show_row_names && !is.null(input$show_row_names)) {
+        show_row_names <- input$show_row_names
       }
+
       # Select the color palette
       if (input$color == "GreenBlackRed") {
         colors <- colorRampPalette(c("green", "black", "red"))(100)
@@ -469,7 +468,14 @@ server <- function(input, output, session) {
     })
   })
 
-  
+  observe({
+    req(current_data())
+    heatmap_data <- current_data()
+    # Compute default: TRUE if the data has row names and row count is less than max_rows_to_show
+    default_show <- file_data$has_rownames() && !is.null(rownames(heatmap_data)) && nrow(heatmap_data) < max_rows_to_show
+    updateCheckboxInput(session, "show_row_names", value = default_show)
+  })
+
   # Generate the heatmap using current data
   output$heatmap <- renderPlot({
     req(heatmap_obj())
@@ -531,14 +537,12 @@ output$heatmap2 <- renderPlot({
       # Convert the current data to a numeric matrix for the heatmap
       heatmap_data <- current_data()
             
-      # Determine whether to show row names based on row count
-      show_row_names <- !is.null(rownames(heatmap_data)) && nrow(heatmap_data) < max_rows_to_show
-      if (!is.null(rownames(heatmap_data)) && show_row_names) { # hide row names if they are auto-generated
-        auto_ids <- as.character(seq_len(nrow(heatmap_data)))
-        if (all(rownames(heatmap_data) == auto_ids)) {
-          show_row_names <- FALSE
-        }
+      show_row_names <- file_data$has_rownames() && !is.null(rownames(heatmap_data))
+      # Use the user’s input if available; otherwise, use the default
+      if(show_row_names && !is.null(input$show_row_names)) {
+        show_row_names <- input$show_row_names
       }
+
       # Select the color palette
       if (input$color == "GreenBlackRed") {
         colors <- colorRampPalette(c("green", "black", "red"))(100)

@@ -36,7 +36,8 @@ file_upload_server <- function(id) {
     rv <- reactiveValues(
       data = NULL,
       file_extension = NULL,
-      data_loaded = FALSE
+      data_loaded = FALSE,
+      has_rownames = FALSE
     )
     
     # Helper function to count delimiters in a text sample
@@ -385,17 +386,16 @@ file_upload_server <- function(id) {
             )
           }
         }
-        
         # Process row names if selected - with safe logical checks
         if(isTRUE(using_rownames) && !is.null(df) && ncol(df) > 1) {
           row_names <- df[[1]]
           df <- df[, -1, drop = FALSE]
           rownames(df) <- row_names
+          rv$has_rownames <- TRUE
         } else {
-          # If not using row names, prent the automatic row names 1, 2,
-          rownames(df) <- NULL
+          rownames(df) <- NULL # does nothing
+          rv$has_rownames <- FALSE
         }
-        
         
         # Store the data
         rv$data <- df
@@ -415,7 +415,8 @@ file_upload_server <- function(id) {
     # Return a list of reactive values to be used in the main app
     return(list(
       data = reactive({ rv$data }),
-      data_loaded = reactive({ rv$data_loaded })
+      data_loaded = reactive({ rv$data_loaded }),
+      has_rownames = reactive({ rv$has_rownames })
     ))
   })
 }
