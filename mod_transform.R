@@ -276,7 +276,12 @@ transform_server <- function(id, data) {
       # 4. Apply Z-score cutoff for outlier capping (applied to the entire matrix)
       if (!is.null(input$do_zscore_cap) && input$do_zscore_cap) {
         progress$set(value = 0.7, detail = "Capping outliers")
-        z_cutoff <- as.numeric(input$zscore_cutoff)
+        z_input <- input$zscore_cutoff
+        if (is.null(z_input) || is.na(z_input) || !is.numeric(z_input)) {
+          z_cutoff <- 1  # Default to 1 if the input is invalid
+        } else {
+          z_cutoff <- max(1, as.numeric(z_input))
+        }
         processed <- pmin(pmax(processed, -1e300), 1e300)
         flat_data <- as.numeric(processed)
         flat_data <- flat_data[is.finite(flat_data)]
@@ -296,7 +301,12 @@ transform_server <- function(id, data) {
       if (!is.null(input$do_filter_rows) && input$do_filter_rows) {
         progress$set(value = 0.9, detail = "Filtering rows by variability")
         row_sds <- apply(processed, 1, sd, na.rm = TRUE)
-        top_n <- min(as.numeric(input$top_n_rows), nrow(processed))
+        top_n_input <- input$top_n_rows
+        if (is.null(top_n_input) || is.na(top_n_input) || !is.numeric(top_n_input)) {
+          top_n <- 2  # Default to 2 if the input is invalid
+        } else {
+          top_n <- max(2, min(as.numeric(top_n_input), nrow(processed)))
+        }
         if (top_n < nrow(processed)) {
           top_indices <- order(row_sds, decreasing = TRUE)[1:top_n]
           processed <- processed[top_indices, , drop = FALSE]
@@ -393,7 +403,7 @@ transform_server <- function(id, data) {
                    conditionalPanel(
                      condition = "input.do_filter_rows", ns = ns,
                      numericInput(ns("top_n_rows"), "Number of rows to keep:",
-                                  value = rv$ui_settings$top_n_rows, min = 1, max = 10000000, step = 100)
+                                  value = rv$ui_settings$top_n_rows, min = 2, max = 10000000, step = 100)
                    )
                  )
           ),
@@ -522,6 +532,36 @@ transform_server <- function(id, data) {
       rv$modal_closed <- TRUE
     })
 
+    # Safe observer for top_n_rows that handles missing values first
+    observeEvent(input$top_n_rows, {
+      req(rv$processed_data)
+      # First check if the value exists and is a valid number
+      if (is.null(input$top_n_rows) || is.na(input$top_n_rows) || !is.numeric(input$top_n_rows)) {
+        updateNumericInput(session, "top_n_rows", value = 2)
+        showNotification("Number of rows must be a valid number (minimum 2)", type = "warning")
+      } 
+      # Then check if it's below the minimum
+      else if (input$top_n_rows < 2) {
+        updateNumericInput(session, "top_n_rows", value = 2)
+        showNotification("Number of rows to keep must be at least 2", type = "warning")
+      }
+    }, ignoreNULL = FALSE)  # Important: don't ignore NULL values
+
+    # Safe observer for zscore_cutoff
+    observeEvent(input$zscore_cutoff, {
+      req(rv$processed_data)
+      # First check if the value exists and is a valid number
+      if (is.null(input$zscore_cutoff) || is.na(input$zscore_cutoff) || !is.numeric(input$zscore_cutoff)) {
+        updateNumericInput(session, "zscore_cutoff", value = 1)
+        showNotification("Z-score cutoff must be a valid number (minimum 1)", type = "warning")
+      }
+      # Then check if it's below the minimum
+      else if (input$zscore_cutoff < 1) {
+        updateNumericInput(session, "zscore_cutoff", value = 1)
+        showNotification("Z-score cutoff must be at least 1", type = "warning")
+      }
+    }, ignoreNULL = FALSE)
+
     return(list(
       processed_data = reactive({ 
         if (rv$changes_applied) {
@@ -535,4 +575,6 @@ transform_server <- function(id, data) {
       factor_columns = reactive({ rv$factor_columns })   
     ))
   })
+
+
 }

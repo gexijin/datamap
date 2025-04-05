@@ -351,6 +351,8 @@ server <- function(input, output, session) {
     return(NULL)
   })
 
+  # Replace the heatmap_obj reactive function with this corrected version:
+
   heatmap_obj <- reactive({
     req(current_data())
 
@@ -399,9 +401,14 @@ server <- function(input, output, session) {
       incProgress(0.1, detail = "Configuring clustering parameters")
       distance_method <- if (!is.null(input$distance_method)) input$distance_method else "euclidean"
       correlation_method <- "pearson"
+      
+      # Flag to determine if we're using correlation-based distance
+      using_correlation <- FALSE
+      
       if(distance_method %in% c("pearson", "spearman", "kendall")) {
         correlation_method <- distance_method
-        distance_method <- "correlation"
+        using_correlation <- TRUE
+        # Don't set distance_method to "correlation" anymore
       }
       
       clustering_method <- if (!is.null(input$clustering_method)) input$clustering_method else "complete"
@@ -421,27 +428,45 @@ server <- function(input, output, session) {
         cors[is.na(cors)] <- 0
         as.dist(1 - cors)
       }
+      
       # Try to generate the heatmap with error handling
       incProgress(0.3, detail = "Rendering heatmap")
       tryCatch({
-        pheatmap(
-          mat = heatmap_data,
-          color = colors,
-          cluster_rows = input$cluster_rows,
-          cluster_cols = input$cluster_cols,
-          clustering_method = clustering_method,
-          clustering_distance_rows = distance_method,
-          clustering_distance_cols = distance_method,
-          clustering_distance_cols_fun = if (distance_method == "correlation") custom_cor_cols else NULL,
-          clustering_distance_rows_fun = if (distance_method == "correlation") custom_cor_rows else NULL,
-          fontsize = input$fontsize,
-          annotation_col = col_annotation_for_heatmap(),
-          annotation_row = row_annotation_for_heatmap(),
-          show_rownames = show_row_names,
-          silent = TRUE
-        )
+        if (using_correlation) {
+          # When using correlation, use custom distance functions but don't specify distance_method
+          pheatmap(
+            mat = heatmap_data,
+            color = colors,
+            cluster_rows = input$cluster_rows,
+            cluster_cols = input$cluster_cols,
+            clustering_method = clustering_method,
+            clustering_distance_cols_fun = custom_cor_cols,
+            clustering_distance_rows_fun = custom_cor_rows,
+            fontsize = input$fontsize,
+            annotation_col = col_annotation_for_heatmap(),
+            annotation_row = row_annotation_for_heatmap(),
+            show_rownames = show_row_names,
+            silent = TRUE
+          )
+        } else {
+          # For non-correlation methods, use the standard distance_method
+          pheatmap(
+            mat = heatmap_data,
+            color = colors,
+            cluster_rows = input$cluster_rows,
+            cluster_cols = input$cluster_cols,
+            clustering_method = clustering_method,
+            clustering_distance_rows = distance_method,
+            clustering_distance_cols = distance_method,
+            fontsize = input$fontsize,
+            annotation_col = col_annotation_for_heatmap(),
+            annotation_row = row_annotation_for_heatmap(),
+            show_rownames = show_row_names,
+            silent = TRUE
+          )
+        }
       }, error = function(e) {
-        # If correlation-based distances fail, fall back to euclidean
+        # If any clustering fails, fall back to euclidean
         incProgress(0.1, detail = "Clustering error, falling back to euclidean distance")
         message("Clustering error: ", e$message, ". Falling back to euclidean distance.")
         pheatmap(
