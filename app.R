@@ -347,36 +347,11 @@ server <- function(input, output, session) {
       # Convert the current data to a numeric matrix for the heatmap
       incProgress(0.1, detail = "Preparing data")
       heatmap_data <- current_data()
-      # Check for and handle zero standard deviation rows/columns
-      incProgress(0.1, detail = "Checking data variance")
-      row_sds <- apply(heatmap_data, 1, sd, na.rm = TRUE)
-      col_sds <- apply(heatmap_data, 2, sd, na.rm = TRUE)
-      
-      # Identify rows and columns with zero or NA standard deviation
-      zero_sd_rows <- which(row_sds == 0 | is.na(row_sds))
-      zero_sd_cols <- which(col_sds == 0 | is.na(col_sds))
-      
-      # Add small random noise to zero SD rows/columns
-      incProgress(0.1, detail = "Handling zero variance data")
-      if(length(zero_sd_rows) > 0) {
-        for(i in zero_sd_rows) {
-          # Add tiny random noise (won't affect visualization but prevents clustering errors)
-          heatmap_data[i,] <- heatmap_data[i,] + rnorm(ncol(heatmap_data), 0, 1e-10)
-        }
-      }
-      
-      if(length(zero_sd_cols) > 0) {
-        for(j in zero_sd_cols) {
-          # Add tiny random noise
-          heatmap_data[,j] <- heatmap_data[,j] + rnorm(nrow(heatmap_data), 0, 1e-10)
-        }
-      }
       
       # Determine whether to show row names: only if row names exist and there are fewer than 100 rows
       show_row_names <- !is.null(rownames(heatmap_data)) && nrow(heatmap_data) < 100
       
       # Select the color palette
-      incProgress(0.1, detail = "Setting up color palette")
       if (input$color == "GreenBlackRed") {
         colors <- colorRampPalette(c("green", "black", "red"))(100)
       } else {
@@ -384,7 +359,6 @@ server <- function(input, output, session) {
       }
       
       # Prepare clustering parameters
-      incProgress(0.1, detail = "Configuring clustering parameters")
       distance_method <- if (!is.null(input$distance_method)) input$distance_method else "euclidean"
       correlation_method <- "pearson"
       
@@ -398,37 +372,48 @@ server <- function(input, output, session) {
       
       clustering_method <- if (!is.null(input$clustering_method)) input$clustering_method else "complete"
       
-      # Create custom distance functions that handle NAs and zero SDs gracefully
-      incProgress(0.1, detail = "Setting up distance functions")
-      custom_cor_cols <- function(x) {
-        cors <- cor(x, method = correlation_method, use = "pairwise.complete.obs")
+      # Create custom distance functions 
+      custom_cor <- function(x) {
+
+        cors <- withCallingHandlers(
+          tryCatch(
+            cor(x, method = correlation_method, use = "pairwise.complete.obs"),
+            error = function(e) {
+              showNotification(paste("Error in cor:", conditionMessage(e)), type = "error")
+              return(diag(nrow(x)))
+            }
+          ),
+          warning = function(w) {
+            showNotification(paste("Warning in cor:", conditionMessage(w)), type = "warning")
+            invokeRestart("muffleWarning")
+          }
+        )
         # Replace NAs with 0 correlations
         cors[is.na(cors)] <- 0
         as.dist(1 - cors)
       }
-      
-      custom_cor_rows <- function(x) {
-        cors <- cor(t(x), method = correlation_method, use = "pairwise.complete.obs")
-        # Replace NAs with 0 correlations
-        cors[is.na(cors)] <- 0
-        as.dist(1 - cors)
-      }
-      
+
       # Try to generate the heatmap with error handling
       incProgress(0.3, detail = "Rendering heatmap")
       tryCatch({
         if (using_correlation) {
-          # When using correlation, use custom distance functions but don't specify distance_method
-          dist_rows <- custom_cor_rows(heatmap_data)
-          dist_cols <- custom_cor_cols(heatmap_data)
+            # Calculate the distance matrices for rows and columns
+            dist_rows <- NULL
+            if (input$cluster_rows) {
+              dist_rows <- custom_cor(t(heatmap_data))
+            }
+            dist_cols <- NULL
+            if (input$cluster_cols) {
+              dist_cols <- custom_cor(heatmap_data)
+            }
           pheatmap(
             mat = heatmap_data,
             color = colors,
             cluster_rows = input$cluster_rows,
             cluster_cols = input$cluster_cols,
             clustering_method = clustering_method,
-            clustering_distance_rows = dist_rows,  # precomputed distance matrix for rows
-            clustering_distance_cols = dist_cols,  # precomputed distance matrix for columns
+            clustering_distance_rows = dist_rows,
+            clustering_distance_cols = dist_cols,
             fontsize = input$fontsize,
             annotation_col = col_annotation_for_heatmap(),
             annotation_row = row_annotation_for_heatmap(),
