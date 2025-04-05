@@ -243,8 +243,24 @@ transform_server <- function(id, data) {
         }
         processed <- log10(processed + const)
       }
-      
-      # 3. Apply centering and scaling
+
+      # 3. Filter to keep only top N most variable rows (by SD)
+      if (!is.null(input$do_filter_rows) && input$do_filter_rows) {
+        progress$set(value = 0.9, detail = "Filtering rows by variability")
+        row_sds <- apply(processed, 1, sd, na.rm = TRUE)
+        top_n_input <- input$top_n_rows
+        if (is.null(top_n_input) || is.na(top_n_input) || !is.numeric(top_n_input)) {
+          top_n <- 2  # Default to 2 if the input is invalid
+        } else {
+          top_n <- max(2, min(as.numeric(top_n_input), nrow(processed)))
+        }
+        if (top_n < nrow(processed)) {
+          top_indices <- order(row_sds, decreasing = TRUE)[1:top_n]
+          processed <- processed[top_indices, , drop = FALSE]
+        }
+      }
+
+      # 4. Apply centering and scaling
       if (!is.null(input$center_scale) && input$center_scale != "none") {
         progress$set(value = 0.5, detail = paste("Applying", input$center_scale, "transformation"))
         if (input$center_scale == "center_row") {
@@ -273,7 +289,7 @@ transform_server <- function(id, data) {
         }
       }
       
-      # 4. Apply Z-score cutoff for outlier capping (applied to the entire matrix)
+      # 5. Apply Z-score cutoff for outlier capping (applied to the entire matrix)
       if (!is.null(input$do_zscore_cap) && input$do_zscore_cap) {
         progress$set(value = 0.7, detail = "Capping outliers")
         z_input <- input$zscore_cutoff
@@ -296,23 +312,6 @@ transform_server <- function(id, data) {
           }
         }
       }
-      
-      # 5. Filter to keep only top N most variable rows (by SD)
-      if (!is.null(input$do_filter_rows) && input$do_filter_rows) {
-        progress$set(value = 0.9, detail = "Filtering rows by variability")
-        row_sds <- apply(processed, 1, sd, na.rm = TRUE)
-        top_n_input <- input$top_n_rows
-        if (is.null(top_n_input) || is.na(top_n_input) || !is.numeric(top_n_input)) {
-          top_n <- 2  # Default to 2 if the input is invalid
-        } else {
-          top_n <- max(2, min(as.numeric(top_n_input), nrow(processed)))
-        }
-        if (top_n < nrow(processed)) {
-          top_indices <- order(row_sds, decreasing = TRUE)[1:top_n]
-          processed <- processed[top_indices, , drop = FALSE]
-        }
-      }
-      
       progress$set(value = 1, detail = "Transformations complete")
       
       rv$processed_data <- processed

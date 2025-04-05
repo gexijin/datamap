@@ -408,7 +408,6 @@ server <- function(input, output, session) {
       if(distance_method %in% c("pearson", "spearman", "kendall")) {
         correlation_method <- distance_method
         using_correlation <- TRUE
-        # Don't set distance_method to "correlation" anymore
       }
       
       clustering_method <- if (!is.null(input$clustering_method)) input$clustering_method else "complete"
