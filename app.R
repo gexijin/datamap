@@ -230,7 +230,7 @@ server <- function(input, output, session) {
     if (is.null(row_choices) || length(row_choices) == 0) {
       row_choices <- as.character(seq_len(nrow(annot_df)))
     }
-    selectInput("col_annotation_select", "Select column annotation rows", 
+    selectInput("col_annotation_select", "Column annotation:", 
                 choices = row_choices, selected = row_choices[1], multiple = TRUE)
   })
   
@@ -242,7 +242,7 @@ server <- function(input, output, session) {
     if (is.null(col_choices) || length(col_choices) == 0) {
       col_choices <- as.character(seq_len(ncol(annot_df)))
     }
-    selectInput("row_annotation_select", "Select row annotation columns", 
+    selectInput("row_annotation_select", "Row annotation:", 
                 choices = col_choices, selected = col_choices[1], multiple = TRUE)
   })
   
