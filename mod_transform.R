@@ -217,19 +217,17 @@ transform_server <- function(id, data) {
           if (input$na_method == "zero") {
             processed[is.na(processed)] <- 0
           } else if (input$na_method == "mean") {
-            for (j in 1:ncol(processed)) {
-              col_mean <- mean(processed[, j], na.rm = TRUE)
-              processed[is.na(processed[, j]), j] <- col_mean
-            }
+            means <- colMeans(processed, na.rm = TRUE)
+            idx <- which(is.na(processed), arr.ind = TRUE)
+            processed[idx] <- means[idx[, 2]]
           } else if (input$na_method == "median") {
-            for (j in 1:ncol(processed)) {
-              col_median <- median(processed[, j], na.rm = TRUE)
-              processed[is.na(processed[, j]), j] <- col_median
-            }
+            medians <- apply(processed, 2, median, na.rm = TRUE)
+            idx <- which(is.na(processed), arr.ind = TRUE)
+            processed[idx] <- medians[idx[, 2]]
           }
         }
       }
-      
+
       # 2. Apply log transformation if selected
       if (!is.null(input$do_log_transform) && input$do_log_transform) {
         progress$set(value = 0.3, detail = "Applying log transformation")
@@ -265,27 +263,18 @@ transform_server <- function(id, data) {
         progress$set(value = 0.5, detail = paste("Applying", input$center_scale, "transformation"))
         if (input$center_scale == "center_row") {
           row_means <- rowMeans(processed, na.rm = TRUE)
-          processed <- t(t(processed) - row_means)
+          processed <- sweep(processed, 1, row_means, "-")
         } else if (input$center_scale == "scale_row") {
-          row_means <- rowMeans(processed, na.rm = TRUE)
-          row_sds <- apply(processed, 1, sd, na.rm = TRUE)
-          processed <- t((t(processed) - row_means) / ifelse(row_sds == 0, 1, row_sds))
-          zero_sd_rows <- which(row_sds == 0)
-          if (length(zero_sd_rows) > 0) {
-            processed[zero_sd_rows, ] <- 0
-          }
+          # Scale each row so that it has zero mean and unit variance.
+          processed <- t(scale(t(processed)))
+          # Replace any NA values produced (e.g. from constant rows) with 0
+          processed[is.na(processed)] <- 0
         } else if (input$center_scale == "center_col") {
           col_means <- colMeans(processed, na.rm = TRUE)
           processed <- t(t(processed) - col_means)
         } else if (input$center_scale == "scale_col") {
-          col_means <- colMeans(processed, na.rm = TRUE)
-          col_sds <- apply(processed, 2, sd, na.rm = TRUE)
-          processed <- sweep(processed, 2, col_means, "-")
-          processed <- sweep(processed, 2, ifelse(col_sds == 0, 1, col_sds), "/")
-          zero_sd_cols <- which(col_sds == 0)
-          if (length(zero_sd_cols) > 0) {
-            processed[, zero_sd_cols] <- 0
-          }
+          processed <- scale(processed)
+          processed[is.na(processed)] <- 0
         }
       }
       
@@ -298,7 +287,6 @@ transform_server <- function(id, data) {
         } else {
           z_cutoff <- max(1, as.numeric(z_input))
         }
-        processed <- pmin(pmax(processed, -1e300), 1e300)
         flat_data <- as.numeric(processed)
         flat_data <- flat_data[is.finite(flat_data)]
         if (length(flat_data) > 0) {

@@ -4,6 +4,7 @@ library(RColorBrewer)
 library(readxl)  # file upload module
 library(e1071)   # transform module (skewness calculation)
 library(grid)    # needed for grid.draw
+library(gplots) 
 
 source("mod_file_upload.R")
 source("mod_transform.R")
@@ -115,6 +116,9 @@ ui <- fluidPage(
       tabsetPanel(
         tabPanel("Heatmap", 
                 plotOutput("heatmap", width = "100%", height = "600px")
+        ),
+        tabPanel("Heatmap.2", 
+                plotOutput("heatmap2", width = "100%", height = "600px")
         )
       )
     )
@@ -248,23 +252,6 @@ server <- function(input, output, session) {
     }
   })
   
-  
-  # Helper function to convert data to a numeric matrix before creating the heatmap
-  prepare_heatmap_data <- function(data) {
-    # Check if data is already a matrix
-    if (!is.matrix(data)) {
-      # Convert all columns to numeric if possible
-      numeric_data <- as.data.frame(lapply(data, function(x) {
-        as.numeric(as.character(x))
-      }))
-      # Convert to matrix
-      data_matrix <- as.matrix(numeric_data)
-    } else {
-      data_matrix <- data
-    }
-    return(data_matrix)
-  }
-  
   # Column annotation for heatmap
   col_annotation_for_heatmap <- reactive({
     req(current_data())
@@ -359,8 +346,7 @@ server <- function(input, output, session) {
     withProgress(message = 'Generating heatmap', value = 0, {
       # Convert the current data to a numeric matrix for the heatmap
       incProgress(0.1, detail = "Preparing data")
-      heatmap_data <- prepare_heatmap_data(current_data())
-      
+      heatmap_data <- current_data()
       # Check for and handle zero standard deviation rows/columns
       incProgress(0.1, detail = "Checking data variance")
       row_sds <- apply(heatmap_data, 1, sd, na.rm = TRUE)
@@ -540,6 +526,138 @@ server <- function(input, output, session) {
     # Reload the page to reset the session
     session$reload()
   })
+
+output$heatmap2 <- renderPlot({
+    req(current_data())
+    
+    withProgress(message = 'Generating heatmap.2', value = 0, {
+      # Convert the current data to a numeric matrix for the heatmap
+      incProgress(0.2, detail = "Preparing data")
+      heatmap_data <- current_data()
+      
+      # Check for and handle zero standard deviation rows/columns
+      incProgress(0.1, detail = "Checking data variance")
+      row_sds <- apply(heatmap_data, 1, sd, na.rm = TRUE)
+      col_sds <- apply(heatmap_data, 2, sd, na.rm = TRUE)
+      
+      # Add small random noise to zero SD rows/columns
+      if(any(row_sds == 0 | is.na(row_sds)) || any(col_sds == 0 | is.na(col_sds))) {
+        incProgress(0.1, detail = "Handling zero variance data")
+        heatmap_data <- heatmap_data + matrix(rnorm(nrow(heatmap_data) * ncol(heatmap_data), 0, 1e-10), 
+                                              nrow = nrow(heatmap_data))
+      }
+      
+      # Determine whether to show row names based on row count
+      show_row_names <- !is.null(rownames(heatmap_data)) && nrow(heatmap_data) < 100
+      
+      # Select the color palette
+      incProgress(0.1, detail = "Setting up color palette")
+      if (input$color == "GreenBlackRed") {
+        colors <- colorRampPalette(c("green", "black", "red"))(100)
+      } else {
+        colors <- colorRampPalette(rev(brewer.pal(11, input$color)))(100)
+      }
+      
+      # Get user-selected distance and clustering methods
+      distance_method <- if (!is.null(input$distance_method)) input$distance_method else "euclidean"
+      clustering_method <- if (!is.null(input$clustering_method)) input$clustering_method else "complete"
+      
+      # Define custom distance function based on user selection
+      distfun <- function(x) {
+        # For correlation-based distances
+        if(distance_method %in% c("pearson", "spearman", "kendall")) {
+          # Compute correlation matrix
+          cor_matrix <- cor(t(x), method = distance_method, use = "pairwise.complete.obs")
+          # Handle NA values
+          cor_matrix[is.na(cor_matrix)] <- -1
+          # Convert correlation to distance
+          return(as.dist(1 - cor_matrix))
+        } else {
+          # For standard distance metrics
+          return(dist(x, method = distance_method))
+        }
+      }
+      
+      # Define custom clustering function based on user selection
+      hclustfun <- function(d) {
+        return(hclust(d, method = clustering_method))
+      }
+      
+      # Determine which dendrograms to show
+      incProgress(0.1, detail = "Configuring dendrograms")
+      dendro_type <- if(input$cluster_rows && input$cluster_cols) "both" else 
+                     if(input$cluster_rows) "row" else 
+                     if(input$cluster_cols) "column" else "none"
+      
+      # Prepare row and column dendrograms
+      Rowv <- if(input$cluster_rows) TRUE else FALSE
+      Colv <- if(input$cluster_cols) TRUE else FALSE
+      
+      # Render the heatmap with error handling
+      incProgress(0.3, detail = "Rendering heatmap.2")
+      tryCatch({
+        # Calculate appropriate margins for labels
+        col_margin <- max(10, max(nchar(colnames(heatmap_data))) * (input$fontsize/12))
+        row_margin <- if(show_row_names) max(8, max(nchar(rownames(heatmap_data))) * (input$fontsize/12) * 0.6) else 8
+        
+        heatmap.2(
+          x = heatmap_data,
+          Rowv = Rowv,          # Use logical values here
+          Colv = Colv,          # Use logical values here
+          dendrogram = dendro_type,
+          hclustfun = hclustfun, # Pass custom clustering function
+          distfun = distfun,     # Pass custom distance function
+          col = colors,
+          scale = "none",
+          key = TRUE,
+          keysize = 1,
+          symkey = FALSE,
+          density.info = "none",
+          trace = "none",
+          cexRow = if(show_row_names) input$fontsize / 12 else 0.1,
+          cexCol = input$fontsize / 12,
+          margins = c(col_margin, row_margin),
+          lwid = c(1.5, 4),
+          lhei = c(1.5, 4)
+        )
+      }, error = function(e) {
+        # Fall back to basic heatmap if error occurs
+        message("Heatmap.2 error: ", e$message, ". Falling back to simple version.")
+        
+        # Try again with simplified parameters
+        tryCatch({
+          heatmap.2(
+            x = heatmap_data,
+            Rowv = Rowv,
+            Colv = Colv,
+            dendrogram = dendro_type,
+            col = colors,
+            scale = "none",
+            key = TRUE,
+            keysize = 1,
+            symkey = FALSE,
+            density.info = "none",
+            trace = "none",
+            cexRow = if(show_row_names) input$fontsize / 12 else 0.1,
+            cexCol = input$fontsize / 12,
+            margins = c(10, 8)
+          )
+        }, error = function(e2) {
+          # If that still fails, show the most basic version
+          heatmap.2(
+            x = heatmap_data,
+            Rowv = FALSE,
+            Colv = FALSE,
+            dendrogram = "none",
+            col = colors,
+            scale = "none",
+            key = TRUE,
+            trace = "none"
+          )
+        })
+      })
+    })
+  }, width = function() input$width, height = function() input$height)
   
 }
 
