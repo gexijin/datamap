@@ -106,8 +106,7 @@ ui <- fluidPage(
           column(3, p("Height:", style="padding-top: 7px; text-align: right;")),
           column(9, sliderInput("height", NULL, min = 500, max = 2000, value = default_height, step = 100))
         ),
-        
-        # Download buttons
+        checkboxInput("label_heatmap", "Label Heatmap", value = FALSE, width = "100%"),
         hr(),
         downloadButton("download_pdf", "PDF"),
         downloadButton("download_png", "PNG")
@@ -427,7 +426,8 @@ server <- function(input, output, session) {
             annotation_col = col_annotation_for_heatmap(),
             annotation_row = row_annotation_for_heatmap(),
             show_rownames = show_row_names,
-            silent = TRUE
+            silent = TRUE,
+            display_numbers = if (input$label_heatmap) round(as.matrix(current_data()), 2) else FALSE
           )
         } else {
           # For non-correlation methods, use the standard distance_method
@@ -443,7 +443,8 @@ server <- function(input, output, session) {
             annotation_col = col_annotation_for_heatmap(),
             annotation_row = row_annotation_for_heatmap(),
             show_rownames = show_row_names,
-            silent = TRUE
+            silent = TRUE,
+            display_numbers = if (input$label_heatmap) round(as.matrix(current_data()), 2) else FALSE
           )
         }
       }, error = function(e) {
