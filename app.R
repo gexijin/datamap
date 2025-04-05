@@ -15,6 +15,12 @@ ui <- fluidPage(
   sidebarLayout(
     sidebarPanel(
       width = 3,
+      conditionalPanel(
+        condition = "output.data_loaded",
+        actionButton("reset_session", "Reset All", 
+                    icon = icon("refresh"), 
+                    style = "width: 100%; margin-bottom: 15px; background-color: #f8d7da; color: #721c24;")
+      ),
       # Button to open file upload modal
       actionButton("show_upload_modal", "Upload Files", 
                   icon = icon("upload"), 
@@ -488,6 +494,29 @@ server <- function(input, output, session) {
       dev.off()
     }
   )
+
+  observeEvent(input$reset_session, {
+    # Create a modal dialog asking for confirmation
+    showModal(modalDialog(
+      title = "Confirm Reset",
+      "This will clear all loaded data and reset the application to its initial state. Continue?",
+      footer = tagList(
+        modalButton("Cancel"),
+        actionButton("confirm_reset", "Reset", class = "btn-danger")
+      ),
+      easyClose = TRUE
+    ))
+  })
+  
+  # Handle confirmation
+  observeEvent(input$confirm_reset, {
+    # Close the confirmation dialog
+    removeModal()
+    
+    # Reload the page to reset the session
+    session$reload()
+  })
+  
 }
 
 # Run the application
