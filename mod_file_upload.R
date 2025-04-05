@@ -391,6 +391,9 @@ file_upload_server <- function(id) {
           row_names <- df[[1]]
           df <- df[, -1, drop = FALSE]
           rownames(df) <- row_names
+        } else {
+          # If not using row names, prent the automatic row names 1, 2,
+          rownames(df) <- NULL
         }
         
         
