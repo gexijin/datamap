@@ -106,17 +106,17 @@ ui <- fluidPage(
           column(3, p("Height:", style="padding-top: 7px; text-align: right;")),
           column(9, sliderInput("height", NULL, min = 500, max = 2000, value = default_height, step = 100))
         ),
-        checkboxInput("label_heatmap", "Label", value = FALSE, width = "100%"),
-        checkboxInput("show_row_names", "Row Names", value = FALSE),
+        fluidRow(
+          column(6, checkboxInput("label_heatmap", "Label", value = FALSE)),
+          column(6, checkboxInput("show_row_names", "Row Names", value = FALSE))
+        ),
         hr(),
         fluidRow(
           column(6, 
-            numericInput("cutree_rows", "Cut Row Tree", value = 0, min = 0, max = 100, step = 1),
-            helpText("0 = no cutting")
+            numericInput("cutree_rows", "Row clusters", value = 1, min = 1, max = 100, step = 1),
           ),
           column(6, 
-            numericInput("cutree_cols", "Cut Col Tree", value = 0, min = 0, max = 100, step = 1),
-            helpText("0 = no cutting")
+            numericInput("cutree_cols", "Col. Clusters", value = 1, min = 1, max = 100, step = 1),
           )
         ),
          hr(),
@@ -437,10 +437,6 @@ server <- function(input, output, session) {
         as.dist(1 - cors)
       }
 
-can_cutree_rows <- input$cluster_rows && input$cutree_rows > 0 && nrow(heatmap_data) > 1
-can_cutree_cols <- input$cluster_cols && input$cutree_cols > 0 && ncol(heatmap_data) > 1
-
-
       # Try to generate the heatmap with error handling
       incProgress(0.3, detail = "Rendering heatmap")
       tryCatch({
@@ -471,11 +467,15 @@ can_cutree_cols <- input$cluster_cols && input$cutree_cols > 0 && ncol(heatmap_d
             )
 
             # Only add cutree parameters if clustering is enabled and value > 0
-            if (input$cluster_rows && input$cutree_rows > 0) {
-              pheatmap_params$cutree_rows <- input$cutree_rows
+            if(!is.na(input$cutree_rows)) { # when user delete the number in the input box, it will be NA
+              if (input$cluster_rows && input$cutree_rows > 1 && input$cutree_rows <= nrow(heatmap_data)) {
+                pheatmap_params$cutree_rows <- input$cutree_rows
+              }
             }
-            if (input$cluster_cols && input$cutree_cols > 0) {
-              pheatmap_params$cutree_cols <- input$cutree_cols
+            if(!is.na(input$cutree_cols)) {
+              if (input$cluster_cols && input$cutree_cols > 1 && input$cutree_cols <= ncol(heatmap_data)) {
+                pheatmap_params$cutree_cols <- input$cutree_cols
+              }
             }
 
             # Call pheatmap with the parameter list
@@ -498,11 +498,17 @@ can_cutree_cols <- input$cluster_cols && input$cutree_cols > 0 && ncol(heatmap_d
             display_numbers = if (input$label_heatmap) round(as.matrix(current_data()), 2) else FALSE
             )
             
-            if (input$cluster_rows && input$cutree_rows > 0) {
-            pheatmap_params$cutree_rows <- input$cutree_rows
+            # Only add cutree parameters if clustering is enabled and value > 0
+            if(!is.null(input$cutree_rows)) {
+              if (input$cluster_rows && input$cutree_rows > 1 && input$cutree_rows <= nrow(heatmap_data)) {
+                pheatmap_params$cutree_rows <- input$cutree_rows
+              }
             }
-            if (input$cluster_cols && input$cutree_cols > 0) {
-            pheatmap_params$cutree_cols <- input$cutree_cols
+
+            if(!is.null(input$cutree_cols)) {
+              if (input$cluster_cols && input$cutree_cols > 1 && input$cutree_cols <= ncol(heatmap_data)) {
+                pheatmap_params$cutree_cols <- input$cutree_cols
+              }
             }
             
             do.call(pheatmap, pheatmap_params)
