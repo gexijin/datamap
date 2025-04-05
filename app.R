@@ -132,7 +132,11 @@ ui <- fluidPage(
                 plotOutput("heatmap", width = "100%", height = "600px")
         ),
         tabPanel("PCA Plot",
-                plotOutput("pca_plot", width = "100%", height = "auto")
+          selectInput("pca_transpose", "PCA Analysis Mode:",
+             choices = c("Row vectors" = "row", 
+             "Column vectors" = "column"),
+              selected = "row"),
+          plotOutput("pca_plot", width = "100%", height = "auto")
         ),
         tabPanel("Code",
                 uiOutput("code_display")
@@ -1009,14 +1013,21 @@ server <- function(input, output, session) {
   )
 
 
-  # Calculate PCA for the current data
+  # Modify the pca_data reactive to handle transposition
   pca_data <- reactive({
     req(current_data())
     
+    # Get the data and handle transposition based on user selection
+    data_mat <- as.matrix(current_data())
+    
+    # Transpose if column PCA is selected
+    if(input$pca_transpose == "column") {
+      data_mat <- t(data_mat)
+    }
+    
     # Use prcomp for PCA calculation, scaling the data
     tryCatch({
-      # Ensure data is numeric and handle missing values
-      data_mat <- as.matrix(current_data())
+      # Handle missing values
       if(any(is.na(data_mat))) {
         showNotification("Warning: Missing values found. Using pairwise complete observations.", type = "warning")
         data_mat <- na.omit(data_mat)
@@ -1024,6 +1035,10 @@ server <- function(input, output, session) {
       
       # Perform PCA
       pca_result <- prcomp(data_mat, center = TRUE, scale. = TRUE)
+      
+      # Store the transposition information with the result
+      attr(pca_result, "transposed") <- (input$pca_transpose == "column")
+      
       return(pca_result)
     }, error = function(e) {
       showNotification(paste("Error in PCA calculation:", e$message), type = "error")
@@ -1031,7 +1046,7 @@ server <- function(input, output, session) {
     })
   })
 
-  # Render the PCA plot with responsive sizing
+  # Enhanced PCA plot rendering function
   output$pca_plot <- renderPlot({
     req(pca_data())
     req(current_data())
@@ -1040,27 +1055,42 @@ server <- function(input, output, session) {
     pca_result <- pca_data()
     pc_data <- as.data.frame(pca_result$x[, 1:2])
     
-    # Get row annotations if available
-    row_annot <- row_annotation_for_heatmap()
+    # Check if we're in transposed mode
+    transposed <- attr(pca_result, "transposed")
     
-    # Setting up the plot parameters - remove space for title, add more space for legend
-    par(mar = c(5, 5, 2, 10) + 0.1)  # Increased right margin for legend
+    # Get appropriate annotations based on transposition mode
+    if (transposed) {
+      # For column PCA mode (variables as points), use row annotation data
+      # This is because when transposed, columns become rows in the PCA calculation
+      point_annot <- row_annotation_for_heatmap()
+    } else {
+      # For row PCA mode (samples as points), use column annotation data
+      point_annot <- col_annotation_for_heatmap()
+    }
     
-    # Default plot settings (no annotations)
+    # PC variances for axis labels
+    pc1_var <- round(summary(pca_result)$importance[2, 1] * 100, 1)
+    pc2_var <- round(summary(pca_result)$importance[2, 2] * 100, 1)
+    
+    # Set margins
+    par(mar = c(5, 5, 2, 10) + 0.1)
+    
+    # Default plot settings
     point_colors <- "black"
-    point_shapes <- 16  # Default circle
+    point_shapes <- 16
+    point_sizes <- rep(input$fontsize/12, nrow(pc_data))
     
-    # If row annotations are available, use them for colors and shapes
+    # If annotations are available, use them for colors and shapes
     legend_items <- list()
     
-    if (!is.null(row_annot) && ncol(row_annot) > 0) {
+    if (!is.null(point_annot) && ncol(point_annot) > 0) {
       # Get selected annotation columns
-      selected_cols <- names(row_annot)
+      selected_cols <- names(point_annot)
       
       if (length(selected_cols) >= 1) {
         # Use first column for colors
         color_col <- selected_cols[1]
-        color_factor <- as.factor(row_annot[[color_col]])
+        color_factor <- as.factor(point_annot[[color_col]])
         color_levels <- levels(color_factor)
         color_palette <- rainbow(length(color_levels))
         point_colors <- color_palette[as.numeric(color_factor)]
@@ -1072,28 +1102,10 @@ server <- function(input, output, session) {
           palette = color_palette
         )
         
-        # Use the same first column for shapes if only one annotation is available
-        if (length(selected_cols) == 1) {
-          shape_col <- selected_cols[1]
-          shape_factor <- color_factor  # Use the same factor
-          shape_levels <- color_levels  # Use the same levels
-          
-          # R has shapes 0-25, but some look similar, so limit to a subset
-          available_shapes <- c(16, 17, 15, 18, 19, 1, 2, 5, 6, 8)
-          shape_numbers <- available_shapes[1:min(length(available_shapes), length(shape_levels))]
-          point_shapes <- shape_numbers[as.numeric(shape_factor)]
-          
-          # Store shape legend info - combined with color
-          legend_items$shapes <- list(
-            title = shape_col,
-            labels = shape_levels,
-            shapes = shape_numbers
-          )
-        } 
-        # If two or more annotations are available, use the second for shapes
-        else if (length(selected_cols) >= 2) {
+        # Use second column for shapes if available
+        if (length(selected_cols) >= 2) {
           shape_col <- selected_cols[2]
-          shape_factor <- as.factor(row_annot[[shape_col]])
+          shape_factor <- as.factor(point_annot[[shape_col]])
           shape_levels <- levels(shape_factor)
           
           available_shapes <- c(16, 17, 15, 18, 19, 1, 2, 5, 6, 8)
@@ -1110,23 +1122,28 @@ server <- function(input, output, session) {
       }
     }
     
-    # Create the plot - remove main title and add font scaling
+    # Plot title based on mode
+    plot_title <- if(transposed) "PCA of Variables (Column Vectors)" else "PCA of Samples (Row Vectors)"
+    
+    # Create the points plot
     plot(pc_data$PC1, pc_data$PC2, 
-        xlab = paste0("PC1 (", round(summary(pca_result)$importance[2, 1] * 100, 1), "%)"),
-        ylab = paste0("PC2 (", round(summary(pca_result)$importance[2, 2] * 100, 1), "%)"),
-        main = "", 
+        xlab = paste0("PC1 (", pc1_var, "%)"),
+        ylab = paste0("PC2 (", pc2_var, "%)"),
+        main = plot_title,
         pch = point_shapes,
         col = point_colors,
-        cex = input$fontsize/12,     # Scale points based on fontsize
-        cex.lab = input$fontsize/12, # Scale axis labels
-        cex.axis = input$fontsize/12) # Scale axis numbers
+        cex = point_sizes,
+        cex.lab = input$fontsize/12,
+        cex.axis = input$fontsize/12)
     
-    # Origin lines removed
+    # Add grid lines
+    grid(lty = "dotted", col = "lightgray")
+    abline(h = 0, v = 0, lty = 2, col = "gray50")
     
     # Add legend if using annotations
     if (length(legend_items) > 0) {
-      # Adjust the margins to make room for the legend
-      par(xpd = TRUE)  # Allow plotting outside the plot region
+      # Allow plotting outside the plot region
+      par(xpd = TRUE)
       
       # Color legend
       if (!is.null(legend_items$colors)) {
@@ -1136,27 +1153,26 @@ server <- function(input, output, session) {
               legend = color_info$labels,
               fill = color_info$palette,
               title = color_info$title,
-              cex = input$fontsize/15,  # Scale legend text with fontsize
-              inset = c(-0.25, 0),  # Moved further right
-              bty = "n")  # No box around legend
+              cex = input$fontsize/15,
+              inset = c(-0.25, 0),
+              bty = "n")
       }
       
       # Shape legend (if available)
       if (!is.null(legend_items$shapes)) {
         shape_info <- legend_items$shapes
-        # Adjust position based on whether we're using the same column for both
         shape_position <- if (shape_info$title == legend_items$colors$title) 0.2 else 0.3
         
         legend("topright", 
               legend = shape_info$labels,
               pch = shape_info$shapes,
               title = shape_info$title,
-              cex = input$fontsize/15,  # Scale legend text with fontsize
-              inset = c(-0.25, shape_position),  # Moved further right
-              bty = "n")  # No box around legend
+              cex = input$fontsize/15,
+              inset = c(-0.25, shape_position),
+              bty = "n")
       }
       
-      par(xpd = FALSE)  # Reset to default
+      par(xpd = FALSE)
     }
   }, width = function() input$width, height = function() input$height)
   
