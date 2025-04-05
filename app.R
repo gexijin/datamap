@@ -521,16 +521,14 @@ server <- function(input, output, session) {
 output$heatmap2 <- renderPlot({
     req(current_data())
     
-    withProgress(message = 'Generating heatmap.2', value = 0, {
+    withProgress(message = 'Generating heatmap', value = 0, {
       # Convert the current data to a numeric matrix for the heatmap
-      incProgress(0.2, detail = "Preparing data")
       heatmap_data <- current_data()
             
       # Determine whether to show row names based on row count
       show_row_names <- !is.null(rownames(heatmap_data)) && nrow(heatmap_data) < max_rows_to_show
       
       # Select the color palette
-      incProgress(0.1, detail = "Setting up color palette")
       if (input$color == "GreenBlackRed") {
         colors <- colorRampPalette(c("green", "black", "red"))(100)
       } else {
@@ -574,7 +572,6 @@ output$heatmap2 <- renderPlot({
       }
       
       # Determine which dendrograms to show
-      incProgress(0.1, detail = "Configuring dendrograms")
       dendro_type <- if(input$cluster_rows && input$cluster_cols) "both" else 
                      if(input$cluster_rows) "row" else 
                      if(input$cluster_cols) "column" else "none"
@@ -600,15 +597,21 @@ output$heatmap2 <- renderPlot({
           col = colors,
           scale = "none",
           key = TRUE,
-          keysize = 1,
+          keysize = 0.5,
+          key.title = NA,
           symkey = FALSE,
           density.info = "none",
           trace = "none",
-          cexRow = if(show_row_names) input$fontsize / 12 else 0.1,
+          cexRow = if (show_row_names) input$fontsize / 12 else 0.1,
+          labRow = if (show_row_names) rownames(heatmap_data) else NA,
           cexCol = input$fontsize / 12,
           margins = c(col_margin, row_margin),
-          lwid = c(1.5, 4),
-          lhei = c(1.5, 4)
+
+          # Custom layout: lmat defines panel positions; lhei sets row heights.
+          lmat = rbind(c(4, 3), # top row: color key (No. 4) and column dendrogram (no.3)
+                      c(2, 1)),  # Middle row: row dendrogram (No. 2) and heatmap (No. 1)
+          lwid = c(1, 5), # width of the columns
+          lhei = c(1, 5)  # Height of the rows
         )
       }, error = function(e) {
         # Fall back to basic heatmap if error occurs
