@@ -10,6 +10,9 @@ source("mod_file_upload.R")
 source("mod_transform.R")
 source("utilities.R")
 
+max_rows_to_show <- 1000  # Maximum number of rows to show row names in the heatmap
+default_width <- 600
+default_height <- 600
 ui <- fluidPage(
 
   titlePanel("DataMap"),  
@@ -96,12 +99,12 @@ ui <- fluidPage(
         # Width & Height in more compact form
         fluidRow(
           column(3, p("Width:", style="padding-top: 7px; text-align: right;")),
-          column(9, sliderInput("width", NULL, min = 500, max = 2000, value = 600, step = 100))
+          column(9, sliderInput("width", NULL, min = 500, max = 2000, value = default_width, step = 100))
         ),
         
         fluidRow(
           column(3, p("Height:", style="padding-top: 7px; text-align: right;")),
-          column(9, sliderInput("height", NULL, min = 500, max = 2000, value = 600, step = 100))
+          column(9, sliderInput("height", NULL, min = 500, max = 2000, value = default_height, step = 100))
         ),
         
         # Download buttons
@@ -349,7 +352,7 @@ server <- function(input, output, session) {
       heatmap_data <- current_data()
       
       # Determine whether to show row names: only if row names exist and there are fewer than 100 rows
-      show_row_names <- !is.null(rownames(heatmap_data)) && nrow(heatmap_data) < 100
+      show_row_names <- !is.null(rownames(heatmap_data)) && nrow(heatmap_data) < max_rows_to_show
       
       # Select the color palette
       if (input$color == "GreenBlackRed") {
@@ -372,9 +375,10 @@ server <- function(input, output, session) {
       
       clustering_method <- if (!is.null(input$clustering_method)) input$clustering_method else "complete"
       
-      # Create custom distance functions 
+      # x is a matrix of data
+      # Returns a distance object for columns
+      # to get row distances, transpose the matrix before calling this function
       custom_cor <- function(x) {
-
         cors <- withCallingHandlers(
           tryCatch(
             cor(x, method = correlation_method, use = "pairwise.complete.obs"),
@@ -521,21 +525,9 @@ output$heatmap2 <- renderPlot({
       # Convert the current data to a numeric matrix for the heatmap
       incProgress(0.2, detail = "Preparing data")
       heatmap_data <- current_data()
-      
-      # Check for and handle zero standard deviation rows/columns
-      incProgress(0.1, detail = "Checking data variance")
-      row_sds <- apply(heatmap_data, 1, sd, na.rm = TRUE)
-      col_sds <- apply(heatmap_data, 2, sd, na.rm = TRUE)
-      
-      # Add small random noise to zero SD rows/columns
-      if(any(row_sds == 0 | is.na(row_sds)) || any(col_sds == 0 | is.na(col_sds))) {
-        incProgress(0.1, detail = "Handling zero variance data")
-        heatmap_data <- heatmap_data + matrix(rnorm(nrow(heatmap_data) * ncol(heatmap_data), 0, 1e-10), 
-                                              nrow = nrow(heatmap_data))
-      }
-      
+            
       # Determine whether to show row names based on row count
-      show_row_names <- !is.null(rownames(heatmap_data)) && nrow(heatmap_data) < 100
+      show_row_names <- !is.null(rownames(heatmap_data)) && nrow(heatmap_data) < max_rows_to_show
       
       # Select the color palette
       incProgress(0.1, detail = "Setting up color palette")
@@ -554,9 +546,20 @@ output$heatmap2 <- renderPlot({
         # For correlation-based distances
         if(distance_method %in% c("pearson", "spearman", "kendall")) {
           # Compute correlation matrix
-          cor_matrix <- cor(t(x), method = distance_method, use = "pairwise.complete.obs")
+            cor_matrix <- withCallingHandlers(
+            tryCatch({
+              cor(t(x), method = distance_method, use = "pairwise.complete.obs")
+            }, error = function(e) {
+              showNotification(paste("Error in computing correlation:", e$message), type = "error")
+              diag(ncol(x))
+            }),
+            warning = function(w) {
+              showNotification(paste("Warning in computing correlation:", w$message), type = "warning")
+              invokeRestart("muffleWarning")
+            }
+            )
           # Handle NA values
-          cor_matrix[is.na(cor_matrix)] <- -1
+          cor_matrix[is.na(cor_matrix)] <- 0
           # Convert correlation to distance
           return(as.dist(1 - cor_matrix))
         } else {
@@ -589,11 +592,11 @@ output$heatmap2 <- renderPlot({
         
         heatmap.2(
           x = heatmap_data,
-          Rowv = Rowv,          # Use logical values here
-          Colv = Colv,          # Use logical values here
+          Rowv = Rowv,
+          Colv = Colv,
           dendrogram = dendro_type,
-          hclustfun = hclustfun, # Pass custom clustering function
-          distfun = distfun,     # Pass custom distance function
+          hclustfun = hclustfun,
+          distfun = distfun,
           col = colors,
           scale = "none",
           key = TRUE,
