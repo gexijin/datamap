@@ -419,14 +419,16 @@ server <- function(input, output, session) {
       tryCatch({
         if (using_correlation) {
           # When using correlation, use custom distance functions but don't specify distance_method
+          dist_rows <- custom_cor_rows(heatmap_data)
+          dist_cols <- custom_cor_cols(heatmap_data)
           pheatmap(
             mat = heatmap_data,
             color = colors,
             cluster_rows = input$cluster_rows,
             cluster_cols = input$cluster_cols,
             clustering_method = clustering_method,
-            clustering_distance_cols_fun = custom_cor_cols,
-            clustering_distance_rows_fun = custom_cor_rows,
+            clustering_distance_rows = dist_rows,  # precomputed distance matrix for rows
+            clustering_distance_cols = dist_cols,  # precomputed distance matrix for columns
             fontsize = input$fontsize,
             annotation_col = col_annotation_for_heatmap(),
             annotation_row = row_annotation_for_heatmap(),
