@@ -135,19 +135,24 @@ server <- function(input, output, session) {
       title = "Upload Files",
       
       # Main data file upload
-      h4("Upload file:"),
-      file_upload_ui("file_upload"),
-      
+      tags$div(
+        tags$h4("Main data file"),
+        file_upload_ui("file_upload"),
+        downloadButton("download_example", "Eample", style = "margin-top: -15px;")
+      ),
+      hr(),
       # Column annotation file upload widget
       tags$div(
-        tags$h4("Column Annotations", style="margin-top: 15px;"),
-        file_upload_ui("col_annotation_file_upload")
+        tags$h4("Optional: Column Annotation"),
+        file_upload_ui("col_annotation_file_upload"),
+        downloadButton("download_example_col", "Eample", style = "margin-top: -15px;")
       ),
-      
+      hr(),
       # Row annotation file upload widget
       tags$div(
-        tags$h4("Row Annotations", style="margin-top: 15px;"),
-        file_upload_ui("row_annotation_file_upload")
+        tags$h4("Optional: Row Annotations"),
+        file_upload_ui("row_annotation_file_upload"),
+        downloadButton("download_example_row", "Eample", style = "margin-top: -15px;")
       ),
       
       footer = tagList(
@@ -157,7 +162,31 @@ server <- function(input, output, session) {
       easyClose = TRUE
     ))
   })
-  
+
+  output$download_example <- downloadHandler(
+    filename = function() {
+      "example data.csv"
+    },
+    content = function(file) {
+      file.copy("data/iris.csv", file)
+    }
+  )
+  output$download_example_col <- downloadHandler(
+    filename = function() {
+      "example column annotation.csv"
+    },
+    content = function(file) {
+      file.copy("data/iris_column.csv", file)
+    }
+  )
+  output$download_example_row <- downloadHandler(
+    filename = function() {
+      "example row annotation.csv"
+    },
+    content = function(file) {
+      file.copy("data/iris_row.csv", file)
+    }
+  )
   # Use the file upload module for main data
   file_data <- file_upload_server("file_upload")
   
