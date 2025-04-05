@@ -1031,7 +1031,7 @@ server <- function(input, output, session) {
     })
   })
 
-  # Render the PCA plot
+  # Render the PCA plot with responsive sizing
   output$pca_plot <- renderPlot({
     req(pca_data())
     req(current_data())
@@ -1043,19 +1043,18 @@ server <- function(input, output, session) {
     # Get row annotations if available
     row_annot <- row_annotation_for_heatmap()
     
-    # Setting up the plot parameters
-    par(mar = c(5, 5, 4, 8) + 0.1)  # Add extra space for legend
+    # Setting up the plot parameters - remove space for title, add more space for legend
+    par(mar = c(5, 5, 2, 10) + 0.1)  # Increased right margin for legend
     
     # Default plot settings (no annotations)
     point_colors <- "black"
     point_shapes <- 16  # Default circle
-    legend_text <- NULL
     
     # If row annotations are available, use them for colors and shapes
     legend_items <- list()
     
     if (!is.null(row_annot) && ncol(row_annot) > 0) {
-      # Get selected annotation columns (limit to the first two)
+      # Get selected annotation columns
       selected_cols <- names(row_annot)
       
       if (length(selected_cols) >= 1) {
@@ -1073,15 +1072,32 @@ server <- function(input, output, session) {
           palette = color_palette
         )
         
-        if (length(selected_cols) >= 2) {
-          # Use second column for shapes
+        # Use the same first column for shapes if only one annotation is available
+        if (length(selected_cols) == 1) {
+          shape_col <- selected_cols[1]
+          shape_factor <- color_factor  # Use the same factor
+          shape_levels <- color_levels  # Use the same levels
+          
+          # R has shapes 0-25, but some look similar, so limit to a subset
+          available_shapes <- c(16, 17, 15, 18, 19, 1, 2, 5, 6, 8)
+          shape_numbers <- available_shapes[1:min(length(available_shapes), length(shape_levels))]
+          point_shapes <- shape_numbers[as.numeric(shape_factor)]
+          
+          # Store shape legend info - combined with color
+          legend_items$shapes <- list(
+            title = shape_col,
+            labels = shape_levels,
+            shapes = shape_numbers
+          )
+        } 
+        # If two or more annotations are available, use the second for shapes
+        else if (length(selected_cols) >= 2) {
           shape_col <- selected_cols[2]
           shape_factor <- as.factor(row_annot[[shape_col]])
           shape_levels <- levels(shape_factor)
           
-          # R has shapes 0-25, but some look similar, so limit to a subset
           available_shapes <- c(16, 17, 15, 18, 19, 1, 2, 5, 6, 8)
-          shape_numbers <- available_shapes[1:min(length(available_shapes), length(levels(shape_factor)))]
+          shape_numbers <- available_shapes[1:min(length(available_shapes), length(shape_levels))]
           point_shapes <- shape_numbers[as.numeric(shape_factor)]
           
           # Store shape legend info
@@ -1094,16 +1110,18 @@ server <- function(input, output, session) {
       }
     }
     
-    # Create the plot
+    # Create the plot - remove main title and add font scaling
     plot(pc_data$PC1, pc_data$PC2, 
         xlab = paste0("PC1 (", round(summary(pca_result)$importance[2, 1] * 100, 1), "%)"),
         ylab = paste0("PC2 (", round(summary(pca_result)$importance[2, 2] * 100, 1), "%)"),
         main = "", 
         pch = point_shapes,
         col = point_colors,
-        cex = input$fontsize/12,
-        cex.axis = input$fontsize/12,
-        cex.lab = input$fontsize/12)
+        cex = input$fontsize/12,     # Scale points based on fontsize
+        cex.lab = input$fontsize/12, # Scale axis labels
+        cex.axis = input$fontsize/12) # Scale axis numbers
+    
+    # Origin lines removed
     
     # Add legend if using annotations
     if (length(legend_items) > 0) {
@@ -1113,28 +1131,28 @@ server <- function(input, output, session) {
       # Color legend
       if (!is.null(legend_items$colors)) {
         color_info <- legend_items$colors
-        legend_height <- length(color_info$labels) * 0.04 + 0.08  # Estimate legend height
         
         legend("topright", 
               legend = color_info$labels,
               fill = color_info$palette,
               title = color_info$title,
-              cex = input$fontsize/15,
-              inset = c(-0.15, 0),
+              cex = input$fontsize/15,  # Scale legend text with fontsize
+              inset = c(-0.25, 0),  # Moved further right
               bty = "n")  # No box around legend
       }
       
       # Shape legend (if available)
       if (!is.null(legend_items$shapes)) {
         shape_info <- legend_items$shapes
-        shape_position <- if (!is.null(legend_items$colors)) 0.3 else 0
+        # Adjust position based on whether we're using the same column for both
+        shape_position <- if (shape_info$title == legend_items$colors$title) 0.2 else 0.3
         
         legend("topright", 
               legend = shape_info$labels,
               pch = shape_info$shapes,
               title = shape_info$title,
-              cex = input$fontsize/15,
-              inset = c(-0.15, shape_position),
+              cex = input$fontsize/15,  # Scale legend text with fontsize
+              inset = c(-0.25, shape_position),  # Moved further right
               bty = "n")  # No box around legend
       }
       
