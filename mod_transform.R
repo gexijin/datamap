@@ -1,5 +1,4 @@
 library(shiny)
-library(e1071)  # For skewness calculation
 
 data_transforms <- c(
   "None" = "none",
@@ -143,7 +142,7 @@ transform_server <- function(id, data) {
       flat_data <- flat_data[!is.na(flat_data)]
       rv$data_range <- c(min(flat_data), max(flat_data))
       
-      rv$skewness <- skewness(flat_data)
+      rv$skewness <- e1071::skewness(flat_data)
       
       # Set log constant based on data
       if (rv$has_zeros) {

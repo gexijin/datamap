@@ -1,10 +1,7 @@
 library(shiny)
 library(pheatmap)
 library(RColorBrewer)
-library(readxl)  # file upload module
-library(e1071)   # transform module (skewness calculation)
 library(grid)    # needed for grid.draw
-library(gplots) 
 
 source("mod_file_upload.R")
 source("mod_transform.R")
@@ -1256,7 +1253,7 @@ server <- function(input, output, session) {
         
         # Run t-SNE with progress updates
         incProgress(0.2, detail = "Running t-SNE optimization (this may take a while)")
-        tsne_result <- Rtsne(scaled_data, dims = 2, perplexity = perplexity, 
+        tsne_result <- Rtsne::Rtsne(scaled_data, dims = 2, perplexity = perplexity, 
                             check_duplicates = FALSE, pca = TRUE, normalize = FALSE,
                             max_iter = 1000, verbose = FALSE)
         
