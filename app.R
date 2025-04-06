@@ -43,10 +43,12 @@ ui <- fluidPage(
       # Dynamic UI for selecting row annotation columns
       conditionalPanel(
         condition = "output.row_annotation_uploaded",
-        hr(),
         uiOutput("row_annotation_select_ui")
       ),
-      
+      conditionalPanel(
+        condition = "output.col_annotation_uploaded",
+        uiOutput("col_annotation_select_ui")
+      ),
            
       # Heatmap customization section - only shown after data is loaded
       conditionalPanel(
