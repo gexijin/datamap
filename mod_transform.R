@@ -513,68 +513,97 @@ transform_server <- function(id, data) {
         title = "Transform Data",
         fluidRow(
           column(6,
+                 # Log transformation row
+                 fluidRow(
+                     column(6,
+                         checkboxInput(ns("do_log_transform"), "Log10 transformation", 
+                                      value = rv$ui_settings$do_log_transform)
+                     ),
+                     column(6,
+                         conditionalPanel(
+                           condition = "input.do_log_transform && output.needs_constant", ns = ns,
+                           numericInput(ns("log_constant"), "Constant to add:",
+                                        value = rv$ui_settings$log_constant, min = rv$min_constant)
+                         )
+                     )
+                 ),
+                 # Missing values handling - conditional row
                  conditionalPanel(
                    condition = "output.has_missing", ns = ns,
-                   wellPanel(
-                     selectInput(ns("na_method"), "Missing value handling:",
-                                 choices = c("Leave as missing" = "leave",
-                                             "Replace with zero" = "zero",
-                                             "Replace with mean" = "mean",
-                                             "Replace with median" = "median"),
-                                 selected = rv$ui_settings$na_method)
+                   
+                   fluidRow(
+                     column(6, div(style = "padding-top: 7px;", "Missing values:")),
+                     column(6, 
+                            selectInput(ns("na_method"), NULL,
+                                       choices = c("Leave as missing" = "leave",
+                                                   "Replace with zero" = "zero",
+                                                   "Replace with mean" = "mean",
+                                                   "Replace with median" = "median"),
+                                       selected = rv$ui_settings$na_method)
+                     )
                    )
                  ),
                  
-                 wellPanel(
-                   checkboxInput(ns("do_log_transform"), "Apply log10 transformation", 
-                                 value = rv$ui_settings$do_log_transform),
-                   conditionalPanel(
-                     condition = "input.do_log_transform && output.needs_constant", ns = ns,
-                     numericInput(ns("log_constant"), "Constant to add (c in log10(x + c)):",
-                                  value = rv$ui_settings$log_constant, min = rv$min_constant)
-                   )
+               
+                 # Centering and Scaling row
+                 fluidRow(
+                     column(6, div(style = "padding-top: 7px;", "Scaling:")),
+                     column(6,
+                         selectInput(ns("center_scale"), NULL,
+                                    choices = data_transforms,
+                                    selected = rv$ui_settings$center_scale)
+                     )
                  ),
                  
-                 # Use the recommended setting (or last user setting) in the select input below
-                 wellPanel(
-                   selectInput(ns("center_scale"), "Centering and Scaling:",
-                               choices = data_transforms,
-                               selected = rv$ui_settings$center_scale)
+                 # Outlier capping row
+                 fluidRow(
+                     column(6,
+                         checkboxInput(ns("do_zscore_cap"), "Cap outliers based on Z-score", 
+                                      value = rv$ui_settings$do_zscore_cap)
+                     ),
+                     column(6,
+                         conditionalPanel(
+                           condition = "input.do_zscore_cap", ns = ns,
+                           numericInput(ns("zscore_cutoff"), "",
+                                       value = rv$ui_settings$zscore_cutoff, min = 1, step = 1)
+                         )
+                     )
                  ),
                  
-                 wellPanel(
-                   checkboxInput(ns("do_zscore_cap"), "Cap outliers based on Z-score", 
-                                 value = rv$ui_settings$do_zscore_cap),
-                   conditionalPanel(
-                     condition = "input.do_zscore_cap", ns = ns,
-                     numericInput(ns("zscore_cutoff"), "Z-score cutoff value:",
-                                  value = rv$ui_settings$zscore_cutoff, min = 1, step = 1)
-                   )
+                 # Row filtering row
+                 fluidRow(
+                     column(6,
+                         checkboxInput(ns("do_filter_rows"), "Keep top most variable rows", 
+                                      value = rv$ui_settings$do_filter_rows)
+                     ),
+                     column(6,
+                         conditionalPanel(
+                           condition = "input.do_filter_rows", ns = ns,
+                           numericInput(ns("top_n_rows"), "",
+                                       value = rv$ui_settings$top_n_rows, min = 2, max = 100000, step = 100)
+                         )
+                     )
                  ),
-                 
-                 wellPanel(
-                   checkboxInput(ns("do_filter_rows"), "Keep top most variable rows", 
-                                 value = rv$ui_settings$do_filter_rows),
-                   conditionalPanel(
-                     condition = "input.do_filter_rows", ns = ns,
-                     numericInput(ns("top_n_rows"), "Number of rows to keep:",
-                                  value = rv$ui_settings$top_n_rows, min = 2, max = 10000000, step = 100)
-                   )
+                 hr(),
+                 fluidRow(
+                    column(6,
+                        strong("Data Statistics:"),
+                        tags$ul(
+                          tags$li(paste("Size:", nrow(rv$original_data_matrix), "×", ncol(rv$original_data_matrix))),
+                          tags$li(paste("Missing Values:", ifelse(rv$has_missing, "Yes", "No"))),
+                        )
+                    ),
+                    column(6,
+                        tags$ul(
+                          tags$li(paste("Negative Values:", ifelse(rv$has_negative, "Yes", "No"))),
+                          tags$li(paste("Skewness:", round(rv$skewness, 2))),
+                          tags$li(paste("Data Range:", round(rv$data_range[1], 2), "to", round(rv$data_range[2], 2)))
+                        )
+                    )
                  )
           ),
           
           column(6,
-                 wellPanel(
-                   strong("Data Statistics:"),
-                   tags$ul(
-                     tags$li(paste("Matrix Size:", nrow(rv$original_data_matrix), "rows ×", ncol(rv$original_data_matrix), "columns")),
-                     tags$li(paste("Missing Values:", ifelse(rv$has_missing, "Yes", "No"))),
-                     tags$li(paste("Negative Values:", ifelse(rv$has_negative, "Yes", "No"))),
-                     tags$li(paste("Skewness:", round(rv$skewness, 2))),
-                     tags$li(paste("Data Range:", round(rv$data_range[1], 2), "to", round(rv$data_range[2], 2)))
-                   )
-                 ),
-                 
                  plotOutput(ns("data_histogram"), height = "400px")
           )
         ),
@@ -613,7 +642,7 @@ transform_server <- function(id, data) {
       }
       
       hist(flat_data, breaks = 30, col = "steelblue", border = "white",
-           main = "Current Data Distribution", xlab = "Value")
+           main = "After transformation", xlab = "Values in all columns")
     })
     
     # Use debounced event handlers to reduce recalculation frequency

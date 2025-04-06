@@ -162,7 +162,7 @@ server <- function(input, output, session) {
       )
     } else {
       tags$div(
-        tags$h4("Main data file"),
+        tags$h4("Main data file (Excel, CSV, TSV, or text)"),
         file_upload_ui("file_upload"),
         downloadButton("download_example", "Example", style = "margin-top: -15px;")
       )
