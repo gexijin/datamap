@@ -1,9 +1,7 @@
 # mod_file_upload.R
-# A Shiny module for smart file upload and parsing
+# A Shiny module for smart file upload and parsing with reproducible code generation
 
 library(shiny)
-library(readxl)
-library(tools)
 
 #' UI function for file upload module
 #'
@@ -14,19 +12,20 @@ file_upload_ui <- function(id) {
   ns <- NS(id)
   
   tagList(
-    fileInput(ns("file"), "Data Import",
+    fileInput(ns("file"), NULL,
               accept = c(
                 "text/csv",
                 "text/comma-separated-values,text/plain",
                 ".csv", ".txt", ".tsv", ".xls", ".xlsx"
-              ))
+              )),
+    uiOutput(ns("code_ui"))
   )
 }
 
 #' Server function for file upload module
 #'
 #' @param id The module namespace id
-#' @return A list of reactive values: data and data_loaded
+#' @return A list of reactive values: data, data_loaded, has_rownames, and reproducible_code
 #'
 file_upload_server <- function(id) {
   moduleServer(id, function(input, output, session) {
@@ -36,7 +35,9 @@ file_upload_server <- function(id) {
     rv <- reactiveValues(
       data = NULL,
       file_extension = NULL,
-      data_loaded = FALSE
+      data_loaded = FALSE,
+      has_rownames = FALSE,
+      code = NULL
     )
     
     # Helper function to count delimiters in a text sample
@@ -85,6 +86,77 @@ file_upload_server <- function(id) {
       return(FALSE)
     }
     
+    # Helper function to generate reproducible code
+    generate_code <- function(file_path, file_ext, delimiter = NULL, 
+                                         sheet = NULL, header = TRUE, 
+                                         rownames = FALSE) {
+      # Start with library imports
+      code <- "# Reproducible code for data import\n"
+      
+      # Add necessary libraries
+      if (file_ext %in% c("xls", "xlsx")) {
+        code <- paste0(code, "library(readxl)\n")
+      }
+      
+      # Add the data import code
+      if (file_ext %in% c("xls", "xlsx")) {
+        code <- paste0(
+          code,
+          "data <- readxl::read_excel(\n",
+          "  path = \"", file_path, "\",\n",
+          "  sheet = \"", sheet, "\",\n",
+          "  col_names = ", as.character(header), "\n",
+          ")\n",
+          "data <- as.data.frame(data, stringsAsFactors = FALSE)\n"
+        )
+      } else {
+        # For CSV and other delimited text files
+        delimiter_name <- switch(delimiter,
+                                "," = "comma",
+                                "\t" = "tab",
+                                ";" = "semicolon",
+                                "|" = "pipe",
+                                " " = "space")
+        
+        if (delimiter == "\t") {
+          code <- paste0(
+            code,
+            "data <- read.delim(\n",
+            "  file = \"", file_path, "\",\n",
+            "  header = ", as.character(header), ",\n",
+            "  sep = \"\\t\",\n",
+            "  stringsAsFactors = FALSE,\n",
+            "  check.names = FALSE\n",
+            ")\n"
+          )
+        } else {
+          code <- paste0(
+            code,
+            "data <- read.csv(\n",
+            "  file = \"", file_path, "\",\n",
+            "  header = ", as.character(header), ",\n",
+            "  sep = \"", gsub("\\", "\\\\", delimiter, fixed = TRUE), "\",\n",
+            "  stringsAsFactors = FALSE,\n",
+            "  check.names = FALSE\n",
+            ")\n"
+          )
+        }
+      }
+      
+      # Handle row names if applicable
+      if (rownames) {
+        code <- paste0(
+          code,
+          "\n# Set row names from first column\n",
+          "row_names <- data[[1]]\n",
+          "data <- data[, -1, drop = FALSE]\n",
+          "rownames(data) <- row_names\n"
+        )
+      }
+      
+      return(code)
+    }
+    
     # Reactive value to track if first column is suitable for row names
     can_use_rownames <- reactiveVal(FALSE)
     
@@ -103,11 +175,11 @@ file_upload_server <- function(id) {
         # Get current data based on selected options
         if(file_ext %in% c("xls", "xlsx")) {
           if(!is.null(input$import_sheet)) {
-            sample_data <- read_excel(
+            # Read entire dataset to check for duplicate row names
+            sample_data <- readxl::read_excel(
               input$file$datapath,
               sheet = input$import_sheet,
-              col_names = input$import_header,
-              n_max = 10
+              col_names = input$import_header
             )
           } else {
             return()
@@ -116,12 +188,12 @@ file_upload_server <- function(id) {
           delimiter <- input$import_delimiter
           if(is.null(delimiter)) return()
           
+          # Read entire dataset to check for duplicate row names
           if(delimiter == "\t") {
             sample_data <- read.delim(
               input$file$datapath,
               header = input$import_header,
               sep = delimiter,
-              nrows = 10,
               stringsAsFactors = FALSE,
               check.names = FALSE
             )
@@ -130,7 +202,6 @@ file_upload_server <- function(id) {
               input$file$datapath,
               header = input$import_header,
               sep = delimiter,
-              nrows = 10,
               stringsAsFactors = FALSE,
               check.names = FALSE
             )
@@ -154,7 +225,7 @@ file_upload_server <- function(id) {
       req(input$file)
       
       # Get file extension
-      file_ext <- tolower(file_ext(input$file$name))
+      file_ext <- tolower(gsub("^.*\\.(.*)$", "\\1", input$file$name))
       rv$file_extension <- file_ext
       
       # Initialize settings based on file type
@@ -166,10 +237,10 @@ file_upload_server <- function(id) {
       # Read a sample of the file to analyze
       if(file_ext %in% c("xls", "xlsx")) {
         # For Excel files, get sheet names
-        sheets <- excel_sheets(input$file$datapath)
+        sheets <- readxl::excel_sheets(input$file$datapath)
         
-        # Read first few rows to check for headers and row names
-        sample_data <- read_excel(input$file$datapath, sheet = 1, n_max = 10)
+        # Read the entire Excel sheet to check for uniqueness in the first column
+        sample_data <- readxl::read_excel(input$file$datapath, sheet = 1)
         
         # Check if first column might be row names
         if(ncol(sample_data) > 1) {
@@ -197,11 +268,11 @@ file_upload_server <- function(id) {
             delimiter <- "\t"
           }
           
-          # Try parsing first 10 rows to check for headers and row names
+          # Read the entire file to check for uniqueness in the first column
           if(delimiter == "\t") {
-            sample_data <- read.delim(input$file$datapath, nrows = 10, sep = delimiter, header = FALSE, stringsAsFactors = FALSE)
+            sample_data <- read.delim(input$file$datapath, sep = delimiter, header = FALSE, stringsAsFactors = FALSE)
           } else {
-            sample_data <- read.csv(input$file$datapath, nrows = 10, sep = delimiter, header = FALSE, stringsAsFactors = FALSE)
+            sample_data <- read.csv(input$file$datapath, sep = delimiter, header = FALSE, stringsAsFactors = FALSE)
           }
           
           # Check if first row looks like a header
@@ -279,7 +350,7 @@ file_upload_server <- function(id) {
         # Get preview data based on selected import options
         if(file_ext %in% c("xls", "xlsx")) {
           if(!is.null(input$import_sheet)) {
-            preview_data <- read_excel(
+            preview_data <- readxl::read_excel(
               input$file$datapath,
               sheet = input$import_sheet,
               col_names = input$import_header,
@@ -288,7 +359,7 @@ file_upload_server <- function(id) {
             # Convert to data.frame to ensure compatibility with rownames
             preview_data <- as.data.frame(preview_data, stringsAsFactors = FALSE)
           } else {
-            preview_data <- read_excel(
+            preview_data <- readxl::read_excel(
               input$file$datapath,
               col_names = TRUE,
               n_max = 10
@@ -348,7 +419,7 @@ file_upload_server <- function(id) {
       removeModal()
     })
     
-            # Confirm import and load the full dataset
+    # Confirm import and load the full dataset
     observeEvent(input$import_confirm, {
       req(input$file)
       
@@ -359,7 +430,7 @@ file_upload_server <- function(id) {
       # Import full dataset based on selected options
       tryCatch({
         if(file_ext %in% c("xls", "xlsx")) {
-          df <- read_excel(
+          df <- readxl::read_excel(
             input$file$datapath,
             sheet = input$import_sheet,
             col_names = input$import_header
@@ -386,18 +457,30 @@ file_upload_server <- function(id) {
             )
           }
         }
-        
         # Process row names if selected - with safe logical checks
         if(isTRUE(using_rownames) && !is.null(df) && ncol(df) > 1) {
           row_names <- df[[1]]
           df <- df[, -1, drop = FALSE]
           rownames(df) <- row_names
+          rv$has_rownames <- TRUE
+        } else {
+          rownames(df) <- NULL # does nothing
+          rv$has_rownames <- FALSE
         }
-        
         
         # Store the data
         rv$data <- df
         rv$data_loaded <- TRUE
+        
+        # Generate reproducible code
+        rv$code <- generate_code(
+          file_path = input$file$name,
+          file_ext = file_ext,
+          delimiter = input$import_delimiter,
+          sheet = input$import_sheet,
+          header = input$import_header,
+          rownames = using_rownames
+        )
         
         removeModal()
         
@@ -413,7 +496,9 @@ file_upload_server <- function(id) {
     # Return a list of reactive values to be used in the main app
     return(list(
       data = reactive({ rv$data }),
-      data_loaded = reactive({ rv$data_loaded })
+      data_loaded = reactive({ rv$data_loaded }),
+      has_rownames = reactive({ rv$has_rownames }),
+      code = reactive({ rv$code })
     ))
   })
 }

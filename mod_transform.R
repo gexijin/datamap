@@ -1,5 +1,4 @@
 library(shiny)
-library(e1071)  # For skewness calculation
 
 data_transforms <- c(
   "None" = "none",
@@ -27,16 +26,15 @@ map_transform_code <- function(code) {
 #'
 transform_ui <- function(id) {
   ns <- NS(id)
-  actionButton(ns("show_preprocess"), "Transform Data", 
-               icon = icon("filter"),
-               class = "btn-primary")
+  actionButton(ns("show_preprocess"), "Data Prep.", 
+               icon = icon("filter"))
 }
 
 #' Server function for preprocessing module
 #'
 #' @param id The module namespace id
 #' @param data Reactive data frame to process
-#' @return A list with the processed data reactive
+#' @return A list with the processed data reactive and reproducible code
 #'
 transform_server <- function(id, data) {
   moduleServer(id, function(input, output, session) {
@@ -60,13 +58,15 @@ transform_server <- function(id, data) {
       dialog_shown = FALSE,         # Track if dialog has been shown
       changes_applied = FALSE,      # Track if changes have been applied
       modal_closed = TRUE,  
+      factor_columns = NULL,
+      code = NULL,     # NEW: String to store reproducible R code
       ui_settings = list(           # Store UI input values to preserve between sessions
         na_method = "zero",
         do_log_transform = FALSE,
         log_constant = NULL,
         center_scale = "none",
         do_zscore_cap = TRUE,
-        zscore_cutoff = 2,
+        zscore_cutoff = 3,
         do_filter_rows = TRUE,      # Changed to TRUE as default
         top_n_rows = NULL
       )
@@ -77,22 +77,51 @@ transform_server <- function(id, data) {
       
       # Store the original data frame
       rv$original_data <- data_frame
+      original_row_names <- rownames(data_frame)
+      
+      factor_like_cols <- list()
+      for (col_name in names(data_frame)) {
+        col_data <- data_frame[[col_name]]
+        
+        # Check if column is character or factor
+        if ((is.character(col_data) || is.factor(col_data)) && 
+            length(unique(col_data)) < min(50, nrow(data_frame) * 0.5)) {
+          factor_like_cols[[col_name]] <- col_data
+        }
+      }
+      
+      # If factor-like columns were found, store them
+      if (length(factor_like_cols) > 0) {
+        rv$factor_columns <- as.data.frame(factor_like_cols, check.names = FALSE)
+        rownames(rv$factor_columns) <- rownames(data_frame)
+        
+        # Remove factor columns from the data_frame before numeric conversion
+        data_frame <- data_frame[, !names(data_frame) %in% names(factor_like_cols), drop = FALSE]
+      } else {
+        rv$factor_columns <- NULL
+      }
       
       # Create a numeric matrix version for analysis and processing
-      numeric_data <- as.data.frame(lapply(data_frame, function(x) {
-        as.numeric(as.character(x))
-      }))
+      numeric_data <- as.data.frame(
+        lapply(data_frame, function(x) as.numeric(as.character(x))),
+        row.names = original_row_names
+      )
       
       data_matrix <- as.matrix(numeric_data)
+      rownames(data_matrix) <- original_row_names
+      
       # Remove rows that are completely missing
-      row_all_na <- apply(data_matrix, 1, function(x) all(is.na(x)))
+      row_na_count <- rowSums(is.na(data_matrix))
+      row_all_na <- row_na_count == ncol(data_matrix)
       if (any(row_all_na)) {
         data_matrix <- data_matrix[!row_all_na, , drop = FALSE]
       }
-      rv$original_data_matrix <- data_matrix
       
       # Remove columns that are entirely NA (i.e. non-numeric) and notify user
-      col_all_na <- apply(data_matrix, 2, function(x) all(is.na(x)))
+      col_na_count <- colSums(is.na(data_matrix))
+      col_all_na <- col_na_count == nrow(data_matrix)
+      rv$original_data_matrix <- data_matrix
+
       if (any(col_all_na)) {
         removed_cols <- colnames(data_matrix)[col_all_na]
         showNotification(
@@ -112,7 +141,7 @@ transform_server <- function(id, data) {
       flat_data <- flat_data[!is.na(flat_data)]
       rv$data_range <- c(min(flat_data), max(flat_data))
       
-      rv$skewness <- skewness(flat_data)
+      rv$skewness <- e1071::skewness(flat_data)
       
       # Set log constant based on data
       if (rv$has_zeros) {
@@ -138,6 +167,168 @@ transform_server <- function(id, data) {
       }
       
       rv$processed_data <- data_matrix
+    }
+    
+    # Function to generate reproducible R code
+    generate_code <- function(settings) {
+      code_lines <- c(
+        "# Reproducible Data Transformation Code",
+        "# This code will transform your data using the same settings applied in the app",
+        "",
+        "# Load required package for skewness calculation if needed",
+        "if (!requireNamespace(\"e1071\", quietly = TRUE)) {",
+        "  install.packages(\"e1071\")",
+        "}",
+        "library(e1071)",
+        "",
+        "transform_data <- function(data) {",
+        "  # Create a copy of the data to avoid modifying the original",
+        "  processed <- data",
+        "",
+        "  # Step 1: Convert data frame to numeric matrix and handle factor columns",
+        "  original_row_names <- rownames(processed)",
+        "  factor_like_cols <- list()",
+        "  ",
+        "  for (col_name in names(processed)) {",
+        "    col_data <- processed[[col_name]]",
+        "    if ((is.character(col_data) || is.factor(col_data)) && ",
+        "        length(unique(col_data)) < min(50, nrow(processed) * 0.5)) {",
+        "      factor_like_cols[[col_name]] <- col_data",
+        "    }",
+        "  }",
+        "  ",
+        "  # Remove factor columns before numeric conversion",
+        "  if (length(factor_like_cols) > 0) {",
+        "    factor_columns <- as.data.frame(factor_like_cols, check.names = FALSE)",
+        "    rownames(factor_columns) <- rownames(processed)",
+        "    processed <- processed[, !names(processed) %in% names(factor_like_cols), drop = FALSE]",
+        "  }",
+        "  ",
+        "  # Convert to numeric matrix",
+        "  numeric_data <- as.data.frame(",
+        "    lapply(processed, function(x) as.numeric(as.character(x))),",
+        "    row.names = original_row_names",
+        "  )",
+        "  ",
+        "  processed <- as.matrix(numeric_data)",
+        "  rownames(processed) <- original_row_names",
+        "  ",
+        "  # Remove rows that are completely missing",
+        "  row_na_count <- rowSums(is.na(processed))",
+        "  row_all_na <- row_na_count == ncol(processed)",
+        "  if (any(row_all_na)) {",
+        "    processed <- processed[!row_all_na, , drop = FALSE]",
+        "  }",
+        "  ",
+        "  # Remove columns that are entirely NA",
+        "  col_na_count <- colSums(is.na(processed))",
+        "  col_all_na <- col_na_count == nrow(processed)",
+        "  if (any(col_all_na)) {",
+        "    removed_cols <- colnames(processed)[col_all_na]",
+        "    cat(\"Removed non-numeric columns:\", paste(removed_cols, collapse = \", \"), \"\\n\")",
+        "    processed <- processed[, !col_all_na, drop = FALSE]",
+        "  }"
+      )
+      
+      # Handle missing values
+      if (settings$na_method != "leave") {
+        code_lines <- c(code_lines, "", "  # Handle missing values")
+        if (settings$na_method == "zero") {
+          code_lines <- c(code_lines, "  processed[is.na(processed)] <- 0")
+        } else if (settings$na_method == "mean") {
+          code_lines <- c(code_lines, 
+                          "  means <- colMeans(processed, na.rm = TRUE)",
+                          "  idx <- which(is.na(processed), arr.ind = TRUE)",
+                          "  processed[idx] <- means[idx[, 2]]")
+        } else if (settings$na_method == "median") {
+          code_lines <- c(code_lines,
+                          "  medians <- apply(processed, 2, median, na.rm = TRUE)",
+                          "  idx <- which(is.na(processed), arr.ind = TRUE)",
+                          "  processed[idx] <- medians[idx[, 2]]")
+        }
+      }
+      
+      # Apply log transformation
+      if (settings$do_log_transform) {
+        code_lines <- c(code_lines, "", "  # Apply log10 transformation")
+        code_lines <- c(code_lines, "  if (any(processed < 0, na.rm = TRUE)) {",
+                        "    processed[processed < 0] <- 0",
+                        "  }")
+        code_lines <- c(code_lines, paste0("  const <- ", settings$log_constant))
+        code_lines <- c(code_lines, "  processed <- log10(processed + const)")
+      }
+      
+      # Filter to keep only top N most variable rows
+      if (settings$do_filter_rows) {
+        code_lines <- c(code_lines, "", "  # Keep top most variable rows")
+        code_lines <- c(code_lines, "  row_sds <- apply(processed, 1, sd, na.rm = TRUE)")
+        code_lines <- c(code_lines, paste0("  top_n <- ", settings$top_n_rows))
+        code_lines <- c(code_lines, 
+                        "  if (top_n < nrow(processed)) {",
+                        "    top_indices <- order(row_sds, decreasing = TRUE)[1:top_n]",
+                        "    processed <- processed[top_indices, , drop = FALSE]",
+                        "  }")
+      }
+      
+      # Apply centering and scaling
+      if (settings$center_scale != "none") {
+        code_lines <- c(code_lines, "", paste0("  # Apply ", settings$center_scale, " transformation"))
+        
+        if (settings$center_scale == "center_row") {
+          code_lines <- c(code_lines,
+                          "  row_means <- rowMeans(processed, na.rm = TRUE)",
+                          "  processed <- sweep(processed, 1, row_means, \"-\")")
+        } else if (settings$center_scale == "scale_row") {
+          code_lines <- c(code_lines,
+                          "  # Scale each row (Z-score normalization)",
+                          "  processed <- t(scale(t(processed)))",
+                          "  # Replace any NA values (from constant rows) with 0",
+                          "  processed[is.na(processed)] <- 0")
+        } else if (settings$center_scale == "center_col") {
+          code_lines <- c(code_lines,
+                          "  col_means <- colMeans(processed, na.rm = TRUE)",
+                          "  processed <- t(t(processed) - col_means)")
+        } else if (settings$center_scale == "scale_col") {
+          code_lines <- c(code_lines,
+                          "  processed <- scale(processed)",
+                          "  processed[is.na(processed)] <- 0")
+        }
+      }
+      
+      # Apply Z-score cutoff for outlier capping
+      if (settings$do_zscore_cap) {
+        code_lines <- c(code_lines, "", "  # Cap outliers based on Z-score")
+        code_lines <- c(code_lines, paste0("  z_cutoff <- ", settings$zscore_cutoff))
+        code_lines <- c(code_lines,
+                        "  flat_data <- as.numeric(processed)",
+                        "  flat_data <- flat_data[is.finite(flat_data)]",
+                        "  if (length(flat_data) > 0) {",
+                        "    overall_mean <- mean(flat_data, na.rm = TRUE)",
+                        "    overall_sd <- sd(flat_data, na.rm = TRUE)",
+                        "    if (!is.na(overall_sd) && overall_sd > 0) {",
+                        "      upper_bound <- overall_mean + z_cutoff * overall_sd",
+                        "      lower_bound <- overall_mean - z_cutoff * overall_sd",
+                        "      processed[processed > upper_bound] <- upper_bound",
+                        "      processed[processed < lower_bound] <- lower_bound",
+                        "    }",
+                        "  }")
+      }
+      
+      # Finish the function and add usage example
+      code_lines <- c(code_lines,
+                      "",
+                      "  # Merge back factor columns if any were extracted",
+                      "  if (exists(\"factor_columns\")) {",
+                      "    result_list <- list(numeric_data = processed, factor_columns = factor_columns)",
+                      "    return(result_list)",
+                      "  } else {",
+                      "    return(processed)",
+                      "  }",
+                      "}",
+                      "",
+                      "transformed_data <- transform_data(data)")
+      
+      return(paste(code_lines, collapse = "\n"))
     }
     
     # Consolidated function to update and capture UI settings
@@ -170,37 +361,37 @@ transform_server <- function(id, data) {
     
     apply_preprocessing <- function() {
       if (is.null(rv$original_data_matrix)) return()
+      
+      # Create a progress object
+      progress <- shiny::Progress$new()
+      on.exit(progress$close())
+      
+      # Set up progress
+      progress$set(message = "Applying transformations", value = 0)
+      
       processed <- rv$original_data_matrix
       
       # 1. Handle missing values
       if (rv$has_missing) {
-        row_all_na <- apply(processed, 1, function(x) all(is.na(x)))
-        if (any(row_all_na)) {
-          processed <- processed[!row_all_na, , drop = FALSE]
-        }
-        col_all_na <- apply(processed, 2, function(x) all(is.na(x)))
-        if (any(col_all_na)) {
-          processed <- processed[, !col_all_na, drop = FALSE]
-        }
+        progress$set(value = 0.1, detail = "Handling missing values")
         if (!is.null(input$na_method) && input$na_method != "leave") {
           if (input$na_method == "zero") {
             processed[is.na(processed)] <- 0
           } else if (input$na_method == "mean") {
-            for (j in 1:ncol(processed)) {
-              col_mean <- mean(processed[, j], na.rm = TRUE)
-              processed[is.na(processed[, j]), j] <- col_mean
-            }
+            means <- colMeans(processed, na.rm = TRUE)
+            idx <- which(is.na(processed), arr.ind = TRUE)
+            processed[idx] <- means[idx[, 2]]
           } else if (input$na_method == "median") {
-            for (j in 1:ncol(processed)) {
-              col_median <- median(processed[, j], na.rm = TRUE)
-              processed[is.na(processed[, j]), j] <- col_median
-            }
+            medians <- apply(processed, 2, median, na.rm = TRUE)
+            idx <- which(is.na(processed), arr.ind = TRUE)
+            processed[idx] <- medians[idx[, 2]]
           }
         }
       }
-      
+
       # 2. Apply log transformation if selected
       if (!is.null(input$do_log_transform) && input$do_log_transform) {
+        progress$set(value = 0.3, detail = "Applying log transformation")
         if (any(processed < 0, na.rm = TRUE)) {
           processed[processed < 0] <- 0
         }
@@ -211,39 +402,52 @@ transform_server <- function(id, data) {
         }
         processed <- log10(processed + const)
       }
-      
-      # 3. Apply centering and scaling
+
+      # 3. Filter to keep only top N most variable rows (by SD)
+      if (!is.null(input$do_filter_rows) && input$do_filter_rows) {
+        progress$set(value = 0.9, detail = "Filtering rows by variability")
+        row_sds <- apply(processed, 1, sd, na.rm = TRUE)
+        top_n_input <- input$top_n_rows
+        if (is.null(top_n_input) || is.na(top_n_input) || !is.numeric(top_n_input)) {
+          top_n <- 2  # Default to 2 if the input is invalid
+        } else {
+          top_n <- max(2, min(as.numeric(top_n_input), nrow(processed)))
+        }
+        if (top_n < nrow(processed)) {
+          top_indices <- order(row_sds, decreasing = TRUE)[1:top_n]
+          processed <- processed[top_indices, , drop = FALSE]
+        }
+      }
+
+      # 4. Apply centering and scaling
       if (!is.null(input$center_scale) && input$center_scale != "none") {
+        progress$set(value = 0.5, detail = paste("Applying", input$center_scale, "transformation"))
         if (input$center_scale == "center_row") {
           row_means <- rowMeans(processed, na.rm = TRUE)
-          processed <- t(t(processed) - row_means)
+          processed <- sweep(processed, 1, row_means, "-")
         } else if (input$center_scale == "scale_row") {
-          row_means <- rowMeans(processed, na.rm = TRUE)
-          row_sds <- apply(processed, 1, sd, na.rm = TRUE)
-          processed <- t((t(processed) - row_means) / ifelse(row_sds == 0, 1, row_sds))
-          zero_sd_rows <- which(row_sds == 0)
-          if (length(zero_sd_rows) > 0) {
-            processed[zero_sd_rows, ] <- 0
-          }
+          # Scale each row so that it has zero mean and unit variance.
+          processed <- t(scale(t(processed)))
+          # Replace any NA values produced (e.g. from constant rows) with 0
+          processed[is.na(processed)] <- 0
         } else if (input$center_scale == "center_col") {
           col_means <- colMeans(processed, na.rm = TRUE)
           processed <- t(t(processed) - col_means)
         } else if (input$center_scale == "scale_col") {
-          col_means <- colMeans(processed, na.rm = TRUE)
-          col_sds <- apply(processed, 2, sd, na.rm = TRUE)
-          processed <- sweep(processed, 2, col_means, "-")
-          processed <- sweep(processed, 2, ifelse(col_sds == 0, 1, col_sds), "/")
-          zero_sd_cols <- which(col_sds == 0)
-          if (length(zero_sd_cols) > 0) {
-            processed[, zero_sd_cols] <- 0
-          }
+          processed <- scale(processed)
+          processed[is.na(processed)] <- 0
         }
       }
       
-      # 4. Apply Z-score cutoff for outlier capping (applied to the entire matrix)
+      # 5. Apply Z-score cutoff for outlier capping (applied to the entire matrix)
       if (!is.null(input$do_zscore_cap) && input$do_zscore_cap) {
-        z_cutoff <- as.numeric(input$zscore_cutoff)
-        processed <- pmin(pmax(processed, -1e300), 1e300)
+        progress$set(value = 0.7, detail = "Capping outliers")
+        z_input <- input$zscore_cutoff
+        if (is.null(z_input) || is.na(z_input) || !is.numeric(z_input)) {
+          z_cutoff <- 1  # Default to 1 if the input is invalid
+        } else {
+          z_cutoff <- max(1, as.numeric(z_input))
+        }
         flat_data <- as.numeric(processed)
         flat_data <- flat_data[is.finite(flat_data)]
         if (length(flat_data) > 0) {
@@ -257,16 +461,10 @@ transform_server <- function(id, data) {
           }
         }
       }
+      progress$set(value = 1, detail = "Transformations complete")
       
-      # 5. Filter to keep only top N most variable rows (by SD)
-      if (!is.null(input$do_filter_rows) && input$do_filter_rows) {
-        row_sds <- apply(processed, 1, sd, na.rm = TRUE)
-        top_n <- min(as.numeric(input$top_n_rows), nrow(processed))
-        if (top_n < nrow(processed)) {
-          top_indices <- order(row_sds, decreasing = TRUE)[1:top_n]
-          processed <- processed[top_indices, , drop = FALSE]
-        }
-      }
+      # Generate reproducible code
+      rv$code <- generate_code(update_and_capture_ui_settings())
       
       rv$processed_data <- processed
     }
@@ -303,6 +501,7 @@ transform_server <- function(id, data) {
       rv$modal_closed <- FALSE  # Modal is now open
 
       if (!rv$dialog_shown) {
+        # Determine recommended transformation
         rv$ui_settings$center_scale <- map_transform_code(guess_transform(rv$processed_data))
       }
       
@@ -345,7 +544,7 @@ transform_server <- function(id, data) {
                    conditionalPanel(
                      condition = "input.do_zscore_cap", ns = ns,
                      numericInput(ns("zscore_cutoff"), "Z-score cutoff value:",
-                                  value = rv$ui_settings$zscore_cutoff, min = 0.1, step = 0.1)
+                                  value = rv$ui_settings$zscore_cutoff, min = 1, step = 1)
                    )
                  ),
                  
@@ -355,7 +554,7 @@ transform_server <- function(id, data) {
                    conditionalPanel(
                      condition = "input.do_filter_rows", ns = ns,
                      numericInput(ns("top_n_rows"), "Number of rows to keep:",
-                                  value = rv$ui_settings$top_n_rows, min = 1, max = 10000000, step = 100)
+                                  value = rv$ui_settings$top_n_rows, min = 2, max = 10000000, step = 100)
                    )
                  )
           ),
@@ -386,7 +585,7 @@ transform_server <- function(id, data) {
       
       rv$current_settings <- update_and_capture_ui_settings()
     }
-    
+     
     output$has_missing <- reactive({
       return(rv$has_missing)
     })
@@ -399,6 +598,7 @@ transform_server <- function(id, data) {
     
     output$data_histogram <- renderPlot({
       req(rv$processed_data)
+      
       flat_data <- as.numeric(rv$processed_data)
       flat_data <- flat_data[!is.na(flat_data) & is.finite(flat_data)]
       
@@ -409,19 +609,24 @@ transform_server <- function(id, data) {
       }
       
       hist(flat_data, breaks = 30, col = "steelblue", border = "white",
-          main = "Current Data Distribution", xlab = "Value")
-      
+           main = "Current Data Distribution", xlab = "Value")
     })
     
-    observeEvent(input$na_method, { apply_preprocessing() })
-    observeEvent(input$do_log_transform, { apply_preprocessing() })
-    observeEvent(input$log_constant, { apply_preprocessing() })
-    observeEvent(input$center_scale, { apply_preprocessing() })
-    observeEvent(input$do_zscore_cap, { apply_preprocessing() })
-    observeEvent(input$zscore_cutoff, { apply_preprocessing() })
-    observeEvent(input$do_filter_rows, { apply_preprocessing() })
-    observeEvent(input$top_n_rows, { apply_preprocessing() })
-    
+    # Use debounced event handlers to reduce recalculation frequency
+    # for UI inputs that might change rapidly
+    observeEvent(list(
+      input$na_method, 
+      input$do_log_transform, 
+      input$log_constant, 
+      input$center_scale, 
+      input$do_zscore_cap,
+      input$zscore_cutoff,
+      input$do_filter_rows,
+      input$top_n_rows
+    ), { 
+        req(rv$original_data_matrix) 
+        apply_preprocessing()
+    })
     observe({
       if (!is.null(input$na_method)) {
         update_and_capture_ui_settings()
@@ -451,6 +656,9 @@ transform_server <- function(id, data) {
       rv$ui_settings$do_filter_rows <- TRUE
       updateNumericInput(session, "top_n_rows", value = rv$top_n_default)
       rv$ui_settings$top_n_rows <- rv$top_n_default
+      
+      # Reset reproducible code
+      rv$code <- generate_code(rv$ui_settings)
     })
     
     observeEvent(input$cancel, {
@@ -465,8 +673,10 @@ transform_server <- function(id, data) {
       
       if (settings_have_changed(final_settings, rv$applied_settings)) {
         apply_preprocessing()
+        
         rv$applied_settings <- final_settings
         rv$changes_applied <- TRUE
+        
         showNotification("Transformations applied successfully", type = "message")
       } else {
         showNotification("No changes detected in transformation settings", type = "message")
@@ -475,7 +685,37 @@ transform_server <- function(id, data) {
       removeModal()
       rv$modal_closed <- TRUE
     })
-    
+
+    # Safe observer for top_n_rows that handles missing values first
+    observeEvent(input$top_n_rows, {
+      req(rv$processed_data)
+      # First check if the value exists and is a valid number
+      if (is.null(input$top_n_rows) || is.na(input$top_n_rows) || !is.numeric(input$top_n_rows)) {
+        updateNumericInput(session, "top_n_rows", value = 2)
+        showNotification("Number of rows must be a valid number (minimum 2)", type = "warning")
+      } 
+      # Then check if it's below the minimum
+      else if (input$top_n_rows < 2) {
+        updateNumericInput(session, "top_n_rows", value = 2)
+        showNotification("Number of rows to keep must be at least 2", type = "warning")
+      }
+    }, ignoreNULL = FALSE)  # Important: don't ignore NULL values
+
+    # Safe observer for zscore_cutoff
+    observeEvent(input$zscore_cutoff, {
+      req(rv$processed_data)
+      # First check if the value exists and is a valid number
+      if (is.null(input$zscore_cutoff) || is.na(input$zscore_cutoff) || !is.numeric(input$zscore_cutoff)) {
+        updateNumericInput(session, "zscore_cutoff", value = 1)
+        showNotification("Z-score cutoff must be a valid number (minimum 1)", type = "warning")
+      }
+      # Then check if it's below the minimum
+      else if (input$zscore_cutoff < 1) {
+        updateNumericInput(session, "zscore_cutoff", value = 1)
+        showNotification("Z-score cutoff must be at least 1", type = "warning")
+      }
+    }, ignoreNULL = FALSE)
+
     return(list(
       processed_data = reactive({ 
         if (rv$changes_applied) {
@@ -485,7 +725,9 @@ transform_server <- function(id, data) {
         }
       }),
       has_transformed = reactive({ rv$changes_applied }),
-      modal_closed = reactive({ rv$modal_closed }) 
+      modal_closed = reactive({ rv$modal_closed }),
+      factor_columns = reactive({ rv$factor_columns }),
+      code = reactive({ rv$code })  # NEW: Return the reproducible code
     ))
   })
 }
