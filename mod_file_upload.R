@@ -2,7 +2,6 @@
 # A Shiny module for smart file upload and parsing with reproducible code generation
 
 library(shiny)
-library(tools)
 
 #' UI function for file upload module
 #'
@@ -103,7 +102,7 @@ file_upload_server <- function(id) {
       if (file_ext %in% c("xls", "xlsx")) {
         code <- paste0(
           code,
-          "data <- readxls::read_excel(\n",
+          "data <- readxl::read_excel(\n",
           "  path = \"", file_path, "\",\n",
           "  sheet = \"", sheet, "\",\n",
           "  col_names = ", as.character(header), "\n",
@@ -177,7 +176,7 @@ file_upload_server <- function(id) {
         if(file_ext %in% c("xls", "xlsx")) {
           if(!is.null(input$import_sheet)) {
             # Read entire dataset to check for duplicate row names
-            sample_data <- readxls::read_excel(
+            sample_data <- readxl::read_excel(
               input$file$datapath,
               sheet = input$import_sheet,
               col_names = input$import_header
@@ -226,7 +225,7 @@ file_upload_server <- function(id) {
       req(input$file)
       
       # Get file extension
-      file_ext <- tolower(file_ext(input$file$name))
+      file_ext <- tolower(gsub("^.*\\.(.*)$", "\\1", input$file$name))
       rv$file_extension <- file_ext
       
       # Initialize settings based on file type
@@ -238,10 +237,10 @@ file_upload_server <- function(id) {
       # Read a sample of the file to analyze
       if(file_ext %in% c("xls", "xlsx")) {
         # For Excel files, get sheet names
-        sheets <- excel_sheets(input$file$datapath)
+        sheets <- readxl::excel_sheets(input$file$datapath)
         
         # Read the entire Excel sheet to check for uniqueness in the first column
-        sample_data <- readxls::read_excel(input$file$datapath, sheet = 1)
+        sample_data <- readxl::read_excel(input$file$datapath, sheet = 1)
         
         # Check if first column might be row names
         if(ncol(sample_data) > 1) {
@@ -351,7 +350,7 @@ file_upload_server <- function(id) {
         # Get preview data based on selected import options
         if(file_ext %in% c("xls", "xlsx")) {
           if(!is.null(input$import_sheet)) {
-            preview_data <- readxls::read_excel(
+            preview_data <- readxl::read_excel(
               input$file$datapath,
               sheet = input$import_sheet,
               col_names = input$import_header,
@@ -360,7 +359,7 @@ file_upload_server <- function(id) {
             # Convert to data.frame to ensure compatibility with rownames
             preview_data <- as.data.frame(preview_data, stringsAsFactors = FALSE)
           } else {
-            preview_data <- readxls::read_excel(
+            preview_data <- readxl::read_excel(
               input$file$datapath,
               col_names = TRUE,
               n_max = 10
@@ -431,7 +430,7 @@ file_upload_server <- function(id) {
       # Import full dataset based on selected options
       tryCatch({
         if(file_ext %in% c("xls", "xlsx")) {
-          df <- readxls::read_excel(
+          df <- readxl::read_excel(
             input$file$datapath,
             sheet = input$import_sheet,
             col_names = input$import_header

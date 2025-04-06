@@ -1,5 +1,6 @@
+# DataMap: A Shiny app for visualizing data matrices with heatmaps, PCA, and t-SNE
+# by Steven Ge 4/5/2025  
 library(shiny)
-library(RColorBrewer)
 
 source("mod_file_upload.R")
 source("mod_transform.R")
@@ -18,42 +19,39 @@ ui <- fluidPage(
       # Place Upload Files and Reset buttons on the same row
       fluidRow(
         column(7, 
-          actionButton("show_upload_modal", "Upload Files", 
-                      icon = icon("upload"),
-                      style = "width: 100%; margin-bottom: 15px;")
+          actionButton("show_upload_modal", "Data Files", 
+                      icon = icon("upload"))
         ),
         column(5,
           conditionalPanel(
             condition = "output.data_loaded",
             actionButton("reset_session", "Reset", 
                         icon = icon("refresh"), 
-                        style = "width: 100%; margin-bottom: 15px; background-color: #f8d7da; color: #721c24;")
+                        style = "background-color: #f8d7da; color: #721c24;")
           )
         )
       ),
-      
-      # Dynamic UI for selecting row annotation columns
-      conditionalPanel(
-        condition = "output.row_annotation_uploaded",
-        uiOutput("row_annotation_select_ui")
-      ),
-      
 
-      # Transform module UI - only shown after data is loaded
       conditionalPanel(
         condition = "output.data_loaded",
-        hr(),
         fluidRow(
           column(8, transform_ui("transform")),
           column(4, uiOutput("transform_status"))
         )
+      ), 
+
+      # Dynamic UI for selecting row annotation columns
+      conditionalPanel(
+        condition = "output.row_annotation_uploaded",
+        hr(),
+        uiOutput("row_annotation_select_ui")
       ),
-            
+      
+           
       # Heatmap customization section - only shown after data is loaded
       conditionalPanel(
         condition = "output.data_loaded",
         hr(),
-        
         # Clustering options - compact layout
         fluidRow(
           column(6, checkboxInput("cluster_rows", "Cluster Rows", TRUE)),
@@ -103,7 +101,7 @@ ui <- fluidPage(
           column(9, sliderInput("height", NULL, min = 500, max = 2000, value = default_height, step = 100))
         ),
         fluidRow(
-          column(6, checkboxInput("label_heatmap", "Label- Data", value = FALSE)),
+          column(6, checkboxInput("label_heatmap", "Label Data", value = FALSE)),
           column(6, checkboxInput("show_row_names", "Row Names", value = FALSE))
         ),
         fluidRow(
@@ -125,14 +123,14 @@ ui <- fluidPage(
         tabPanel("Heatmap", 
                 plotOutput("heatmap", width = "100%", height = "600px")
         ),
-        tabPanel("PCA Plot",
+        tabPanel("PCA",
           selectInput("pca_transpose", "PCA Analysis Mode:",
              choices = c("Row vectors" = "row", 
              "Column vectors" = "column"),
               selected = "row"),
           plotOutput("pca_plot", width = "100%", height = "auto")
         ),
-        tabPanel("t-SNE Plot",
+        tabPanel("t-SNE",
           selectInput("tsne_transpose", "t-SNE Analysis Mode:",
             choices = c("Row vectors" = "row", 
             "Column vectors" = "column"),
@@ -427,7 +425,7 @@ server <- function(input, output, session) {
       if (input$color == "GreenBlackRed") {
         colors <- colorRampPalette(c("green", "black", "red"))(100)
       } else {
-        colors <- colorRampPalette(rev(brewer.pal(11, input$color)))(100)
+        colors <- colorRampPalette(rev(RColorBrewer::brewer.pal(11, input$color)))(100)
       }
       
       # Prepare clustering parameters
@@ -709,9 +707,9 @@ server <- function(input, output, session) {
         } else {
           # Determine which palette was used
           for (palette_name in c("RdBu", "RdYlBu", "YlOrRd", "YlGnBu", "Blues", "Greens", "Purples", "Reds", "OrRd")) {
-            if (identical(params$color, colorRampPalette(rev(brewer.pal(11, palette_name)))(100))) {
+            if (identical(params$color, colorRampPalette(rev(RColorBrewer::brewer.pal(11, palette_name)))(100))) {
               heatmap_code <- c(heatmap_code, "# Define color palette",
-                                paste0("colors <- colorRampPalette(rev(brewer.pal(11, \"", palette_name, "\")))(100)"))
+                                paste0("colors <- colorRampPalette(rev(RColorBrewer::brewer.pal(11, \"", palette_name, "\")))(100)"))
               break
             }
           }
