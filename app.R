@@ -19,21 +19,22 @@ ui <- fluidPage(
   sidebarLayout(
     sidebarPanel(
       width = 3,
-      conditionalPanel(
-        condition = "output.data_loaded",
-        actionButton("reset_session", "Reset All", 
-                    icon = icon("refresh"), 
-                    style = "width: 100%; margin-bottom: 15px; background-color: #f8d7da; color: #721c24;")
-      ),
-      # Button to open file upload modal
-      actionButton("show_upload_modal", "Upload Files", 
-                  icon = icon("upload"),
-                  style = "width: 100%; margin-bottom: 15px;"),
       
-      # Dynamic UI for selecting column annotation rows
-      conditionalPanel(
-        condition = "output.col_annotation_uploaded",
-        uiOutput("col_annotation_select_ui")
+      # Place Upload Files and Reset buttons on the same row
+      fluidRow(
+        column(7, 
+          actionButton("show_upload_modal", "Upload Files", 
+                      icon = icon("upload"),
+                      style = "width: 100%; margin-bottom: 15px;")
+        ),
+        column(5,
+          conditionalPanel(
+            condition = "output.data_loaded",
+            actionButton("reset_session", "Reset All", 
+                        icon = icon("refresh"), 
+                        style = "width: 100%; margin-bottom: 15px; background-color: #f8d7da; color: #721c24;")
+          )
+        )
       ),
       
       # Dynamic UI for selecting row annotation columns
