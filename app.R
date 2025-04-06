@@ -108,10 +108,9 @@ ui <- fluidPage(
           column(9, sliderInput("height", NULL, min = 500, max = 2000, value = default_height, step = 100))
         ),
         fluidRow(
-          column(6, checkboxInput("label_heatmap", "Label", value = FALSE)),
+          column(6, checkboxInput("label_heatmap", "Label- Data", value = FALSE)),
           column(6, checkboxInput("show_row_names", "Row Names", value = FALSE))
         ),
-        hr(),
         fluidRow(
           column(6, 
             numericInput("cutree_rows", "Row clusters", value = 1, min = 1, max = 100, step = 1),
@@ -120,7 +119,6 @@ ui <- fluidPage(
             numericInput("cutree_cols", "Col. Clusters", value = 1, min = 1, max = 100, step = 1),
           )
         ),
-         hr(),
         downloadButton("download_pdf", "PDF"),
         downloadButton("download_png", "PNG")
       )
