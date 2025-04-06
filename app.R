@@ -2,16 +2,16 @@
 # by Steven Ge 4/5/2025  
 library(shiny)
 
-source("mod_file_upload.R")
-source("mod_transform.R")
-source("utilities.R")
+source("R/mod_file_upload.R")
+source("R/mod_transform.R")
+source("R/utilities.R")
 
 max_rows_to_show <- 1000  # Maximum number of rows to show row names in the heatmap
 default_width <- 600
 default_height <- 600
 ui <- fluidPage(
 
-  titlePanel("DataMap"),  
+  titlePanel("DataMap: a secure app for visualizing data matrices"),  
   sidebarLayout(
     sidebarPanel(
       width = 3,
@@ -42,11 +42,13 @@ ui <- fluidPage(
 
       # Dynamic UI for selecting row annotation columns
       conditionalPanel(
-        condition = "output.row_annotation_uploaded",
-        hr(),
+        condition = "output.row_annotation_available",
         uiOutput("row_annotation_select_ui")
       ),
-      
+      conditionalPanel(
+        condition = "output.col_annotation_uploaded",
+        uiOutput("col_annotation_select_ui")
+      ),
            
       # Heatmap customization section - only shown after data is loaded
       conditionalPanel(
@@ -93,12 +95,12 @@ ui <- fluidPage(
         # Width & Height in more compact form
         fluidRow(
           column(3, p("Width:", style="padding-top: 7px; text-align: right;")),
-          column(9, sliderInput("width", NULL, min = 500, max = 2000, value = default_width, step = 100))
+          column(9, sliderInput("width", NULL, min = 200, max = 2000, value = default_width, step = 100))
         ),
         
         fluidRow(
           column(3, p("Height:", style="padding-top: 7px; text-align: right;")),
-          column(9, sliderInput("height", NULL, min = 500, max = 2000, value = default_height, step = 100))
+          column(9, sliderInput("height", NULL, min = 200, max = 2000, value = default_height, step = 100))
         ),
         fluidRow(
           column(6, checkboxInput("label_heatmap", "Label Data", value = FALSE)),
@@ -119,14 +121,15 @@ ui <- fluidPage(
     
     mainPanel(
       width = 9,
-      tabsetPanel(
+      tabsetPanel(id = "main_tabs", selected = "About",
         tabPanel("Heatmap", 
+                br(),
                 plotOutput("heatmap", width = "100%", height = "600px")
         ),
         tabPanel("PCA",
           selectInput("pca_transpose", "PCA Analysis Mode:",
-             choices = c("Row vectors" = "row", 
-             "Column vectors" = "column"),
+            choices = c("Row vectors" = "row", 
+            "Column vectors" = "column"),
               selected = "row"),
           plotOutput("pca_plot", width = "100%", height = "auto")
         ),
@@ -141,6 +144,11 @@ ui <- fluidPage(
         ),
         tabPanel("Code",
                 uiOutput("code_display")
+        ),
+        tabPanel("About",
+                #img(src = "heatmap.png", width = "500px", height = "500px"),
+                #img(src = "pca.png", width = "433px", height = "387px"),
+                includeHTML("www/help.html")
         )
       )
     )
@@ -148,6 +156,20 @@ ui <- fluidPage(
 )
 
 server <- function(input, output, session) {
+
+  # Track if main data is loaded for UI conditionals
+  output$data_loaded <- reactive({
+    return(file_data$data_loaded())
+  })
+  outputOptions(output, "data_loaded", suspendWhenHidden = FALSE)
+
+  # Switch to Heatmap tab when data is loaded
+  observe({
+    if(file_data$data_loaded()) {
+      updateTabsetPanel(session, "main_tabs", selected = "Heatmap")
+    }
+  })
+
   # Show the modal when the button is clicked
   output$main_file_upload_ui <- renderUI({
     if (!is.null(file_data$data())) {
@@ -162,9 +184,10 @@ server <- function(input, output, session) {
       )
     } else {
       tags$div(
-        tags$h4("Main data file"),
+        tags$h4("Data file (Excel, CSV, ...)"),
         file_upload_ui("file_upload"),
-        downloadButton("download_example", "Example", style = "margin-top: -15px;")
+        downloadButton("download_example_genomics", "Example 1", style = "margin-top: -15px;"),
+        downloadButton("download_example", "Example 2", style = "margin-top: -15px;")
       )
     }
   })
@@ -179,7 +202,8 @@ server <- function(input, output, session) {
       tags$div(
         tags$h4("Optional: Column Annotation"),
         file_upload_ui("col_annotation_file_upload"),
-        downloadButton("download_example_col", "Example", style = "margin-top: -15px;")
+        downloadButton("download_example_col_genomics", "Example 1", style = "margin-top: -15px;"),
+        downloadButton("download_example_col", "Example 2", style = "margin-top: -15px;")
       ),
       hr(),
       tags$div(
@@ -204,6 +228,22 @@ server <- function(input, output, session) {
       file.copy("data/iris.csv", file)
     }
   )
+  output$download_example_genomics <- downloadHandler(
+    filename = function() {
+      "example gene expression.csv"
+    },
+    content = function(file) {
+      file.copy("data/Genomics.csv", file)
+    }
+  )
+  output$download_example_col_genomics <- downloadHandler(
+    filename = function() {
+      "example experiment design.csv"
+    },
+    content = function(file) {
+      file.copy("data/experiment_design.csv", file)
+    }
+  )
   output$download_example_col <- downloadHandler(
     filename = function() {
       "example column annotation.csv"
@@ -214,10 +254,10 @@ server <- function(input, output, session) {
   )
   output$download_example_row <- downloadHandler(
     filename = function() {
-      "example row annotation.csv"
+      "example gene info.csv"
     },
     content = function(file) {
-      file.copy("data/iris_row.csv", file)
+      file.copy("data/Gene_info.csv", file)
     }
   )
   # Use the file upload module for main data
@@ -241,11 +281,13 @@ server <- function(input, output, session) {
   })
   outputOptions(output, "col_annotation_uploaded", suspendWhenHidden = FALSE)
   
-  # Reactive to indicate if row annotation file is uploaded
-  output$row_annotation_uploaded <- reactive({
-    !is.null(row_annotation_file_data$data())
+  output$row_annotation_available <- reactive({
+    has_uploaded <- !is.null(row_annotation_file_data$data())
+    has_factors <- !is.null(transform_data$factor_columns()) && 
+                  ncol(transform_data$factor_columns()) > 0
+    return(has_uploaded || has_factors)
   })
-  outputOptions(output, "row_annotation_uploaded", suspendWhenHidden = FALSE)
+  outputOptions(output, "row_annotation_available", suspendWhenHidden = FALSE)
   
   # Render UI for column annotation row selection
   output$col_annotation_select_ui <- renderUI({
@@ -258,17 +300,44 @@ server <- function(input, output, session) {
     selectInput("col_annotation_select", "Column annotation:", 
                 choices = row_choices, selected = row_choices[1], multiple = TRUE)
   })
-  
-  # Render UI for row annotation column selection
+
+  # Render UI for row annotation column selection (merged from both sources)
   output$row_annotation_select_ui <- renderUI({
-    req(row_annotation_file_data$data())
-    annot_df <- row_annotation_file_data$data()
-    col_choices <- colnames(annot_df)
-    if (is.null(col_choices) || length(col_choices) == 0) {
-      col_choices <- as.character(seq_len(ncol(annot_df)))
+    all_choices <- c()
+    default_selected <- c()
+    
+    # Get choices from uploaded row annotation file
+    if (!is.null(row_annotation_file_data$data())) {
+      uploaded_choices <- colnames(row_annotation_file_data$data())
+      if (!is.null(uploaded_choices) && length(uploaded_choices) > 0) {
+        all_choices <- c(all_choices, uploaded_choices)
+        # Select first uploaded column by default
+        default_selected <- c(default_selected, uploaded_choices[1])
+      }
     }
-    selectInput("row_annotation_select", "Row annotation:", 
-                choices = col_choices, selected = col_choices[1], multiple = TRUE)
+    
+    # Get choices from auto-detected factor columns
+    if (!is.null(transform_data$factor_columns()) && 
+        ncol(transform_data$factor_columns()) > 0) {
+      factor_choices <- colnames(transform_data$factor_columns())
+      if (!is.null(factor_choices) && length(factor_choices) > 0) {
+        all_choices <- c(all_choices, factor_choices)
+        # Select all factor columns by default
+        default_selected <- c(default_selected, factor_choices)
+      }
+    }
+    
+    # Remove any duplicates
+    all_choices <- unique(all_choices)
+    default_selected <- unique(default_selected)
+    
+    # Create the selectInput if we have any choices
+    if (length(all_choices) > 0) {
+      selectInput("row_annotation_select", "Row annotations:", 
+                  choices = all_choices, selected = default_selected, multiple = TRUE)
+    } else {
+      return(NULL)
+    }
   })
   
   # Use the transform module
@@ -336,13 +405,13 @@ server <- function(input, output, session) {
     # Subset and reorder annotation file columns to match the main data matrix
     annot_df <- annot_df[, main_cols, drop = FALSE]
     
-    # Use the selected annotation rows; default to the first if none selected
+    # Use the selected annotation rows
     selected <- input$col_annotation_select
-    if (is.null(selected)) {
-      selected <- if (nrow(annot_df) > 0) rownames(annot_df)[1] else NULL
-    }
-    if (is.null(selected))
+    
+    # If nothing selected (either NULL or length 0), return NULL
+    if (is.null(selected) || length(selected) == 0) {
       return(NULL)
+    }
     
     annot_selected <- annot_df[selected, , drop = FALSE]
     # Transpose so that each row corresponds to a sample (column in main data)
@@ -357,50 +426,63 @@ server <- function(input, output, session) {
   row_annotation_for_heatmap <- reactive({
     req(current_data())
     
-    # First try to use uploaded row annotation file
+    # Get selected annotations
+    selected <- input$row_annotation_select
+    if (is.null(selected) || length(selected) == 0) {
+      return(NULL)
+    }
+    
+    # Create empty data frame to store combined annotations
+    main_rows <- rownames(current_data())
+    combined_annot <- data.frame(row.names = main_rows)
+    added_columns <- c()
+    
+    # First try to add columns from uploaded row annotation file
     if (!is.null(row_annotation_file_data$data())) {
       annot_df <- row_annotation_file_data$data()
-      main_rows <- rownames(current_data())
-      annot_rows <- rownames(annot_df)
       
-      # Proceed as long as all data matrix rows are present in the annotation file
-      if (!all(main_rows %in% annot_rows)) {
-        return(NULL)
+      # Only proceed if all main rows are in the annotation file
+      if (all(main_rows %in% rownames(annot_df))) {
+        # Subset and reorder to match main data
+        annot_df <- annot_df[main_rows, , drop = FALSE]
+        
+        # Find selected columns that exist in the file
+        file_cols <- intersect(selected, colnames(annot_df))
+        
+        if (length(file_cols) > 0) {
+          # Add selected columns from file
+          combined_annot <- cbind(combined_annot, annot_df[, file_cols, drop = FALSE])
+          added_columns <- c(added_columns, file_cols)
+        }
       }
-      
-      # Subset and reorder annotation file rows to match the main data matrix
-      annot_df <- annot_df[main_rows, , drop = FALSE]
-      
-      # Use selected annotation columns
-      selected <- input$row_annotation_select
-      if (is.null(selected)) {
-        selected <- if (ncol(annot_df) > 0) colnames(annot_df)[1] else NULL
-      }
-      if (is.null(selected))
-        return(NULL)
-      
-      return(as.data.frame(annot_df[, selected, drop = FALSE]))
     }
     
-    # If no row annotation file, try auto-detected factor columns
-    if (!is.null(auto_row_annotation())) {
-      annot_df <- auto_row_annotation()
-      main_rows <- rownames(current_data())
+    # Next try to add columns from auto-detected factors
+    if (!is.null(transform_data$factor_columns()) && 
+        ncol(transform_data$factor_columns()) > 0) {
+      factor_df <- transform_data$factor_columns()
       
-      # Make sure row names match
-      if (!all(main_rows %in% rownames(annot_df))) {
-        return(NULL)
+      # Only proceed if all main rows are in the factor data
+      if (all(main_rows %in% rownames(factor_df))) {
+        # Subset and reorder to match main data
+        factor_df <- factor_df[main_rows, , drop = FALSE]
+        
+        # Find selected columns that exist in factors (and aren't already added)
+        factor_cols <- setdiff(intersect(selected, colnames(factor_df)), added_columns)
+        
+        if (length(factor_cols) > 0) {
+          # Add selected columns from factors
+          combined_annot <- cbind(combined_annot, factor_df[, factor_cols, drop = FALSE])
+        }
       }
-      
-      # Subset and reorder rows to match main data
-      annot_df <- annot_df[main_rows, , drop = FALSE]
-      
-      # Use all detected factor columns automatically
-      return(as.data.frame(annot_df))
     }
     
-    # If neither source is available, return NULL
-    return(NULL)
+    # Return NULL if no annotations were added
+    if (ncol(combined_annot) == 0) {
+      return(NULL)
+    }
+    
+    return(combined_annot)
   })
 
   # Create a reactive to store and access the actual pheatmap parameters
@@ -408,12 +490,12 @@ server <- function(input, output, session) {
   
   # Modify the heatmap_obj reactive function to correctly handle distance objects:
   heatmap_obj <- reactive({
-    req(current_data())
+    req(transform_data$processed_data())
 
     withProgress(message = 'Generating heatmap', value = 0, {
       # Convert the current data to a numeric matrix for the heatmap
       incProgress(0.1, detail = "Preparing data")
-      heatmap_data <- current_data()
+      heatmap_data <- transform_data$processed_data()
      
       show_row_names <- file_data$has_rownames() && !is.null(rownames(heatmap_data))
       # Use the user's input if available; otherwise, use the default
