@@ -150,7 +150,7 @@ ui <- fluidPage(
                 #img(src = "pca.png", width = "433px", height = "387px"),
                 includeHTML("www/help.html")
         )
-      )   
+      )
     )
   )
 )
@@ -186,7 +186,8 @@ server <- function(input, output, session) {
       tags$div(
         tags$h4("Data file (Excel, CSV, ...)"),
         file_upload_ui("file_upload"),
-        downloadButton("download_example", "Example", style = "margin-top: -15px;")
+        downloadButton("download_example_genomics", "Example 1", style = "margin-top: -15px;"),
+        downloadButton("download_example", "Example 2", style = "margin-top: -15px;")
       )
     }
   })
@@ -201,7 +202,8 @@ server <- function(input, output, session) {
       tags$div(
         tags$h4("Optional: Column Annotation"),
         file_upload_ui("col_annotation_file_upload"),
-        downloadButton("download_example_col", "Example", style = "margin-top: -15px;")
+        downloadButton("download_example_col_genomics", "Example 1", style = "margin-top: -15px;"),
+        downloadButton("download_example_col", "Example 2", style = "margin-top: -15px;")
       ),
       hr(),
       tags$div(
@@ -226,6 +228,22 @@ server <- function(input, output, session) {
       file.copy("data/iris.csv", file)
     }
   )
+  output$download_example_genomics <- downloadHandler(
+    filename = function() {
+      "example gene expression.csv"
+    },
+    content = function(file) {
+      file.copy("data/Genomics.csv", file)
+    }
+  )
+  output$download_example_col_genomics <- downloadHandler(
+    filename = function() {
+      "example experiment design.csv"
+    },
+    content = function(file) {
+      file.copy("data/experiment_design.csv", file)
+    }
+  )
   output$download_example_col <- downloadHandler(
     filename = function() {
       "example column annotation.csv"
@@ -236,10 +254,10 @@ server <- function(input, output, session) {
   )
   output$download_example_row <- downloadHandler(
     filename = function() {
-      "example row annotation.csv"
+      "example gene info.csv"
     },
     content = function(file) {
-      file.copy("data/iris_row.csv", file)
+      file.copy("data/Gene_info.csv", file)
     }
   )
   # Use the file upload module for main data
