@@ -141,6 +141,9 @@ ui <- fluidPage(
         ),
         tabPanel("Code",
                 uiOutput("code_display")
+        ),
+        tabPanel("About",
+                includeHTML("www/help.html")
         )
       )
     )
