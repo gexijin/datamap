@@ -11,7 +11,7 @@ default_width <- 600
 default_height <- 600
 ui <- fluidPage(
 
-  titlePanel("DataMap"),  
+  titlePanel("DataMap: a secure app for visualizing data matrices"),  
   sidebarLayout(
     sidebarPanel(
       width = 3,
@@ -162,7 +162,7 @@ server <- function(input, output, session) {
       )
     } else {
       tags$div(
-        tags$h4("Main data file (Excel, CSV, TSV, or text)"),
+        tags$h4("Data file (Excel, CSV, TSV, or TXT)"),
         file_upload_ui("file_upload"),
         downloadButton("download_example", "Example", style = "margin-top: -15px;")
       )
