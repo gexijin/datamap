@@ -17,7 +17,8 @@ file_upload_ui <- function(id) {
                 "text/csv",
                 "text/comma-separated-values,text/plain",
                 ".csv", ".txt", ".tsv", ".xls", ".xlsx"
-              ))
+              )),
+    uiOutput(ns("code_ui"))
   )
 }
 
@@ -36,8 +37,7 @@ file_upload_server <- function(id) {
       file_extension = NULL,
       data_loaded = FALSE,
       has_rownames = FALSE,
-      code = NULL,
-      sample_data = NULL
+      code = NULL
     )
     
     # Helper function to count delimiters in a text sample
@@ -274,9 +274,7 @@ file_upload_server <- function(id) {
           } else {
             sample_data <- read.csv(input$file$datapath, sep = delimiter, header = FALSE, stringsAsFactors = FALSE)
           }
-
           
-
           # Check if first row looks like a header
           if(nrow(sample_data) > 1) {
             has_header <- is_likely_header(as.character(unlist(sample_data[1, ])))
@@ -318,8 +316,7 @@ file_upload_server <- function(id) {
             column(4, uiOutput(ns("rownames_ui")))
           )
         },
-
-        uiOutput(ns("data_types_ui")),
+        
         # Preview table
         div(style = "overflow-x: auto; max-width: 100%;",
             tableOutput(ns("import_preview"))),
@@ -402,7 +399,7 @@ file_upload_server <- function(id) {
           # Set custom row names for the preview
           rownames(preview_data) <- row_names
         }
-        rv$sample_data <- preview_data
+        
         return(preview_data)
         
       }, error = function(e) {
@@ -495,221 +492,6 @@ file_upload_server <- function(id) {
         )
       })
     })
-
-    # Convert data types ------------------------------
-    original_data <- reactiveVal(NULL)
-    modal_closed <- reactiveVal(FALSE)
-    output$data_types_ui <- renderUI({
-      req(rv$sample_data)
-      div(
-        actionButton(ns("data_edit_modal"), "Edit Data Types",
-                    style = "font-size: 14px; color: #000; background-color: #F6FFF5; border-color: #90BD8C;")
-      )
-    })
-    
-    # Add the modal dialog function
-    show_data_types_modal <- function() {
-      showModal(
-        modalDialog(
-          title = div(
-            style = "display: flex; justify-content: space-between; align-items: center;",
-            div("Verify Data Types (Important!)"),
-            div(
-              actionButton(
-                ns("learn_more"),
-                label = HTML('<span style="font-weight:bold;font-size:16px;">What are Data Types?</span>'),
-                style = "margin-right:10px;background-color:#afd0ac;"
-              )
-            )
-          ),
-          tags$head(
-            tags$style(HTML("
-                #data_type_window {
-                    height: 400px;
-                    overflow-y: auto;
-                    padding: 10px;
-                    border-radius: 5px;
-                }
-                .modal-footer {
-                  display: flex;
-                  justify-content: space-between;
-                  align-items: center;
-                }
-                .button-group {
-                  display: flex;
-                  gap: 10px;
-                  justify-content: flex-start;
-                  flex-grow: 1;
-                }
-            "))
-          ),
-          div(id = "data_type_window", uiOutput(ns("column_type_ui"))),
-          h4("For columns that are numbers, but with few unique values, 
-             they can be converted to factors (categories).",
-            style = "color: blue"
-          ),
-          br(),
-          size = "l",
-          footer = tagList(
-            div(class = "button-group",
-              actionButton(
-                ns("revert_data"),
-                label = HTML('<span style="font-size:16px;">Revert to Original Data</span>'),
-                style = "margin-right:10px;background-color:#F6FFF5;"
-              )
-            ),
-            actionButton(
-              ns("dismiss_modal"),
-              label = HTML('<span style="font-size:16px;">Done</span>'),
-              style = "margin-right:10px;background-color:#F6FFF5;"
-            )
-          ),
-          easyClose = TRUE
-        )
-      )
-    }
-    
-    # Show the modal when button is clicked
-    observeEvent(input$data_edit_modal, {
-      show_data_types_modal()
-    })
-    
-    # Learn more modal
-    observeEvent(input$learn_more, {
-      showModal(
-        modalDialog(
-          title = "Understanding Data Types",
-          easyClose = FALSE,
-          size = "m",
-          p("Data types determine how information is stored, processed, and displayed. Here's a breakdown of common types:"),
-          tags$ul(
-            tags$li(strong("Character (Text):"), " Words or letters with many unique values. Like names, labels, or phrases."),
-            tags$li(strong("Numbers:"), " Decimal numbers."),
-            tags$li(strong("Integers:"), " Whole numbers."),
-            tags$li(strong("Categories (Factors):"), " Data with specific groups and few unique values. Like 'A/B/C/D', 'Small/Medium/Large', '1999/2000/2001'."),
-            tags$li(strong("Dates:"), " Calendar dates.")
-          ),
-          p("Choosing the right data type ensures accurate analysis and avoids errors."),
-          footer = actionButton(ns("close_learn_more_modal"), label = "Close")
-        )
-      )
-    })
-    
-    # Close learn more and reopen data types modal
-    observeEvent(input$close_learn_more_modal, {
-      removeModal()
-      show_data_types_modal()
-    })
-    
-    # Column Type UI
-    output$column_type_ui <- renderUI({
-      req(rv$sample_data)  # Use sample data here
-      
-      column_names <- names(rv$sample_data)
-      examples <- capture.output(str(rv$sample_data))
-      examples <- examples[-1]
-      examples <- gsub(" \\$ ", "", examples)
-      
-      withProgress(message = "Verifying data types ...", {
-        incProgress(0.3)
-        lapply(seq_along(column_names), function(i) {
-          column_name <- column_names[i]
-          fluidRow(
-            column(
-              width = 3,
-              selectInput(
-                inputId = ns(paste0("column_type_", i)),
-                label = NULL,
-                choices = c("Character" = "character",
-                            "Numeric" = "numeric",
-                            "Integer" = "integer",
-                            "Category" = "factor",
-                            "Date" = "Date",
-                            "Datetime" = "Datetime"),
-                selected = map_class_to_type(rv$sample_data[[i]])
-              )
-            ),
-            column(
-              width = 9,
-              align = "left",
-              style = "margin-top: -5px;",
-              h5(examples[i])
-            )
-          )
-        })
-      })
-    })
-    
-    # Dismiss modal
-    observeEvent(input$dismiss_modal, {
-      modal_closed(TRUE)
-      removeModal()
-    })
-    
-    # Store original data when it's first loaded
-    observeEvent(rv$data_loaded, {
-      req(rv$data_loaded)
-      if (is.null(original_data())) {
-        original_data(rv$data)
-      }
-    })
-    
-    # Update data based on column types
-    observe({
-      req(rv$data)
-      req(input$revert_data == 0) 
-      
-      for (i in seq_along(rv$data)) {
-        col_type <- input[[paste0("column_type_", i)]]
-        if (!is.null(col_type)) {
-          updated_data <- isolate(rv$data)
-          
-          if (col_type == "factor") {
-            updated_data[[i]] <- as.factor(updated_data[[i]])
-          } else if (col_type == "Date") {
-            updated_data[[i]] <- lubridate::parse_date_time(
-              updated_data[[i]],
-              orders = c("mdy", "dmy", "ymd")
-            )
-            updated_data[[i]] <- as.Date(updated_data[[i]])
-          } else if (col_type == "Datetime") {
-            updated_data[[i]] <- lubridate::parse_date_time(
-              updated_data[[i]],
-              orders = c("ymd HMS", "ymd HM", "ymd", "mdy HMS", "mdy HM", "mdy", "dmy HMS", "dmy HM", "dmy")
-            )
-          } else if(col_type == "numeric" & "factor" %in% class(updated_data[[i]])) {
-            updated_data[[i]] <- as(as.character(updated_data[[i]]), col_type)
-          } else {
-            updated_data[[i]] <- as(updated_data[[i]], col_type)
-          }
-          rv$data <- updated_data
-        }
-      }
-    })
-    
-    observeEvent(input$revert_data, {
-      rv$sample_data <- original_data()
-      column_names <- names(rv$sample_data)
-      lapply(seq_along(column_names), function(i) {
-        column_name <- column_names[i]
-        updateSelectInput(
-          session = session,
-          inputId = ns(paste0("column_type_", i)),
-          label = NULL,
-          choices = c("Character" = "character",
-                      "Numeric" = "numeric",
-                      "Integer" = "integer",
-                      "Category" = "factor",
-                      "Date" = "Date",
-                      "Datetime" = "Datetime"),
-          selected = map_class_to_type(rv$sample_data[[i]])
-        )
-      })
-      
-      # Show message
-      showNotification("Successfully reverted to original data", type = "message")
-    })
-
     
     # Return a list of reactive values to be used in the main app
     return(list(
