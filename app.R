@@ -30,7 +30,7 @@ ui <- fluidPage(
         column(5,
           conditionalPanel(
             condition = "output.data_loaded",
-            actionButton("reset_session", "Reset All", 
+            actionButton("reset_session", "Reset", 
                         icon = icon("refresh"), 
                         style = "width: 100%; margin-bottom: 15px; background-color: #f8d7da; color: #721c24;")
           )
@@ -158,29 +158,43 @@ ui <- fluidPage(
 
 server <- function(input, output, session) {
   # Show the modal when the button is clicked
+  output$main_file_upload_ui <- renderUI({
+    if (!is.null(file_data$data())) {
+      # If data is already uploaded
+      tags$div(
+        style = "padding: 15px; background-color: #f8f9fa; border-radius: 4px; text-align: center;",
+        tags$p(
+          icon("info-circle"), 
+          "Reset the app to upload a new data matrix.", 
+          style = "margin: 0; color: #495057;"
+        )
+      )
+    } else {
+      tags$div(
+        tags$h4("Main data file"),
+        file_upload_ui("file_upload"),
+        downloadButton("download_example", "Example", style = "margin-top: -15px;")
+      )
+    }
+  })
+
   observeEvent(input$show_upload_modal, {
     showModal(modalDialog(
       title = "Upload Files",
       
-      # Main data file upload
-      tags$div(
-        tags$h4("Main data file"),
-        file_upload_ui("file_upload"),
-        downloadButton("download_example", "Eample", style = "margin-top: -15px;")
-      ),
+      uiOutput("main_file_upload_ui"),
+      
       hr(),
-      # Column annotation file upload widget
       tags$div(
         tags$h4("Optional: Column Annotation"),
         file_upload_ui("col_annotation_file_upload"),
-        downloadButton("download_example_col", "Eample", style = "margin-top: -15px;")
+        downloadButton("download_example_col", "Example", style = "margin-top: -15px;")
       ),
       hr(),
-      # Row annotation file upload widget
       tags$div(
         tags$h4("Optional: Row Annotations"),
         file_upload_ui("row_annotation_file_upload"),
-        downloadButton("download_example_row", "Eample", style = "margin-top: -15px;")
+        downloadButton("download_example_row", "Example", style = "margin-top: -15px;")
       ),
       
       footer = tagList(
