@@ -4,38 +4,72 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DataMap Documentation</title>
+</head>
+<body>
+<div class="datamap-docs">
     <style>
-        body {
+        .datamap-docs {
+            /* Reset styles to avoid conflicts */
+            all: initial;
+            /* Restore base styling for the documentation container */
+            display: block;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             line-height: 1.6;
             color: #333;
             max-width: 1200px;
             margin: 0 auto;
             padding: 20px;
+            box-sizing: border-box;
         }
-        h1, h2, h3, h4 {
+        
+        /* All styles namespaced with .datamap-docs to isolate from app styles */
+        .datamap-docs h1, 
+        .datamap-docs h2, 
+        .datamap-docs h3, 
+        .datamap-docs h4 {
             color: #2c3e50;
+            font-weight: bold;
+            margin: 1em 0 0.5em 0;
         }
-        h1 {
+        
+        .datamap-docs h1 {
+            font-size: 2em;
             border-bottom: 2px solid #3498db;
             padding-bottom: 10px;
         }
-        h2 {
+        
+        .datamap-docs h2 {
+            font-size: 1.75em;
             border-bottom: 1px solid #ddd;
             padding-bottom: 5px;
             margin-top: 30px;
         }
-        .content-section {
+        
+        .datamap-docs h3 {
+            font-size: 1.5em;
+        }
+        
+        .datamap-docs h4 {
+            font-size: 1.25em;
+        }
+        
+        .datamap-docs p {
+            margin: 0 0 1em 0;
+        }
+        
+        .datamap-docs .content-section {
             margin-bottom: 40px;
         }
-        code {
+        
+        .datamap-docs code {
             background-color: #f8f9fa;
             padding: 2px 5px;
             border-radius: 3px;
             font-family: 'Courier New', Courier, monospace;
             font-size: 0.9em;
         }
-        pre {
+        
+        .datamap-docs pre {
             background-color: #f8f9fa;
             padding: 15px;
             border-radius: 5px;
@@ -43,68 +77,93 @@
             font-family: 'Courier New', Courier, monospace;
             border: 1px solid #e9ecef;
         }
-        .note {
+        
+        .datamap-docs .note {
             background-color: #e9f7fe;
             border-left: 4px solid #3498db;
             padding: 15px;
             margin: 20px 0;
         }
-        .warning {
+        
+        .datamap-docs .warning {
             background-color: #fff4e5;
             border-left: 4px solid #f39c12;
             padding: 15px;
             margin: 20px 0;
         }
-        table {
+        
+        .datamap-docs table {
             width: 100%;
             border-collapse: collapse;
             margin: 20px 0;
         }
-        th, td {
+        
+        .datamap-docs th, 
+        .datamap-docs td {
             border: 1px solid #ddd;
             padding: 8px 12px;
             text-align: left;
         }
-        th {
+        
+        .datamap-docs th {
             background-color: #f8f9fa;
         }
-        img {
+        
+        .datamap-docs img {
             max-width: 100%;
             height: auto;
             border: 1px solid #ddd;
             border-radius: 5px;
             margin: 15px 0;
         }
-        .feature-list {
+        
+        .datamap-docs ul,
+        .datamap-docs ol {
+            margin: 1em 0;
+            padding-left: 2em;
+        }
+        
+        .datamap-docs ul li,
+        .datamap-docs ol li {
+            margin-bottom: 0.5em;
+        }
+        
+        .datamap-docs .feature-list {
             list-style-type: none;
             padding-left: 0;
         }
-        .feature-list li {
+        
+        .datamap-docs .feature-list li {
             margin-bottom: 10px;
             padding-left: 25px;
             position: relative;
         }
-        .feature-list li:before {
+        
+        .datamap-docs .feature-list li:before {
             content: "✓";
             position: absolute;
             left: 0;
             color: #27ae60;
             font-weight: bold;
         }
-        .footer {
+        
+        .datamap-docs .footer {
             margin-top: 50px;
             border-top: 1px solid #ddd;
             padding-top: 20px;
             font-size: 0.9em;
         }
-        a {
+        
+        .datamap-docs a {
             color: #3498db;
             text-decoration: none;
         }
-        a:hover {
+        
+        .datamap-docs a:hover {
             text-decoration: underline;
         }
-        .author-info {
+        
+        .datamap-docs .author-info {
             display: flex;
             align-items: center;
             margin-top: 30px;
@@ -112,26 +171,32 @@
             background-color: #f8f9fa;
             border-radius: 5px;
         }
-        .author-photo {
+        
+        .datamap-docs .author-photo {
             margin-right: 20px;
             border-radius: 50%;
             width: 120px;
             height: 120px;
             object-fit: cover;
         }
-        .social-links {
+        
+        .datamap-docs .social-links {
             margin-top: 10px;
         }
-        .social-links a {
+        
+        .datamap-docs .social-links a {
             margin-right: 15px;
+            display: inline-block;
         }
-        .tab {
+        
+        .datamap-docs .tab {
             overflow: hidden;
             border: 1px solid #ccc;
             background-color: #f1f1f1;
             border-radius: 5px 5px 0 0;
         }
-        .tab button {
+        
+        .datamap-docs .tab button {
             background-color: inherit;
             float: left;
             border: none;
@@ -141,14 +206,17 @@
             transition: 0.3s;
             font-size: 17px;
         }
-        .tab button:hover {
+        
+        .datamap-docs .tab button:hover {
             background-color: #ddd;
         }
-        .tab button.active {
+        
+        .datamap-docs .tab button.active {
             background-color: #fff;
             border-bottom: 2px solid #3498db;
         }
-        .tabcontent {
+        
+        .datamap-docs .tabcontent {
             display: none;
             padding: 20px;
             border: 1px solid #ccc;
@@ -156,8 +224,6 @@
             border-radius: 0 0 5px 5px;
         }
     </style>
-</head>
-<body>
     <header>
         <h1>DataMap: Visualizating High-Dimensional Data in Your Browser</h1>
         <p>A secure, browser-based application for visualizing high-dimensional 'omics and other data matrices with heatmaps, PCA, and t-SNE.  V. 0.1</p>
@@ -216,8 +282,8 @@
         </ul>
         
         <div class="tab">
-            <button class="tablinks" onclick="openDataFormat(event, 'CSV')" id="defaultOpen">CSV Example</button>
-            <button class="tablinks" onclick="openDataFormat(event, 'Excel')">Excel Example</button>
+            <button class="tablinks" data-format="CSV" id="defaultOpen">CSV Example</button>
+            <button class="tablinks" data-format="Excel">Excel Example</button>
         </div>
         
         <div id="CSV" class="tabcontent">
@@ -590,22 +656,60 @@
     </div>
 
     <script>
-        function openDataFormat(evt, formatName) {
-            var i, tabcontent, tablinks;
-            tabcontent = document.getElementsByClassName("tabcontent");
-            for (i = 0; i < tabcontent.length; i++) {
-                tabcontent[i].style.display = "none";
+        // Scope all JavaScript functions to avoid conflicts with the app
+        (function() {
+            // Function to safely find elements within our documentation container only
+            function findInDoc(selector) {
+                return document.querySelector('.datamap-docs').querySelectorAll(selector);
             }
-            tablinks = document.getElementsByClassName("tablinks");
-            for (i = 0; i < tablinks.length; i++) {
-                tablinks[i].className = tablinks[i].className.replace(" active", "");
+            
+            // Modified tab function to only work within our documentation div
+            function openDataFormat(evt, formatName) {
+                var tabcontents = findInDoc(".tabcontent");
+                for (var i = 0; i < tabcontents.length; i++) {
+                    tabcontents[i].style.display = "none";
+                }
+                
+                var tablinks = findInDoc(".tablinks");
+                for (var i = 0; i < tablinks.length; i++) {
+                    tablinks[i].className = tablinks[i].className.replace(" active", "");
+                }
+                
+                // Safely find the tab content within our doc container
+                var tabContent = document.querySelector('.datamap-docs #' + formatName);
+                if (tabContent) {
+                    tabContent.style.display = "block";
+                }
+                
+                evt.currentTarget.className += " active";
             }
-            document.getElementById(formatName).style.display = "block";
-            evt.currentTarget.className += " active";
-        }
-
-        // Get the element with id="defaultOpen" and click on it
-        document.getElementById("defaultOpen").click();
+            
+            // Attach the event handler to tab buttons
+            function initTabs() {
+                var tablinks = findInDoc(".tablinks");
+                for (var i = 0; i < tablinks.length; i++) {
+                    tablinks[i].addEventListener('click', function(e) {
+                        var formatName = this.getAttribute('data-format');
+                        openDataFormat(e, formatName);
+                    });
+                }
+                
+                // Open the default tab
+                var defaultTab = document.querySelector('.datamap-docs #defaultOpen');
+                if (defaultTab) {
+                    defaultTab.click();
+                }
+            }
+            
+            // Add event listener to initialize tabs when DOM is loaded
+            document.addEventListener('DOMContentLoaded', initTabs);
+            
+            // If documentation is added after DOM load, initialize manually
+            if (document.readyState === 'complete' || document.readyState === 'interactive') {
+                setTimeout(initTabs, 1);
+            }
+        })();
     </script>
+</div>
 </body>
 </html>
