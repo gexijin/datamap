@@ -74,7 +74,8 @@ transform_server <- function(id, data) {
     
     analyze_data <- function(data_frame) {
       if (is.null(data_frame)) return()
-      
+      if (nrow(data_frame) * ncol(data_frame) == 0 ) return() # No data to process
+
       # Store the original data frame
       rv$original_data <- data_frame
       original_row_names <- rownames(data_frame)
@@ -82,10 +83,13 @@ transform_server <- function(id, data) {
       factor_like_cols <- list()
       for (col_name in names(data_frame)) {
         col_data <- data_frame[[col_name]]
-        
         # Check if column is character or factor
-        if ((is.character(col_data) || is.factor(col_data)) && 
-            length(unique(col_data)) < min(50, nrow(data_frame) * 0.5)) {
+        # if there is one character value and the rest are numbers, is.character() will return TRUE
+        # Check if the column has a lot of unique values and non-numeric values
+        non_numbers <- sum(is.na(as.numeric(col_data)))
+        if ((is.character(col_data) || is.factor(col_data)) &&  # are there characters?
+            length(unique(col_data)) < nrow(data_frame) * 0.5 &&  # less than 50% unique values
+            non_numbers > .5 * length(col_data)){ ## more than 50% non-numeric values
           factor_like_cols[[col_name]] <- col_data
         }
       }
@@ -139,8 +143,8 @@ transform_server <- function(id, data) {
       
       flat_data <- as.numeric(data_matrix)
       flat_data <- flat_data[!is.na(flat_data)]
-      rv$data_range <- c(min(flat_data), max(flat_data))
-      
+      rv$data_range <- c(min(flat_data, na.rm = TRUE), max(flat_data, na.rm = TRUE))
+
       rv$skewness <- e1071::skewness(flat_data)
       
       # Set log constant based on data

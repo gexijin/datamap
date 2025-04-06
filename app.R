@@ -408,12 +408,12 @@ server <- function(input, output, session) {
   
   # Modify the heatmap_obj reactive function to correctly handle distance objects:
   heatmap_obj <- reactive({
-    req(current_data())
+    req(transform_data$processed_data())
 
     withProgress(message = 'Generating heatmap', value = 0, {
       # Convert the current data to a numeric matrix for the heatmap
       incProgress(0.1, detail = "Preparing data")
-      heatmap_data <- current_data()
+      heatmap_data <- transform_data$processed_data()
      
       show_row_names <- file_data$has_rownames() && !is.null(rownames(heatmap_data))
       # Use the user's input if available; otherwise, use the default
