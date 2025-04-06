@@ -1,7 +1,5 @@
 library(shiny)
-library(pheatmap)
 library(RColorBrewer)
-library(grid)    # needed for grid.draw
 
 source("mod_file_upload.R")
 source("mod_transform.R")
@@ -531,7 +529,7 @@ server <- function(input, output, session) {
             }
             
             # Call pheatmap with the parameter list that includes the distance objects
-            do.call(pheatmap, render_params)
+            do.call(pheatmap::pheatmap, render_params)
         } else {
           # For non-correlation methods, use the standard distance_method
             pheatmap_params <- list(
@@ -566,7 +564,7 @@ server <- function(input, output, session) {
             # Store the parameters for code generation
             pheatmap_params_used(pheatmap_params)
             
-            do.call(pheatmap, pheatmap_params)
+            do.call(pheatmap::pheatmap, pheatmap_params)
         }
       }, error = function(e) {
         # If any clustering fails, fall back to euclidean
@@ -590,7 +588,7 @@ server <- function(input, output, session) {
         # Store the fallback parameters
         pheatmap_params_used(fallback_params)
         
-        pheatmap(
+        pheatmap::pheatmap(
           mat = heatmap_data,
           color = colors,
           cluster_rows = input$cluster_rows,
