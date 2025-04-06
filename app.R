@@ -150,7 +150,7 @@ ui <- fluidPage(
                 #img(src = "pca.png", width = "433px", height = "387px"),
                 includeHTML("www/help.html")
         )
-      )
+      )   
     )
   )
 )
