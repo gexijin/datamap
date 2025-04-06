@@ -95,12 +95,12 @@ ui <- fluidPage(
         # Width & Height in more compact form
         fluidRow(
           column(3, p("Width:", style="padding-top: 7px; text-align: right;")),
-          column(9, sliderInput("width", NULL, min = 500, max = 2000, value = default_width, step = 100))
+          column(9, sliderInput("width", NULL, min = 200, max = 2000, value = default_width, step = 100))
         ),
         
         fluidRow(
           column(3, p("Height:", style="padding-top: 7px; text-align: right;")),
-          column(9, sliderInput("height", NULL, min = 500, max = 2000, value = default_height, step = 100))
+          column(9, sliderInput("height", NULL, min = 200, max = 2000, value = default_height, step = 100))
         ),
         fluidRow(
           column(6, checkboxInput("label_heatmap", "Label Data", value = FALSE)),
@@ -264,7 +264,7 @@ server <- function(input, output, session) {
     selectInput("col_annotation_select", "Column annotation:", 
                 choices = row_choices, selected = row_choices[1], multiple = TRUE)
   })
-  
+
   # Render UI for row annotation column selection
   output$row_annotation_select_ui <- renderUI({
     req(row_annotation_file_data$data())
@@ -342,13 +342,13 @@ server <- function(input, output, session) {
     # Subset and reorder annotation file columns to match the main data matrix
     annot_df <- annot_df[, main_cols, drop = FALSE]
     
-    # Use the selected annotation rows; default to the first if none selected
+    # Use the selected annotation rows
     selected <- input$col_annotation_select
-    if (is.null(selected)) {
-      selected <- if (nrow(annot_df) > 0) rownames(annot_df)[1] else NULL
-    }
-    if (is.null(selected))
+    
+    # If nothing selected (either NULL or length 0), return NULL
+    if (is.null(selected) || length(selected) == 0) {
       return(NULL)
+    }
     
     annot_selected <- annot_df[selected, , drop = FALSE]
     # Transpose so that each row corresponds to a sample (column in main data)
@@ -379,11 +379,11 @@ server <- function(input, output, session) {
       
       # Use selected annotation columns
       selected <- input$row_annotation_select
-      if (is.null(selected)) {
-        selected <- if (ncol(annot_df) > 0) colnames(annot_df)[1] else NULL
-      }
-      if (is.null(selected))
+      
+      # If nothing selected (either NULL or length 0), return NULL
+      if (is.null(selected) || length(selected) == 0) {
         return(NULL)
+      }
       
       return(as.data.frame(annot_df[, selected, drop = FALSE]))
     }
