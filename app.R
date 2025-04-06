@@ -1199,6 +1199,7 @@ server <- function(input, output, session) {
     }
   }, width = function() input$width, height = function() input$height)
 
+
   # t-SNE data reactive
   tsne_data <- reactive({
     req(current_data())
@@ -1211,42 +1212,49 @@ server <- function(input, output, session) {
       data_mat <- t(data_mat)
     }
     
-    # Use Rtsne for t-SNE calculation
-    tryCatch({
-      # Handle missing values
-      if(any(is.na(data_mat))) {
-        showNotification("Warning: Missing values found in t-SNE calculation. Using complete cases only.", type = "warning")
-        data_mat <- na.omit(data_mat)
-      }
-      
-      # Check if we have enough data points for the perplexity
-      perplexity <- min(input$tsne_perplexity, floor(nrow(data_mat)/3) - 1)
-      if(perplexity < 5) {
-        perplexity <- 5
-        showNotification(paste("Perplexity adjusted to", perplexity, "due to small sample size"), type = "warning")
-      }
-      
-      # Check if we have enough data for t-SNE (needs at least perplexity*3 + 1 points)
-      if(nrow(data_mat) < perplexity * 3 + 1) {
-        showNotification("Not enough samples for t-SNE with current perplexity. Try reducing perplexity.", type = "error")
+    # Use Rtsne for t-SNE calculation with progress indicator
+    withProgress(message = 'Computing t-SNE', value = 0, {
+      tryCatch({
+        # Handle missing values
+        if(any(is.na(data_mat))) {
+          showNotification("Warning: Missing values found in t-SNE calculation. Using complete cases only.", type = "warning")
+          data_mat <- na.omit(data_mat)
+        }
+        
+        # Check if we have enough data points for the perplexity
+        perplexity <- min(input$tsne_perplexity, floor(nrow(data_mat)/3) - 1)
+        if(perplexity < 5) {
+          perplexity <- 5
+          showNotification(paste("Perplexity adjusted to", perplexity, "due to small sample size"), type = "warning")
+        }
+        
+        # Check if we have enough data for t-SNE (needs at least perplexity*3 + 1 points)
+        if(nrow(data_mat) < perplexity * 3 + 1) {
+          showNotification("Not enough samples for t-SNE with current perplexity. Try reducing perplexity.", type = "error")
+          return(NULL)
+        }
+        
+        # Ensure we use scaled data for t-SNE
+        incProgress(0.2, detail = "Scaling data")
+        scaled_data <- scale(data_mat)
+        
+        # Apply Rtsne algorithm - this is the most time-consuming step
+        set.seed(42) # For reproducibility
+        
+        # Run t-SNE with progress updates
+        incProgress(0.2, detail = "Running t-SNE optimization (this may take a while)")
+        tsne_result <- Rtsne(scaled_data, dims = 2, perplexity = perplexity, 
+                            check_duplicates = FALSE, pca = TRUE, normalize = FALSE,
+                            max_iter = 1000, verbose = FALSE)
+        
+        # Store the transposition information with the result
+        attr(tsne_result, "transposed") <- (input$tsne_transpose == "column")
+        
+        return(tsne_result)
+      }, error = function(e) {
+        showNotification(paste("Error in t-SNE calculation:", e$message), type = "error")
         return(NULL)
-      }
-      
-      # Ensure we use scaled data for t-SNE
-      scaled_data <- scale(data_mat)
-      
-      # Apply Rtsne algorithm
-      set.seed(42) # For reproducibility
-      tsne_result <- Rtsne(scaled_data, dims = 2, perplexity = perplexity, 
-                          check_duplicates = FALSE, pca = TRUE, normalize = FALSE)
-      
-      # Store the transposition information with the result
-      attr(tsne_result, "transposed") <- (input$tsne_transpose == "column")
-      
-      return(tsne_result)
-    }, error = function(e) {
-      showNotification(paste("Error in t-SNE calculation:", e$message), type = "error")
-      return(NULL)
+      })
     })
   })
 
