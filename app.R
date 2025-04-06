@@ -2,9 +2,9 @@
 # by Steven Ge 4/5/2025  
 library(shiny)
 
-source("mod_file_upload.R")
-source("mod_transform.R")
-source("utilities.R")
+source("R/mod_file_upload.R")
+source("R/mod_transform.R")
+source("R/utilities.R")
 
 max_rows_to_show <- 1000  # Maximum number of rows to show row names in the heatmap
 default_width <- 600
@@ -121,6 +121,7 @@ ui <- fluidPage(
       width = 9,
       tabsetPanel(
         tabPanel("Heatmap", 
+                br(),
                 plotOutput("heatmap", width = "100%", height = "600px")
         ),
         tabPanel("PCA",
@@ -165,7 +166,7 @@ server <- function(input, output, session) {
       )
     } else {
       tags$div(
-        tags$h4("Data file (Excel, CSV, TSV, or TXT)"),
+        tags$h4("Data file (Excel, CSV, ...)"),
         file_upload_ui("file_upload"),
         downloadButton("download_example", "Example", style = "margin-top: -15px;")
       )
