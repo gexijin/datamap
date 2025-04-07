@@ -218,8 +218,15 @@ server <- function(input, output, session) {
       tags$div(
         tags$h4("Data file (Excel, CSV, ...)"),
         file_upload_ui("file_upload"),
-        downloadButton("download_example_genomics", "Example 1", style = "margin-top: -15px;"),
-        downloadButton("download_example", "Example 2", style = "margin-top: -15px;")
+        fluidRow(
+          column(3, h5("Examples:", style = "margin-top: -8px;  text-align: right;")),
+          column(9, 
+            downloadButton("download_example_genomics", "RNA-seq", style = "margin-top: -15px;"),
+            downloadButton("download_example", "Iris dataset", style = "margin-top: -15px;"),
+            downloadButton("download_example_scrnaseq", "scRNA-seq", style = "margin-top: -15px;"),
+            align = "left"
+          )
+        )
       )
     }
   })
@@ -234,20 +241,34 @@ server <- function(input, output, session) {
       tags$div(
         tags$h4("Optional: Column Annotation"),
         file_upload_ui("col_annotation_file_upload"),
-        downloadButton("download_example_col_genomics", "Example 1", style = "margin-top: -15px;"),
-        downloadButton("download_example_col", "Example 2", style = "margin-top: -15px;")
+        fluidRow(
+          column(3, h5("Examples:", style = "margin-top: -8px;  text-align: right;")),
+          column(9, 
+            downloadButton("download_example_col_genomics", "RNA-seq expt. design", style = "margin-top: -15px;"),
+            downloadButton("download_example_col", "Iris columns info", style = "margin-top: -15px;"),
+            align = "left"
+          )
+        )
       ),
       hr(),
       tags$div(
+
         tags$h4("Optional: Row Annotations"),
         file_upload_ui("row_annotation_file_upload"),
-        downloadButton("download_example_row", "Example", style = "margin-top: -15px;")
+        fluidRow(         
+            column(3, h5("Examples:", style = "margin-top: -8px; text-align: right;")),
+          column(9,
+             downloadButton("download_example_row", "Iris species", style = "margin-top: -15px;"),
+             downloadButton("download_example_row_scrnaseq", "scRNA-seq clusters", style = "margin-top: -15px;"),
+             align = "left"
+          )
+        )
       ),
       
       footer = tagList(
         modalButton("Close")
       ),
-      size = "s",
+      size = "m",
       easyClose = TRUE
     ))
   })
@@ -268,6 +289,16 @@ server <- function(input, output, session) {
       file.copy("data/Genomics.csv", file)
     }
   )
+
+  output$download_example_scrnaseq <- downloadHandler(
+    filename = function() {
+      "example scRNAseq_PCA.csv"
+    },
+    content = function(file) {
+      file.copy("data/scRNAseq_PCA.csv", file)
+    }
+  )
+
   output$download_example_col_genomics <- downloadHandler(
     filename = function() {
       "example experiment design.csv"
@@ -290,6 +321,14 @@ server <- function(input, output, session) {
     },
     content = function(file) {
       file.copy("data/Gene_info.csv", file)
+    }
+  )
+    output$download_example_row_scrnaseq <- downloadHandler(
+    filename = function() {
+      "example scRNAseq_clusters.csv"
+    },
+    content = function(file) {
+      file.copy("data/scRNAseq_clusters.csv", file)
     }
   )
   # Use the file upload module for main data
