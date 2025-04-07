@@ -1,6 +1,6 @@
 ## DataMap: Visualizing Data Matrices in Your Browser
 
-To use the app, just visit a [static page on GitHub](https://gexijin.github.io/datamap/)
+To use the app, just visit this [static GitHub page.](https://gexijin.github.io/datamap/)
 
 DataMap is a secure, browser-based application for visualizing high-dimensional 'omics and other data matrices with heatmaps, PCA, and t-SNE. Built with Shiny and running entirely in your browser through Shinylive technology, DataMap ensures your data never leaves your device.
 
@@ -14,11 +14,6 @@ DataMap is a secure, browser-based application for visualizing high-dimensional 
   - Heatmaps with hierarchical clustering
   - Principal Component Analysis (PCA)
   - t-SNE (t-Distributed Stochastic Neighbor Embedding)
-- **Data Transformations**: 
-  - Log transformation
-  - Scaling and normalization
-  - Missing value handling
-  - Outlier capping
 - **Exportable**: Generate reproducible R code for your analysis
 - **Multiple File Formats**: Supports CSV, TSV, TXT, and Excel files
 - **Customizable**: Extensive visualization parameters
@@ -42,6 +37,9 @@ Chrome, Firefox, Edge, and Safari (latest versions recommended).
 
 **Can I use DataMap offline?**  
 Yes, once loaded in your browser, DataMap can operate without an internet connection.
+
+**Limitations?**  
+Slower in the browser when clustering 5000 rows or columns. Can take up to 2 minutes.
 
 ## How to Cite
 
