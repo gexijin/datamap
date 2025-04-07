@@ -156,7 +156,8 @@ ui <- fluidPage(
                 #img(src = "pca.png", width = "433px", height = "387px"),
                 includeHTML("www/help.html")
         )
-      )
+      ),
+      tags$head(includeHTML("www/google_analytics.html"))
     )
   )
 )
