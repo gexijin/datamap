@@ -119,9 +119,7 @@ ui <- fluidPage(
           column(6, 
             numericInput("cutree_cols", "Col. Clusters", value = 1, min = 1, max = 100, step = 1),
           )
-        ),
-        downloadButton("download_pdf", "PDF"),
-        downloadButton("download_png", "PNG")
+        )
       )
     ),
     
@@ -129,8 +127,9 @@ ui <- fluidPage(
       width = 9,
       tabsetPanel(id = "main_tabs", selected = "About",
         tabPanel("Heatmap", 
-                br(),
-                plotOutput("heatmap", width = "100%", height = "600px")
+                plotOutput("heatmap", width = "100%", height = "600px"),
+                downloadButton("download_pdf", "PDF"),
+                downloadButton("download_png", "PNG")
         ),
         tabPanel("PCA",
           selectInput("pca_transpose", "PCA Analysis Mode:",
@@ -140,12 +139,38 @@ ui <- fluidPage(
           plotOutput("pca_plot", width = "100%", height = "auto")
         ),
         tabPanel("t-SNE",
-          selectInput("tsne_transpose", "t-SNE Analysis Mode:",
-            choices = c("Row vectors" = "row", 
-            "Column vectors" = "column"),
-              selected = "row"),
-          sliderInput("tsne_perplexity", "Perplexity:", 
-            min = 5, max = 50, value = 30, step = 5),
+          # Single row with 4 elements
+          fluidRow(
+            column(3, selectInput("tsne_transpose", "Analysis Mode:",
+              choices = c("Row vectors" = "row", "Column vectors" = "column"),
+              selected = "row")),
+            column(3, sliderInput("tsne_perplexity", "Perplexity:", 
+              min = 5, max = 50, value = 30, step = 5)),
+            column(3, sliderInput("tsne_early_exaggeration", "Early Exagg.:", 
+              min = 4, max = 20, value = 12, step = 1)),
+            column(3, sliderInput("tsne_learning_rate", "Learning Rate:", 
+              min = 50, max = 1000, value = 200, step = 50))
+          ),
+          # Second row with 3 elements and a checkbox
+          fluidRow(
+            column(3, sliderInput("tsne_iterations", "Max Iterations:", 
+              min = 500, max = 2000, value = 1000, step = 100)),
+            column(3, checkboxInput("tsne_pca_preprocessing", "Use PCA Preprocessing", value = FALSE)),
+            column(6)
+          ),
+          # Help text as a single paragraph
+          fluidRow(
+            column(12,
+              tags$div(
+          style = "background-color: #f8f9fa; padding: 10px; border-radius: 5px; margin-bottom: 15px;",
+          tags$p(
+            style = "margin-bottom: 0; font-size: 0.85em; color: #495057;",
+            tags$strong("Parameter Guide: "),
+            "To enhance cluster separation, increase Early Exaggeration (12-20) for more distinct clusters. Perplexity balances local (5-10) vs global (30-50) structure. Higher Learning Rate can improve separation but may cause instability. More Iterations allow for better optimization and clearer boundaries. PCA preprocessing can help with noisy high-dimensional data."
+          )
+              )
+            )
+          ),
           plotOutput("tsne_plot", width = "100%", height = "auto")
         ),
         tabPanel("Code",
@@ -1295,6 +1320,7 @@ server <- function(input, output, session) {
   }, width = function() input$width, height = function() input$height)
 
 
+
   # t-SNE data reactive
   tsne_data <- reactive({
     req(current_data())
@@ -1307,52 +1333,64 @@ server <- function(input, output, session) {
       data_mat <- t(data_mat)
     }
     
-    # Use Rtsne for t-SNE calculation with progress indicator
-    withProgress(message = 'Computing t-SNE', value = 0, {
-      tryCatch({
-        # Handle missing values
-        if(any(is.na(data_mat))) {
-          showNotification("Warning: Missing values found in t-SNE calculation. Using complete cases only.", type = "warning")
-          data_mat <- na.omit(data_mat)
-        }
-        
-        # Check if we have enough data points for the perplexity
-        perplexity <- min(input$tsne_perplexity, floor(nrow(data_mat)/3) - 1)
-        if(perplexity < 5) {
-          perplexity <- 5
-          showNotification(paste("Perplexity adjusted to", perplexity, "due to small sample size"), type = "warning")
-        }
-        
-        # Check if we have enough data for t-SNE (needs at least perplexity*3 + 1 points)
-        if(nrow(data_mat) < perplexity * 3 + 1) {
-          showNotification("Not enough samples for t-SNE with current perplexity. Try reducing perplexity.", type = "error")
-          return(NULL)
-        }
-        
-        # Ensure we use scaled data for t-SNE
-        incProgress(0.2, detail = "Scaling data")
-        scaled_data <- scale(data_mat)
-        
-        # Apply Rtsne algorithm - this is the most time-consuming step
-        set.seed(42) # For reproducibility
-        
-        # Run t-SNE with progress updates
-        incProgress(0.2, detail = "Running t-SNE optimization (this may take a while)")
-        tsne_result <- Rtsne::Rtsne(scaled_data, dims = 2, perplexity = perplexity, 
-                            check_duplicates = FALSE, pca = TRUE, normalize = FALSE,
-                            max_iter = 1000, verbose = FALSE)
-        
-        # Store the transposition information with the result
-        attr(tsne_result, "transposed") <- (input$tsne_transpose == "column")
-        
-        return(tsne_result)
-      }, error = function(e) {
-        showNotification(paste("Error in t-SNE calculation:", e$message), type = "error")
+  # Use Rtsne for t-SNE calculation with progress indicator
+  withProgress(message = 'Computing t-SNE', value = 0, {
+    tryCatch({
+      # Handle missing values
+      if(any(is.na(data_mat))) {
+        showNotification("Warning: Missing values found in t-SNE calculation. Using complete cases only.", type = "warning")
+        data_mat <- na.omit(data_mat)
+      }
+      
+      # Check if we have enough data points for the perplexity
+      # t-SNE requires at least perplexity*3 + 1 points
+      perplexity <- min(input$tsne_perplexity, floor(nrow(data_mat)/3) - 1)
+      if(perplexity < 5) {
+        perplexity <- 5
+        showNotification(paste("Perplexity adjusted to", perplexity, "due to small sample size"), type = "warning")
+      }
+      
+      # Double-check we have enough data
+      if(nrow(data_mat) < perplexity * 3 + 1) {
+        showNotification("Not enough samples for t-SNE with current perplexity. Try reducing perplexity.", type = "error")
         return(NULL)
-      })
+      }
+      
+      # Scale data to have mean=0 and sd=1 (important for t-SNE)
+      incProgress(0.2, detail = "Scaling data")
+      scaled_data <- scale(data_mat)
+      
+      # Set seed for reproducibility
+      set.seed(42)
+      
+      # Run t-SNE with progress updates
+      incProgress(0.2, detail = "Running t-SNE optimization (this may take a while)")
+      
+      # Apply Rtsne with all user-defined parameters
+      tsne_result <- Rtsne::Rtsne(
+        scaled_data, 
+        dims = 2,                                     # Always use 2D for visualization
+        perplexity = perplexity,                      # From UI slider with validation
+        check_duplicates = FALSE,                     # Skip duplicate checking for performance
+        pca = input$tsne_pca_preprocessing,           # From UI checkbox
+        normalize = FALSE,                            # Already normalized above
+        max_iter = input$tsne_iterations,             # From UI slider
+        eta = input$tsne_learning_rate,               # From UI slider
+        exaggeration_factor = input$tsne_early_exaggeration,  # From UI slider
+        verbose = FALSE                               # Disable verbose output
+      )
+      
+      # Store the transposition information for the plotting function
+      attr(tsne_result, "transposed") <- (input$tsne_transpose == "column")
+      
+      return(tsne_result)
+    }, error = function(e) {
+      # Handle any errors during t-SNE computation
+      showNotification(paste("Error in t-SNE calculation:", e$message), type = "error")
+      return(NULL)
     })
   })
-
+  })
   # t-SNE plot rendering function
   output$tsne_plot <- renderPlot({
     req(tsne_data())
