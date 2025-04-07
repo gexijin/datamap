@@ -101,12 +101,12 @@ ui <- fluidPage(
         # Width & Height in more compact form
         fluidRow(
           column(3, p("Width:", style="padding-top: 7px; text-align: right;")),
-          column(9, sliderInput("width", NULL, min = 200, max = 2000, value = default_width, step = 100))
+          column(9, sliderInput("width", NULL, min = 200, max = 2000, value = default_width, step = 50))
         ),
         
         fluidRow(
           column(3, p("Height:", style="padding-top: 7px; text-align: right;")),
-          column(9, sliderInput("height", NULL, min = 200, max = 2000, value = default_height, step = 100))
+          column(9, sliderInput("height", NULL, min = 200, max = 2000, value = default_height, step = 50))
         ),
         fluidRow(
           column(6, checkboxInput("label_heatmap", "Label Data", value = FALSE)),
