@@ -136,7 +136,9 @@ ui <- fluidPage(
             choices = c("Row vectors" = "row", 
             "Column vectors" = "column"),
               selected = "row"),
-          plotOutput("pca_plot", width = "100%", height = "auto")
+          plotOutput("pca_plot", width = "100%", height = "auto"),
+          downloadButton("download_pca_pdf", "PDF"),
+          downloadButton("download_pca_png", "PNG")
         ),
         tabPanel("t-SNE",
           # Single row with 4 elements
@@ -1173,8 +1175,8 @@ server <- function(input, output, session) {
     })
   })
 
-  # Enhanced PCA plot rendering function
-  output$pca_plot <- renderPlot({
+  # Create a reactive for the PCA plot object
+  create_pca_plot <- reactive({
     req(pca_data())
     req(current_data())
     
@@ -1197,9 +1199,6 @@ server <- function(input, output, session) {
     # PC variances for axis labels
     pc1_var <- round(summary(pca_result)$importance[2, 1] * 100, 1)
     pc2_var <- round(summary(pca_result)$importance[2, 2] * 100, 1)
-    
-    # Set margins
-    par(mar = c(5, 5, 2, 10) + 0.1)
     
     # Default plot settings
     point_colors <- "black"
@@ -1251,51 +1250,92 @@ server <- function(input, output, session) {
       }
     }
     
-    # Create the points plot
-    plot(pc_data$PC1, pc_data$PC2, 
-        xlab = paste0("PC1 (", pc1_var, "%)"),
-        ylab = paste0("PC2 (", pc2_var, "%)"),
-        main = "",
-        pch = point_shapes,
-        col = point_colors,
-        cex = point_sizes,
-        cex.lab = input$fontsize/12,
-        cex.axis = input$fontsize/12)
+    # Create a new plotting environment
+    plot_env <- new.env()
     
-    # Add legend if using annotations
-    if (length(legend_items) > 0) {
-      # Allow plotting outside the plot region
-      par(xpd = TRUE)
+    # Create and record the plot
+    p <- with(plot_env, {
+      # Set margins
+      par(mar = c(5, 5, 2, 10) + 0.1)
       
-      # Color legend
-      if (!is.null(legend_items$colors)) {
-        color_info <- legend_items$colors
+      # Create the points plot
+      plot(pc_data$PC1, pc_data$PC2, 
+          xlab = paste0("PC1 (", pc1_var, "%)"),
+          ylab = paste0("PC2 (", pc2_var, "%)"),
+          main = "",
+          pch = point_shapes,
+          col = point_colors,
+          cex = point_sizes,
+          cex.lab = input$fontsize/12,
+          cex.axis = input$fontsize/12)
+      
+      # Add legend if using annotations
+      if (length(legend_items) > 0) {
+        # Allow plotting outside the plot region
+        par(xpd = TRUE)
         
-        legend("topright", 
-              legend = color_info$labels,
-              fill = color_info$palette,
-              title = color_info$title,
-              cex = input$fontsize/15,
-              inset = c(-0.25, 0),
-              bty = "n")
+        # Color legend
+        if (!is.null(legend_items$colors)) {
+          color_info <- legend_items$colors
+          
+          legend("topright", 
+                legend = color_info$labels,
+                fill = color_info$palette,
+                title = color_info$title,
+                cex = input$fontsize/15,
+                inset = c(-0.25, 0),
+                bty = "n")
+        }
+        
+        # Shape legend (if available)
+        if (!is.null(legend_items$shapes)) {
+          shape_info <- legend_items$shapes
+          
+          legend("topright", 
+                legend = shape_info$labels,
+                pch = shape_info$shapes,
+                title = shape_info$title,
+                cex = input$fontsize/15,
+                inset = c(-0.25, 0.3),
+                bty = "n")
+        }
+        
+        par(xpd = FALSE)
       }
       
-      # Shape legend (if available)
-      if (!is.null(legend_items$shapes)) {
-        shape_info <- legend_items$shapes
-        
-        legend("topright", 
-              legend = shape_info$labels,
-              pch = shape_info$shapes,
-              title = shape_info$title,
-              cex = input$fontsize/15,
-              inset = c(-0.25, 0.3),
-              bty = "n")
-      }
-      
-      par(xpd = FALSE)
-    }
+      # Return the recorded plot
+      recordPlot()
+    })
+    
+    return(p)
+  })
+
+  output$pca_plot <- renderPlot({
+    replayPlot(create_pca_plot())
   }, width = function() input$width, height = function() input$height)
+
+  # Download handlers for PCA plots
+  output$download_pca_pdf <- downloadHandler(
+    filename = function() {
+      paste0("pca-plot-", format(Sys.time(), "%Y%m%d-%H%M%S"), ".pdf")
+    },
+    content = function(file) {
+      pdf(file, width = input$width/72, height = input$height/72)
+      replayPlot(create_pca_plot())
+      dev.off()
+    }
+  )
+
+  output$download_pca_png <- downloadHandler(
+    filename = function() {
+      paste0("pca-plot-", format(Sys.time(), "%Y%m%d-%H%M%S"), ".png")
+    },
+    content = function(file) {
+      png(file, width = input$width, height = input$height, res = 72)
+      replayPlot(create_pca_plot())
+      dev.off()
+    }
+  )
 
 
 
