@@ -101,12 +101,12 @@ ui <- fluidPage(
         # Width & Height in more compact form
         fluidRow(
           column(3, p("Width:", style="padding-top: 7px; text-align: right;")),
-          column(9, sliderInput("width", NULL, min = 200, max = 2000, value = default_width, step = 50))
+          column(9, sliderInput("width", NULL, min = 200, max = 2000, value = default_width, step = 20))
         ),
         
         fluidRow(
           column(3, p("Height:", style="padding-top: 7px; text-align: right;")),
-          column(9, sliderInput("height", NULL, min = 200, max = 2000, value = default_height, step = 50))
+          column(9, sliderInput("height", NULL, min = 200, max = 2000, value = default_height, step = 20))
         ),
         fluidRow(
           column(6, checkboxInput("label_heatmap", "Label Data", value = FALSE)),
@@ -177,8 +177,8 @@ ui <- fluidPage(
                 uiOutput("code_display")
         ),
         tabPanel("About",
-                img(src = "heatmap.png", width = "400px", height = "400px"),
-                #img(src = "pca.png", width = "433px", height = "387px"),
+                img(src = "heatmap.png", width = "300px", height = "300px"),
+                img(src = "tsne.png", width = "335px", height = "300px"),
                 includeHTML("www/help.html")
         )
       ),
