@@ -146,7 +146,7 @@ ui <- fluidPage(
                 uiOutput("code_display")
         ),
         tabPanel("About",
-                #img(src = "heatmap.png", width = "500px", height = "500px"),
+                img(src = "heatmap.png", width = "400px", height = "400px"),
                 #img(src = "pca.png", width = "433px", height = "387px"),
                 includeHTML("www/help.html")
         )
