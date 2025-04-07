@@ -1,6 +1,6 @@
 ## DataMap: Visualizing Data Matrices in Your Browser
 
-To use the app, just visit this [static GitHub page.](https://gexijin.github.io/datamap/)
+To use this app, just visit this [static GitHub page.](https://gexijin.github.io/datamap/)
 
 DataMap is a secure, browser-based application for visualizing high-dimensional 'omics and other data matrices with heatmaps, PCA, and t-SNE. Built with Shiny and running entirely in your browser through Shinylive technology, DataMap ensures your data never leaves your device.
 
@@ -47,9 +47,5 @@ If you use DataMap in your research, please cite it as:
 
 > Ge, X. (2025). DataMap: A secure browser-based application for visualizing high-dimensional data matrices. [Software]. Available from: https://gexijin.github.io/datamap/
 
-**Dr. Xijin Ge** is a Professor at South Dakota State University specializing in bioinformatics and data science.
-
-- [University Profile](https://www.sdstate.edu/directory/xijin-ge)
-- [LinkedIn](https://www.linkedin.com/in/steven-ge-ab016947/)
-- [BlueSky](https://bsky.app/profile/stevenge.bsky.social)
+**Dr. Xijin Ge** is a Professor at South Dakota State University. [LinkedIn](https://www.linkedin.com/in/steven-ge-ab016947/), [BlueSky.](https://bsky.app/profile/stevenge.bsky.social)
 
