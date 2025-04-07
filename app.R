@@ -1212,11 +1212,11 @@ server <- function(input, output, session) {
     legend_items <- list()
     
     if (!is.null(point_annot) && ncol(point_annot) > 0) {
-      # Get selected annotation columns (limit to first two)
+      # Get all annotation columns
       selected_cols <- names(point_annot)
       
+      # Use first column for colors
       if (length(selected_cols) >= 1) {
-        # Use first column for both colors and shapes if only one available
         color_col <- selected_cols[1]
         color_factor <- as.factor(point_annot[[color_col]])
         color_levels <- levels(color_factor)
@@ -1229,58 +1229,40 @@ server <- function(input, output, session) {
           labels = color_levels,
           palette = color_palette
         )
+      }
+      
+      # Use second column for shapes (ONLY if we have multiple annotations)
+      if (length(selected_cols) >= 2) {
+        shape_col <- selected_cols[2]
+        shape_factor <- as.factor(point_annot[[shape_col]])
+        shape_levels <- levels(shape_factor)
         
-        # If only one column, also use it for shapes
-        if (length(selected_cols) == 1) {
-          shape_factor <- color_factor
-          shape_levels <- color_levels
-          
-          available_shapes <- c(16, 17, 15, 18, 19, 1, 2, 5, 6, 8)
-          shape_numbers <- available_shapes[1:min(length(available_shapes), length(shape_levels))]
-          point_shapes <- shape_numbers[as.numeric(shape_factor)]
-          
-          # Store shape legend info (same as color but with shapes)
-          legend_items$shapes <- list(
-            title = color_col,
-            labels = shape_levels,
-            shapes = shape_numbers
-          )
-        } 
-        # If two or more columns, use second for shapes
-        else if (length(selected_cols) >= 2) {
-          shape_col <- selected_cols[2]
-          shape_factor <- as.factor(point_annot[[shape_col]])
-          shape_levels <- levels(shape_factor)
-          
-          available_shapes <- c(16, 17, 15, 18, 19, 1, 2, 5, 6, 8)
-          shape_numbers <- available_shapes[1:min(length(available_shapes), length(shape_levels))]
-          point_shapes <- shape_numbers[as.numeric(shape_factor)]
-          
-          # Store shape legend info
-          legend_items$shapes <- list(
-            title = shape_col,
-            labels = shape_levels,
-            shapes = shape_numbers
-          )
-        }
+        available_shapes <- c(16, 17, 15, 18, 19, 1, 2, 5, 6, 8)
+        shape_numbers <- available_shapes[1:min(length(available_shapes), length(shape_levels))]
+        point_shapes <- shape_numbers[as.numeric(shape_factor)]
+        
+        # Store shape legend info
+        legend_items$shapes <- list(
+          title = shape_col,
+          labels = shape_levels,
+          shapes = shape_numbers
+        )
+      } else {
+        # If only one annotation, use circle shape for all points
+        point_shapes <- 16
       }
     }
-    
-    # Plot title based on mode
-    plot_title <- ""
     
     # Create the points plot
     plot(pc_data$PC1, pc_data$PC2, 
         xlab = paste0("PC1 (", pc1_var, "%)"),
         ylab = paste0("PC2 (", pc2_var, "%)"),
-        main = plot_title,
+        main = "",
         pch = point_shapes,
         col = point_colors,
         cex = point_sizes,
         cex.lab = input$fontsize/12,
         cex.axis = input$fontsize/12)
-    
-    # Note: Grid lines and dashed lines have been removed as requested
     
     # Add legend if using annotations
     if (length(legend_items) > 0) {
@@ -1300,18 +1282,16 @@ server <- function(input, output, session) {
               bty = "n")
       }
       
-      # Shape legend (if available and different from color)
-      if (!is.null(legend_items$shapes) && 
-          (!identical(legend_items$shapes$title, legend_items$colors$title) || length(selected_cols) == 1)) {
+      # Shape legend (if available)
+      if (!is.null(legend_items$shapes)) {
         shape_info <- legend_items$shapes
-        shape_position <- if (shape_info$title == legend_items$colors$title) 0.2 else 0.3
         
         legend("topright", 
               legend = shape_info$labels,
               pch = shape_info$shapes,
               title = shape_info$title,
               cex = input$fontsize/15,
-              inset = c(-0.25, shape_position),
+              inset = c(-0.25, 0.3),
               bty = "n")
       }
       
@@ -1391,6 +1371,7 @@ server <- function(input, output, session) {
     })
   })
   })
+
   # t-SNE plot rendering function
   output$tsne_plot <- renderPlot({
     req(tsne_data())
@@ -1425,11 +1406,11 @@ server <- function(input, output, session) {
     legend_items <- list()
     
     if (!is.null(point_annot) && ncol(point_annot) > 0) {
-      # Get selected annotation columns (limit to first two)
+      # Get all annotation columns
       selected_cols <- names(point_annot)
       
+      # Use first column for colors
       if (length(selected_cols) >= 1) {
-        # Use first column for both colors and shapes if only one available
         color_col <- selected_cols[1]
         color_factor <- as.factor(point_annot[[color_col]])
         color_levels <- levels(color_factor)
@@ -1442,58 +1423,40 @@ server <- function(input, output, session) {
           labels = color_levels,
           palette = color_palette
         )
+      }
+      
+      # Use second column for shapes (ONLY if we have multiple annotations)
+      if (length(selected_cols) >= 2) {
+        shape_col <- selected_cols[2]
+        shape_factor <- as.factor(point_annot[[shape_col]])
+        shape_levels <- levels(shape_factor)
         
-        # If only one column, also use it for shapes
-        if (length(selected_cols) == 1) {
-          shape_factor <- color_factor
-          shape_levels <- color_levels
-          
-          available_shapes <- c(16, 17, 15, 18, 19, 1, 2, 5, 6, 8)
-          shape_numbers <- available_shapes[1:min(length(available_shapes), length(shape_levels))]
-          point_shapes <- shape_numbers[as.numeric(shape_factor)]
-          
-          # Store shape legend info (same as color but with shapes)
-          legend_items$shapes <- list(
-            title = color_col,
-            labels = shape_levels,
-            shapes = shape_numbers
-          )
-        } 
-        # If two or more columns, use second for shapes
-        else if (length(selected_cols) >= 2) {
-          shape_col <- selected_cols[2]
-          shape_factor <- as.factor(point_annot[[shape_col]])
-          shape_levels <- levels(shape_factor)
-          
-          available_shapes <- c(16, 17, 15, 18, 19, 1, 2, 5, 6, 8)
-          shape_numbers <- available_shapes[1:min(length(available_shapes), length(shape_levels))]
-          point_shapes <- shape_numbers[as.numeric(shape_factor)]
-          
-          # Store shape legend info
-          legend_items$shapes <- list(
-            title = shape_col,
-            labels = shape_levels,
-            shapes = shape_numbers
-          )
-        }
+        available_shapes <- c(16, 17, 15, 18, 19, 1, 2, 5, 6, 8)
+        shape_numbers <- available_shapes[1:min(length(available_shapes), length(shape_levels))]
+        point_shapes <- shape_numbers[as.numeric(shape_factor)]
+        
+        # Store shape legend info
+        legend_items$shapes <- list(
+          title = shape_col,
+          labels = shape_levels,
+          shapes = shape_numbers
+        )
+      } else {
+        # If only one annotation, use circle shape for all points
+        point_shapes <- 16
       }
     }
-    
-    # Plot title based on mode
-    plot_title <- ""
     
     # Create the points plot
     plot(tsne_coords$tSNE1, tsne_coords$tSNE2, 
         xlab = "t-SNE Dimension 1",
         ylab = "t-SNE Dimension 2",
-        main = plot_title,
+        main = "",
         pch = point_shapes,
         col = point_colors,
         cex = point_sizes,
         cex.lab = input$fontsize/12,
         cex.axis = input$fontsize/12)
-    
-    # Note: Grid lines have been removed as requested
     
     # Add legend if using annotations
     if (length(legend_items) > 0) {
@@ -1513,18 +1476,16 @@ server <- function(input, output, session) {
               bty = "n")
       }
       
-      # Shape legend (if available and different from color)
-      if (!is.null(legend_items$shapes) && 
-          (!identical(legend_items$shapes$title, legend_items$colors$title) || length(selected_cols) == 1)) {
+      # Shape legend (if available)
+      if (!is.null(legend_items$shapes)) {
         shape_info <- legend_items$shapes
-        shape_position <- if (shape_info$title == legend_items$colors$title) 0.2 else 0.3
         
         legend("topright", 
               legend = shape_info$labels,
               pch = shape_info$shapes,
               title = shape_info$title,
               cex = input$fontsize/15,
-              inset = c(-0.25, shape_position),
+              inset = c(-0.25, 0.3),
               bty = "n")
       }
       
