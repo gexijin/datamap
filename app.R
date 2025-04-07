@@ -9,6 +9,12 @@ source("R/utilities.R")
 max_rows_to_show <- 1000  # Maximum number of rows to show row names in the heatmap
 default_width <- 600
 default_height <- 600
+# this solves the issue of the download button not working from Chromium when this app is deployed as Shinylive
+downloadButton <- function(...) {
+ tag <- shiny::downloadButton(...)
+ tag$attribs$download <- NULL
+ tag
+}
 ui <- fluidPage(
 
   titlePanel("DataMap: a secure app for visualizing data matrices"),  
