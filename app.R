@@ -156,21 +156,17 @@ ui <- fluidPage(
             column(3, sliderInput("tsne_iterations", "Max Iterations:", 
               min = 500, max = 2000, value = 1000, step = 100)),
             column(3, checkboxInput("tsne_pca_preprocessing", "Use PCA Preprocessing", value = FALSE)),
-            column(6)
-          ),
-          # Help text as a single paragraph
-          fluidRow(
-            column(12,
+            column(6,
               tags$div(
-          style = "background-color: #f8f9fa; padding: 10px; border-radius: 5px; margin-bottom: 15px;",
-          tags$p(
-            style = "margin-bottom: 0; font-size: 0.85em; color: #495057;",
-            tags$strong("Parameter Guide: "),
-            "To enhance cluster separation, increase Early Exaggeration (12-20) for more distinct clusters. Perplexity balances local (5-10) vs global (30-50) structure. Higher Learning Rate can improve separation but may cause instability. More Iterations allow for better optimization and clearer boundaries. PCA preprocessing can help with noisy high-dimensional data."
-          )
+                style = "background-color: #f8f9fa; padding: 10px; border-radius: 5px; margin-bottom: 15px;",
+                tags$p(
+                  style = "margin-bottom: 0; font-size: 0.85em; color: #495057;",
+                  "Increase Early Exaggeration (12-20) for more distinct clusters. Perplexity balances local (5-10) vs global (30-50) structure. Higher Learning Rate can improve separation but may cause instability. More Iterations allow for better optimization and clearer boundaries. PCA preprocessing can reduce noise."
+                )
               )
             )
           ),
+
           plotOutput("tsne_plot", width = "100%", height = "auto")
         ),
         tabPanel("Code",
