@@ -282,16 +282,45 @@
         </ul>
         
         <div class="tab">
-            <button class="tablinks" data-format="CSV" id="defaultOpen">CSV Example</button>
-            <button class="tablinks" data-format="Excel">Excel Example</button>
+            <button class="tablinks" data-format="CSV" id="defaultOpen">Example Data 1</button>
+            <button class="tablinks" data-format="Excel">Example Data 2</button>
         </div>
         
         <div id="CSV" class="tabcontent">
-            <h4>CSV Example</h4>
-            <p>A typical CSV file for gene expression data might look like this:</p>
+            <table>
+                <tr>
+                    <th>Variable1</th>
+                    <th>Variable2</th>
+                    <th>Variable3</th>
+                    <th>Variable4</th>
+                </tr>
+                <tr>
+                    <td>5.6</td>
+                    <td>2.9</td>
+                    <td>4.3</td>
+                    <td>9.1</td>
+                </tr>
+                <tr>
+                    <td>3.2</td>
+                    <td>2.1</td>
+                    <td>NA</td>
+                    <td>2.8</td>
+                </tr>
+                <tr>
+                    <td>8.9</td>
+                    <td>8.7</td>
+                    <td>9.0</td>
+                    <td>8.5</td>
+                </tr>
+            </table>
+            <p>The column names should not have duplicates. Missing values are tolerated.</p>
+        </div>
+        
+        <div id="Excel" class="tabcontent">
             <table>
                 <tr>
                     <th>GeneID</th>
+                    <th>Name</th>
                     <th>Sample1</th>
                     <th>Sample2</th>
                     <th>Sample3</th>
@@ -300,6 +329,7 @@
                 </tr>
                 <tr>
                     <td>GENE001</td>
+                    <td>DNA Repair 2</td>
                     <td>5.6</td>
                     <td>7.8</td>
                     <td>4.3</td>
@@ -308,6 +338,7 @@
                 </tr>
                 <tr>
                     <td>GENE002</td>
+                    <td>Energy 3B</td>
                     <td>3.2</td>
                     <td>2.1</td>
                     <td>3.5</td>
@@ -316,6 +347,7 @@
                 </tr>
                 <tr>
                     <td>GENE003</td>
+                    <td>Stress related 1</td>
                     <td>8.9</td>
                     <td>8.7</td>
                     <td>9.0</td>
@@ -324,6 +356,7 @@
                 </tr>
                 <tr>
                     <td>GENE004</td>
+                    <td>xTransporter 2</td>
                     <td>1.2</td>
                     <td>1.0</td>
                     <td>1.4</td>
@@ -332,6 +365,7 @@
                 </tr>
                 <tr>
                     <td>GENE005</td>
+                    <td>Unkown</td>
                     <td>6.7</td>
                     <td>6.9</td>
                     <td>6.2</td>
@@ -339,43 +373,11 @@
                     <td>Yes</td>
                 </tr>
             </table>
-            <p>The first column contains gene identifiers, and the first row contains sample names. The last column includes 
-                some additional categorical data that will be used to label rows. You can have zero or many columns like these.</p>
-        </div>
-        
-        <div id="Excel" class="tabcontent">
-            <h4>Excel Format Example</h4>
-            <p>Your Excel file should be structured similarly to the CSV example, with features in rows and samples in columns:</p>
-            <table>
-                <tr>
-                    <th>GeneID</th>
-                    <th>Sample1</th>
-                    <th>Sample2</th>
-                    <th>Sample3</th>
-                    <th>Sample4</th>
-                </tr>
-                <tr>
-                    <td>GENE001</td>
-                    <td>5.6</td>
-                    <td>7.8</td>
-                    <td>4.3</td>
-                    <td>9.1</td>
-                </tr>
-                <tr>
-                    <td>GENE002</td>
-                    <td>3.2</td>
-                    <td>2.1</td>
-                    <td>3.5</td>
-                    <td>2.8</td>
-                </tr>
-                <tr>
-                    <td>GENE003</td>
-                    <td>8.9</td>
-                    <td>8.7</td>
-                    <td>9.0</td>
-                    <td>8.5</td>
-                </tr>
-            </table>
+            <p>The first column contains row names (here is gene ids). 
+                The row must not contain duplicates. Otherwise, it will be ignored, just like the 2nd column.
+                Optionally, you can have columns with additional categorical data, such as the last one here. 
+                Such information will be used to label rows. You can also save such columns in a separate file to be uploaded as row annotations (See below).</p>
+
         </div>
         
         <h3>Optional Annotation Files</h3>
