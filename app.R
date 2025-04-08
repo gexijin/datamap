@@ -1532,8 +1532,8 @@ server <- function(input, output, session) {
       
       # Create the points plot
       plot(tsne_coords$tSNE1, tsne_coords$tSNE2, 
-          xlab = "t-SNE Dimension 1",
-          ylab = "t-SNE Dimension 2",
+          xlab = "tSNE 1",
+          ylab = "tSNE 2",
           main = "",
           pch = point_shapes,
           col = point_colors,
