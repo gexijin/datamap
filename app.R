@@ -7,7 +7,8 @@ source("R/mod_file_upload.R")
 source("R/mod_transform.R")
 source("R/mod_pca.R")
 source("R/mod_tsne.R")
-source("R/mod_heatmap.R") # Add the heatmap module source
+source("R/mod_heatmap.R")
+source("R/mod_code_generation.R")
 
 max_rows_to_show <- 1000  # Maximum number of rows to show row names in the heatmap
 default_width <- 600
@@ -106,7 +107,7 @@ ui <- fluidPage(
           tsne_plot_ui("tsne")
         ),
         tabPanel("Code",
-                uiOutput("code_display")
+          code_generation_ui("code_gen") 
         ),
         tabPanel("About",
                 img(src = "heatmap.png", width = "300px", height = "300px"),
@@ -685,6 +686,14 @@ server <- function(input, output, session) {
     width_for_plots,     # Use our reactive
     height_for_plots     # Use our reactive
   )
+  code_gen_results <- code_generation_server(
+  "code_gen",
+  file_data,
+  transform_data,
+  heatmap_results,
+  pca_results,
+  tsne_results
+)
 }
 
 # Run the application
