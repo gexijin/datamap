@@ -186,3 +186,12 @@ create_dr_plot <- function(coords_data, x_label, y_label, point_annot = NULL, fo
   
   return(p)
 }
+
+#' Get DataMap package resource path
+#'
+#' @param ... Path components to append
+#' @return Full path to the resource within the package
+#' @keywords internal
+datamap_resource <- function(...) {
+  system.file(..., package = "DataMap")
+}
