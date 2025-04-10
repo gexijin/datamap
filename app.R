@@ -115,8 +115,8 @@ ui <- fluidPage(
                 img(src = "tsne.png", width = "335px", height = "300px"),
                 includeHTML("www/help.html")
         )
-      ),
-      tags$head(includeHTML("www/google_analytics.html"))
+      )
+      #,tags$head(includeHTML("www/google_analytics.html"))
     )
   )
 )
