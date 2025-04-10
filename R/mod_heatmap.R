@@ -103,7 +103,6 @@ heatmap_server <- function(id, current_data,
                 dist_cols <- custom_cor(heatmap_data)
               }
               
-              # IMPORTANT FIX: Create a copy of the parameters for display without the distance objects
               display_params <- list(
                 mat = heatmap_data,
                 color = colors,
@@ -118,8 +117,6 @@ heatmap_server <- function(id, current_data,
                 display_numbers = if (input$label_heatmap) round(as.matrix(current_data()), 2) else FALSE
               )
               
-              # Store parameters for code generation without the distance objects
-              # Instead, store the method name to recreate them later
               if (input$cluster_rows) {
                 display_params$clustering_distance_rows = correlation_method
               }

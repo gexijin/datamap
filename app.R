@@ -10,6 +10,7 @@ source("R/mod_tsne.R")
 source("R/mod_heatmap.R")
 source("R/mod_code_generation.R")
 
+
 max_rows_to_show <- 1000  # Maximum number of rows to show row names in the heatmap
 default_width <- 600
 default_height <- 600
@@ -256,7 +257,7 @@ server <- function(input, output, session) {
       file.copy("data/Gene_info.csv", file)
     }
   )
-    output$download_example_row_scrnaseq <- downloadHandler(
+  output$download_example_row_scrnaseq <- downloadHandler(
     filename = function() {
       "example scRNAseq_clusters.csv"
     },
@@ -488,6 +489,7 @@ server <- function(input, output, session) {
     
     return(combined_annot)
   })
+
 
   # Create reactives for font size, width, and height to ensure availability for PCA and t-SNE
   fontsize_for_plots <- reactive({ 
