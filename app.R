@@ -1214,8 +1214,8 @@ server <- function(input, output, session) {
     })
   })
 
-  # Create a reactive for the PCA plot object
-  create_pca_plot <- reactive({
+  # Implementation for PCA plot using the refactored function
+  create_pca_plot <- function() {
     req(pca_data())
     req(current_data())
     
@@ -1239,115 +1239,13 @@ server <- function(input, output, session) {
     pc1_var <- round(summary(pca_result)$importance[2, 1] * 100, 1)
     pc2_var <- round(summary(pca_result)$importance[2, 2] * 100, 1)
     
-    # Default plot settings
-    point_colors <- "black"
-    point_shapes <- 16
-    point_sizes <- rep(input$fontsize/12, nrow(pc_data))
+    # Create x and y labels
+    x_label <- paste0("PC1 (", pc1_var, "%)")
+    y_label <- paste0("PC2 (", pc2_var, "%)")
     
-    # If annotations are available, use them for colors and shapes
-    legend_items <- list()
-    
-    if (!is.null(point_annot) && ncol(point_annot) > 0) {
-      # Get all annotation columns
-      selected_cols <- names(point_annot)
-      
-      # Use first column for colors
-      if (length(selected_cols) >= 1) {
-        color_col <- selected_cols[1]
-        color_factor <- as.factor(point_annot[[color_col]])
-        color_levels <- levels(color_factor)
-        color_palette <- rainbow(length(color_levels))
-        point_colors <- color_palette[as.numeric(color_factor)]
-        
-        # Store color legend info
-        legend_items$colors <- list(
-          title = color_col,
-          labels = color_levels,
-          palette = color_palette
-        )
-      }
-      
-      # Use second column for shapes (ONLY if we have multiple annotations)
-      if (length(selected_cols) >= 2) {
-        shape_col <- selected_cols[2]
-        shape_factor <- as.factor(point_annot[[shape_col]])
-        shape_levels <- levels(shape_factor)
-        
-        available_shapes <- c(16, 17, 15, 18, 19, 1, 2, 5, 6, 8)
-        shape_numbers <- available_shapes[1:min(length(available_shapes), length(shape_levels))]
-        point_shapes <- shape_numbers[as.numeric(shape_factor)]
-        
-        # Store shape legend info
-        legend_items$shapes <- list(
-          title = shape_col,
-          labels = shape_levels,
-          shapes = shape_numbers
-        )
-      } else {
-        # If only one annotation, use circle shape for all points
-        point_shapes <- 16
-      }
-    }
-    
-    # Create a new plotting environment
-    plot_env <- new.env()
-    
-    # Create and record the plot
-    p <- with(plot_env, {
-      # Set margins
-      par(mar = c(5, 5, 2, 10) + 0.1)
-      
-      # Create the points plot
-      plot(pc_data$PC1, pc_data$PC2, 
-          xlab = paste0("PC1 (", pc1_var, "%)"),
-          ylab = paste0("PC2 (", pc2_var, "%)"),
-          main = "",
-          pch = point_shapes,
-          col = point_colors,
-          cex = point_sizes,
-          cex.lab = input$fontsize/12,
-          cex.axis = input$fontsize/12)
-      
-      # Add legend if using annotations
-      if (length(legend_items) > 0) {
-        # Allow plotting outside the plot region
-        par(xpd = TRUE)
-        
-        # Color legend
-        if (!is.null(legend_items$colors)) {
-          color_info <- legend_items$colors
-          
-          legend("topright", 
-                legend = color_info$labels,
-                fill = color_info$palette,
-                title = color_info$title,
-                cex = input$fontsize/15,
-                inset = c(-0.25, 0),
-                bty = "n")
-        }
-        
-        # Shape legend (if available)
-        if (!is.null(legend_items$shapes)) {
-          shape_info <- legend_items$shapes
-          
-          legend("topright", 
-                legend = shape_info$labels,
-                pch = shape_info$shapes,
-                title = shape_info$title,
-                cex = input$fontsize/15,
-                inset = c(-0.25, 0.3),
-                bty = "n")
-        }
-        
-        par(xpd = FALSE)
-      }
-      
-      # Return the recorded plot
-      recordPlot()
-    })
-    
-    return(p)
-  })
+    # Use the generic function to create the plot
+    create_dr_plot(pc_data, x_label, y_label, point_annot, input$fontsize)
+  }
 
   output$pca_plot <- renderPlot({
     replayPlot(create_pca_plot())
@@ -1450,8 +1348,8 @@ server <- function(input, output, session) {
   })
 
 
-  # Create a reactive for the t-SNE plot object
-  create_tsne_plot <- reactive({
+  # Implementation for t-SNE plot using the refactored function
+  create_tsne_plot <- function() {
     req(tsne_data())
     req(current_data())
     
@@ -1472,115 +1370,13 @@ server <- function(input, output, session) {
       point_annot <- row_annotation_for_heatmap()
     }
     
-    # Default plot settings
-    point_colors <- "black"
-    point_shapes <- 16
-    point_sizes <- rep(input$fontsize/12, nrow(tsne_coords))
+    # Create x and y labels
+    x_label <- "tSNE 1"
+    y_label <- "tSNE 2"
     
-    # If annotations are available, use them for colors and shapes
-    legend_items <- list()
-    
-    if (!is.null(point_annot) && ncol(point_annot) > 0) {
-      # Get all annotation columns
-      selected_cols <- names(point_annot)
-      
-      # Use first column for colors
-      if (length(selected_cols) >= 1) {
-        color_col <- selected_cols[1]
-        color_factor <- as.factor(point_annot[[color_col]])
-        color_levels <- levels(color_factor)
-        color_palette <- rainbow(length(color_levels))
-        point_colors <- color_palette[as.numeric(color_factor)]
-        
-        # Store color legend info
-        legend_items$colors <- list(
-          title = color_col,
-          labels = color_levels,
-          palette = color_palette
-        )
-      }
-      
-      # Use second column for shapes (ONLY if we have multiple annotations)
-      if (length(selected_cols) >= 2) {
-        shape_col <- selected_cols[2]
-        shape_factor <- as.factor(point_annot[[shape_col]])
-        shape_levels <- levels(shape_factor)
-        
-        available_shapes <- c(16, 17, 15, 18, 19, 1, 2, 5, 6, 8)
-        shape_numbers <- available_shapes[1:min(length(available_shapes), length(shape_levels))]
-        point_shapes <- shape_numbers[as.numeric(shape_factor)]
-        
-        # Store shape legend info
-        legend_items$shapes <- list(
-          title = shape_col,
-          labels = shape_levels,
-          shapes = shape_numbers
-        )
-      } else {
-        # If only one annotation, use circle shape for all points
-        point_shapes <- 16
-      }
-    }
-    
-    # Create a new plotting environment
-    plot_env <- new.env()
-    
-    # Create and record the plot
-    p <- with(plot_env, {
-      # Set margins
-      par(mar = c(5, 5, 2, 10) + 0.1)
-      
-      # Create the points plot
-      plot(tsne_coords$tSNE1, tsne_coords$tSNE2, 
-          xlab = "tSNE 1",
-          ylab = "tSNE 2",
-          main = "",
-          pch = point_shapes,
-          col = point_colors,
-          cex = point_sizes,
-          cex.lab = input$fontsize/12,
-          cex.axis = input$fontsize/12)
-      
-      # Add legend if using annotations
-      if (length(legend_items) > 0) {
-        # Allow plotting outside the plot region
-        par(xpd = TRUE)
-        
-        # Color legend
-        if (!is.null(legend_items$colors)) {
-          color_info <- legend_items$colors
-          
-          legend("topright", 
-                legend = color_info$labels,
-                fill = color_info$palette,
-                title = color_info$title,
-                cex = input$fontsize/15,
-                inset = c(-0.25, 0),
-                bty = "n")
-        }
-        
-        # Shape legend (if available)
-        if (!is.null(legend_items$shapes)) {
-          shape_info <- legend_items$shapes
-          
-          legend("topright", 
-                legend = shape_info$labels,
-                pch = shape_info$shapes,
-                title = shape_info$title,
-                cex = input$fontsize/15,
-                inset = c(-0.25, 0.3),
-                bty = "n")
-        }
-        
-        par(xpd = FALSE)
-      }
-      
-      # Return the recorded plot
-      recordPlot()
-    })
-    
-    return(p)
-  })
+    # Use the generic function to create the plot
+    create_dr_plot(tsne_coords, x_label, y_label, point_annot, input$fontsize)
+  }
 
   # Use the reactive plot in the renderPlot function
   output$tsne_plot <- renderPlot({

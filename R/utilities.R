@@ -74,3 +74,115 @@ guess_transform <- function(data_matrix) {
     }
   }
 }
+
+# Generic dimensionality reduction plot function
+create_dr_plot <- function(coords_data, x_label, y_label, point_annot = NULL, fontsize = 12) {
+  # Default plot settings
+  point_colors <- "black"
+  point_shapes <- 16
+  point_sizes <- rep(fontsize/12, nrow(coords_data))
+  
+  # If annotations are available, use them for colors and shapes
+  legend_items <- list()
+  
+  if (!is.null(point_annot) && ncol(point_annot) > 0) {
+    # Get all annotation columns
+    selected_cols <- names(point_annot)
+    
+    # Use first column for colors
+    if (length(selected_cols) >= 1) {
+      color_col <- selected_cols[1]
+      color_factor <- as.factor(point_annot[[color_col]])
+      color_levels <- levels(color_factor)
+      color_palette <- rainbow(length(color_levels))
+      point_colors <- color_palette[as.numeric(color_factor)]
+      
+      # Store color legend info
+      legend_items$colors <- list(
+        title = color_col,
+        labels = color_levels,
+        palette = color_palette
+      )
+    }
+    
+    # Use second column for shapes (ONLY if we have multiple annotations)
+    if (length(selected_cols) >= 2) {
+      shape_col <- selected_cols[2]
+      shape_factor <- as.factor(point_annot[[shape_col]])
+      shape_levels <- levels(shape_factor)
+      
+      available_shapes <- c(16, 17, 15, 18, 19, 1, 2, 5, 6, 8)
+      shape_numbers <- available_shapes[1:min(length(available_shapes), length(shape_levels))]
+      point_shapes <- shape_numbers[as.numeric(shape_factor)]
+      
+      # Store shape legend info
+      legend_items$shapes <- list(
+        title = shape_col,
+        labels = shape_levels,
+        shapes = shape_numbers
+      )
+    } else {
+      # If only one annotation, use circle shape for all points
+      point_shapes <- 16
+    }
+  }
+  
+  # Create a new plotting environment
+  plot_env <- new.env()
+  
+  # Create and record the plot
+  p <- with(plot_env, {
+    # Set margins
+    par(mar = c(5, 5, 2, 10) + 0.1)
+    
+    # Create the points plot
+    plot(coords_data[,1], coords_data[,2], 
+         xlab = x_label,
+         ylab = y_label,
+         main = "",
+         pch = point_shapes,
+         col = point_colors,
+         cex = point_sizes,
+         cex.lab = fontsize/12,
+         cex.axis = fontsize/12)
+    
+    # Add legend if using annotations
+    if (length(legend_items) > 0) {
+      # Allow plotting outside the plot region
+      par(xpd = TRUE)
+      
+      # Color legend
+      if (!is.null(legend_items$colors)) {
+        color_info <- legend_items$colors
+        
+        legend("topright", 
+               legend = color_info$labels,
+               fill = color_info$palette,
+               title = color_info$title,
+               cex = fontsize/15,
+               inset = c(-0.25, 0),
+               bty = "n")
+      }
+      
+      # Shape legend (if available)
+      if (!is.null(legend_items$shapes)) {
+        shape_info <- legend_items$shapes
+        
+        legend("topright", 
+               legend = shape_info$labels,
+               pch = shape_info$shapes,
+               title = shape_info$title,
+               cex = fontsize/15,
+               inset = c(-0.25, 0.3),
+               bty = "n")
+      }
+      
+      par(xpd = FALSE)
+    }
+    
+    # Return the recorded plot
+    recordPlot()
+  })
+  
+  return(p)
+}
