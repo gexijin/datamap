@@ -2,9 +2,10 @@
 # by Steven Ge 4/5/2025  
 library(shiny)
 
+source("R/utilities.R")
 source("R/mod_file_upload.R")
 source("R/mod_transform.R")
-source("R/utilities.R")
+source("R/mod_pca.R")
 
 max_rows_to_show <- 1000  # Maximum number of rows to show row names in the heatmap
 default_width <- 600
@@ -132,13 +133,7 @@ ui <- fluidPage(
                 downloadButton("download_png", "PNG")
         ),
         tabPanel("PCA",
-          selectInput("pca_transpose", "PCA Analysis Mode:",
-            choices = c("Row vectors" = "row", 
-            "Column vectors" = "column"),
-              selected = "row"),
-          plotOutput("pca_plot", width = "100%", height = "auto"),
-          downloadButton("download_pca_pdf", "PDF"),
-          downloadButton("download_pca_png", "PNG")
+          pca_plot_ui("pca")
         ),
         tabPanel("t-SNE",
           # Single row with 4 elements
@@ -985,97 +980,10 @@ server <- function(input, output, session) {
       
       code_parts <- c(code_parts, heatmap_code)
 
-
-      # Add PCA code if used
-      pca_code <- c(
-        "# PCA Analysis Code",
-        "library(stats)",
-        "",
-        "# Calculate PCA",
-        "pca_result <- prcomp(processed_data, center = TRUE, scale. = TRUE)",
-        "",
-        "# Extract the first two principal components",
-        "pc_data <- as.data.frame(pca_result$x[, 1:2])",
-        ""
-      )
-      
-      # Add basic plot code
-      pca_code <- c(pca_code,
-        "# Create a PCA plot",
-        "# Set margins to make room for legend",
-        "par(mar = c(5, 5, 2, 8) + 0.1)",
-        "plot(pc_data$PC1, pc_data$PC2,",
-        "     xlab = paste0(\"PC1 (\", round(summary(pca_result)$importance[2, 1] * 100, 1), \"%)\"),",
-        "     ylab = paste0(\"PC2 (\", round(summary(pca_result)$importance[2, 2] * 100, 1), \"%)\"),",
-        "     main = \"\",",
-        "     pch = 16, col = \"black\")",
-        ""
-      )
-      
-      # Add row annotation code if used
-      if (!is.null(row_annotation_for_heatmap())) {
-        pca_code <- c(pca_code,
-        "",
-        "# Use row annotations for point colors and shapes",
-        "if (!is.null(row_annotation)) {",
-        "  # Color by first annotation column",
-        "  color_col <- names(row_annotation)[1]",
-        "  color_factor <- as.factor(row_annotation[[color_col]])",
-        "  color_palette <- rainbow(length(levels(color_factor)))",
-        "  point_colors <- color_palette[as.numeric(color_factor)]",
-        "",
-        "  # If there's a second annotation column, use for shapes",
-        "  if (ncol(row_annotation) >= 2) {",
-        "    shape_col <- names(row_annotation)[2]",
-        "    shape_factor <- as.factor(row_annotation[[shape_col]])",
-        "    available_shapes <- c(16, 17, 15, 18, 19, 1, 2, 5, 6, 8)",
-        "    shape_numbers <- available_shapes[1:min(length(available_shapes), length(levels(shape_factor)))]",
-        "    point_shapes <- shape_numbers[as.numeric(shape_factor)]",
-        "  } else {",
-        "    point_shapes <- 16  # Default circle",
-        "  }",
-        "",
-        "  # Replot with annotations",
-        "  plot(pc_data$PC1, pc_data$PC2,",
-        "       xlab = paste0(\"PC1 (\", round(summary(pca_result)$importance[2, 1] * 100, 1), \"%)\"),",
-        "       ylab = paste0(\"PC2 (\", round(summary(pca_result)$importance[2, 2] * 100, 1), \"%)\"),",
-        "       main = \"\",",
-        "       pch = point_shapes,",
-        "       col = point_colors,",
-        "       cex = fontsize/12,",     
-        "       cex.lab = fontsize/12,", 
-        "       cex.axis = fontsize/12)",
-        "",
-        "  # Add reference lines",
-        "  abline(h = 0, lty = 2, col = \"gray50\")",
-        "  abline(v = 0, lty = 2, col = \"gray50\")",
-        "",
-        "  # Add legends",
-        "  par(xpd = TRUE)  # Allow plotting outside plot region",
-        "  # Color legend",
-        "  legend(\"topright\", ",
-        "         legend = levels(color_factor),",
-        "         fill = color_palette,",
-        "         title = color_col,",
-        "         cex = fontsize/15,",
-        "         inset = c(-0.15, 0),",
-        "         bty = \"n\")",
-        "",
-        "  # Shape legend if applicable",
-        "  if (ncol(row_annotation) >= 2) {",
-        "    legend(\"topright\", ",
-        "           legend = levels(shape_factor),",
-        "           pch = shape_numbers,",
-        "           title = shape_col,",
-        "           cex = 0.8,",
-        "           inset = c(-0.15, 0.3),",
-        "           bty = \"n\")",
-        "  }",
-        "  par(xpd = FALSE)",
-        "}"
-        )
+      # Get PCA code from the module
+      if (!is.null(pca_results$pca_code())) {
+        code_parts <- c(code_parts, pca_results$pca_code())
       }
-
     }
     
     # Combine all parts and return
@@ -1181,97 +1089,14 @@ server <- function(input, output, session) {
   )
 
 
-  # Modify the pca_data reactive to handle transposition
-  pca_data <- reactive({
-    req(current_data())
-    
-    # Get the data and handle transposition based on user selection
-    data_mat <- as.matrix(current_data())
-    
-    # Transpose if column PCA is selected
-    if(input$pca_transpose == "column") {
-      data_mat <- t(data_mat)
-    }
-    
-    # Use prcomp for PCA calculation, scaling the data
-    tryCatch({
-      # Handle missing values
-      if(any(is.na(data_mat))) {
-        showNotification("Warning: Missing values found. Using pairwise complete observations.", type = "warning")
-        data_mat <- na.omit(data_mat)
-      }
-      
-      # Perform PCA
-      pca_result <- prcomp(data_mat, center = TRUE, scale. = TRUE)
-      
-      # Store the transposition information with the result
-      attr(pca_result, "transposed") <- (input$pca_transpose == "column")
-      
-      return(pca_result)
-    }, error = function(e) {
-      showNotification(paste("Error in PCA calculation:", e$message), type = "error")
-      return(NULL)
-    })
-  })
-
-  # Implementation for PCA plot using the refactored function
-  create_pca_plot <- function() {
-    req(pca_data())
-    req(current_data())
-    
-    # Get PCA results and extract the first two principal components
-    pca_result <- pca_data()
-    pc_data <- as.data.frame(pca_result$x[, 1:2])
-    
-    # Check if we're in transposed mode
-    transposed <- attr(pca_result, "transposed")
-    
-    # Get appropriate annotations based on transposition mode
-    if (transposed) {
-      # For column PCA mode (columns as points), use column annotation data
-      point_annot <- col_annotation_for_heatmap()
-    } else {
-      # For row PCA mode (rows as points), use row annotation data
-      point_annot <- row_annotation_for_heatmap()
-    }
-    
-    # PC variances for axis labels
-    pc1_var <- round(summary(pca_result)$importance[2, 1] * 100, 1)
-    pc2_var <- round(summary(pca_result)$importance[2, 2] * 100, 1)
-    
-    # Create x and y labels
-    x_label <- paste0("PC1 (", pc1_var, "%)")
-    y_label <- paste0("PC2 (", pc2_var, "%)")
-    
-    # Use the generic function to create the plot
-    create_dr_plot(pc_data, x_label, y_label, point_annot, input$fontsize)
-  }
-
-  output$pca_plot <- renderPlot({
-    replayPlot(create_pca_plot())
-  }, width = function() input$width, height = function() input$height)
-
-  # Download handlers for PCA plots
-  output$download_pca_pdf <- downloadHandler(
-    filename = function() {
-      paste0("pca-plot-", format(Sys.time(), "%Y%m%d-%H%M%S"), ".pdf")
-    },
-    content = function(file) {
-      pdf(file, width = input$width/72, height = input$height/72)
-      replayPlot(create_pca_plot())
-      dev.off()
-    }
-  )
-
-  output$download_pca_png <- downloadHandler(
-    filename = function() {
-      paste0("pca-plot-", format(Sys.time(), "%Y%m%d-%H%M%S"), ".png")
-    },
-    content = function(file) {
-      png(file, width = input$width, height = input$height, res = 72)
-      replayPlot(create_pca_plot())
-      dev.off()
-    }
+  pca_results <- pca_plot_server(
+    "pca", 
+    current_data, 
+    col_annotation_for_heatmap, 
+    row_annotation_for_heatmap, 
+    reactive({ input$fontsize }), 
+    reactive({ input$width }), 
+    reactive({ input$height })
   )
 
 
