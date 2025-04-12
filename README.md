@@ -1,6 +1,10 @@
 ## DataMap: Visualizing Data Matrices in Your Browser
 
-To use this app, just visit this [static GitHub page.](https://gexijin.github.io/datamap/)
+To use this app, just visit this [static GitHub page.](https://gexijin.github.io/datamap/). To install this as an R package, 
+```{R}
+install.packages("devtools")
+devtools::install_github("https://github.com/gexijin/datamap@rPackage", upgrade = "never")
+```
 
 DataMap is a secure, browser-based application for visualizing high-dimensional 'omics and other data matrices with heatmaps, PCA, and t-SNE. Built with Shiny and running entirely in your browser through Shinylive technology, DataMap ensures your data never leaves your device.
 
