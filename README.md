@@ -1,3 +1,5 @@
+This is a branch hosting the R package version of the app! It might lay the main branch.
+
 ## DataMap: Visualizing Data Matrices in Your Browser
 
 To use this app, just visit this [static GitHub page.](https://gexijin.github.io/datamap/)
