@@ -1,12 +1,7 @@
 # DataMap: A Shiny app for visualizing data matrices with heatmaps, PCA, and t-SNE
 # by Steven Ge 4/5/2025  
 library(shiny)
-# this solves the issue of the download button not working from Chromium when this app is deployed as Shinylive
-downloadButton <- function(...) {
- tag <- shiny::downloadButton(...)
- tag$attribs$download <- NULL
- tag
-}
+
 source("R/utilities.R")
 source("R/mod_file_upload.R")
 source("R/mod_transform.R")

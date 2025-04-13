@@ -1,4 +1,12 @@
 # t-SNE module
+
+# this solves the issue of the download button not working from Chromium when this app is deployed as Shinylive
+downloadButton <- function(...) {
+ tag <- shiny::downloadButton(...)
+ tag$attribs$download <- NULL
+ tag
+}
+
 # UI function
 tsne_plot_ui <- function(id) {
   ns <- NS(id)

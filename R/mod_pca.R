@@ -1,6 +1,13 @@
 # PCA Plot Module
 # This module encapsulates the PCA plot functionality
 
+# this solves the issue of the download button not working from Chromium when this app is deployed as Shinylive
+downloadButton <- function(...) {
+ tag <- shiny::downloadButton(...)
+ tag$attribs$download <- NULL
+ tag
+}
+
 # UI Function
 pca_plot_ui <- function(id) {
   # Create a namespace function using the provided id
