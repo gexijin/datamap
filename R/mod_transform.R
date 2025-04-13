@@ -27,7 +27,7 @@ map_transform_code <- function(code) {
 transform_ui <- function(id) {
   ns <- NS(id)
   actionButton(ns("show_preprocess"), "Data Prep.", 
-               icon = icon("filter"))
+               icon = icon("filter"), style = "margin-top: 5px;")
 }
 
 #' Server function for preprocessing module

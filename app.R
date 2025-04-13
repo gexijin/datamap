@@ -41,8 +41,8 @@ ui <- fluidPage(
       conditionalPanel(
         condition = "output.data_loaded",
         fluidRow(
-          column(8, transform_ui("transform")),
-          column(4, uiOutput("transform_status"))
+          column(8, transform_ui("transform"), style = "margin-top: 5px;"),
+          column(4, uiOutput("transform_status"), style = "margin-top: 5px;")
         )
       ), 
 
@@ -149,11 +149,12 @@ server <- function(input, output, session) {
         tags$h4("Data file (Excel, CSV, ...)"),
         file_upload_ui("file_upload"),
         fluidRow(
-          column(3, h5("Examples:", style = "margin-top: -8px;  text-align: right;")),
-          column(9, 
-            downloadButton("download_example_genomics", "RNA-seq", style = "margin-top: -15px;"),
-            downloadButton("download_example", "Iris dataset", style = "margin-top: -15px;"),
-            downloadButton("download_example_scrnaseq", "scRNA-seq", style = "margin-top: -15px;"),
+          column(2, h5("Examples:", style = "margin-top: -8px;  text-align: right;")),
+          column(10, 
+            downloadButton("download_countries", "Countries", style = "margin-top: -15px;"),
+            downloadButton("download_rnaseq", "RNAseq", style = "margin-top: -15px;"),
+            downloadButton("download_iris", "Iris", style = "margin-top: -15px;"),
+            downloadButton("download_scrnaseq", "scRNAseq", style = "margin-top: -15px;"),
             align = "left"
           )
         )
@@ -172,10 +173,10 @@ server <- function(input, output, session) {
         tags$h4("Optional: Column Annotation"),
         file_upload_ui("col_annotation_file_upload"),
         fluidRow(
-          column(3, h5("Examples:", style = "margin-top: -8px;  text-align: right;")),
-          column(9, 
-            downloadButton("download_example_col_genomics", "RNA-seq expt. design", style = "margin-top: -15px;"),
-            downloadButton("download_example_col", "Iris columns info", style = "margin-top: -15px;"),
+          column(2, h5("Examples:", style = "margin-top: -8px;  text-align: right;")),
+          column(10, 
+            downloadButton("download_col_rnaseq", "RNA-seq factors", style = "margin-top: -15px;"),
+            downloadButton("download_col_iris", "Iris column info", style = "margin-top: -15px;"),
             align = "left"
           )
         )
@@ -186,10 +187,10 @@ server <- function(input, output, session) {
         tags$h4("Optional: Row Annotations"),
         file_upload_ui("row_annotation_file_upload"),
         fluidRow(         
-            column(3, h5("Examples:", style = "margin-top: -8px; text-align: right;")),
-          column(9,
-             downloadButton("download_example_row", "Iris species", style = "margin-top: -15px;"),
-             downloadButton("download_example_row_scrnaseq", "scRNA-seq clusters", style = "margin-top: -15px;"),
+          column(2, h5("Examples:", style = "margin-top: -8px; text-align: right;")),
+          column(10,
+             downloadButton("download_row_rnaseq", "RNAseq gene info", style = "margin-top: -15px;"),
+             downloadButton("download_row_scrnaseq", "scRNAseq clusters", style = "margin-top: -15px;"),
              align = "left"
           )
         )
@@ -203,59 +204,66 @@ server <- function(input, output, session) {
     ))
   })
 
-  output$download_example <- downloadHandler(
+  output$download_iris <- downloadHandler(
     filename = function() {
-      "example data.csv"
+      "iris.csv"
     },
     content = function(file) {
       file.copy("data/iris.csv", file)
     }
   )
-  output$download_example_genomics <- downloadHandler(
+  output$download_rnaseq <- downloadHandler(
     filename = function() {
-      "example gene expression.csv"
+      "RNAseq.csv"
     },
     content = function(file) {
-      file.copy("data/Genomics.csv", file)
+      file.copy("data/RNAseq.csv", file)
     }
   )
 
-  output$download_example_scrnaseq <- downloadHandler(
+  output$download_scrnaseq <- downloadHandler(
     filename = function() {
-      "example scRNAseq_PCA.csv"
+      "scRNAseq_PCA.csv"
     },
     content = function(file) {
       file.copy("data/scRNAseq_PCA.csv", file)
     }
   )
-
-  output$download_example_col_genomics <- downloadHandler(
+  output$download_countries <- downloadHandler(
     filename = function() {
-      "example experiment design.csv"
+      "countries.csv"
     },
     content = function(file) {
-      file.copy("data/experiment_design.csv", file)
+      file.copy("data/countries.csv", file)
     }
   )
-  output$download_example_col <- downloadHandler(
+  output$download_col_rnaseq <- downloadHandler(
     filename = function() {
-      "example column annotation.csv"
+      "RNAseq_design.csv"
     },
     content = function(file) {
-      file.copy("data/iris_column.csv", file)
+      file.copy("data/RNAseq_design.csv", file)
     }
   )
-  output$download_example_row <- downloadHandler(
+  output$download_col_iris <- downloadHandler(
     filename = function() {
-      "example gene info.csv"
+      "iris_column_annot.csv"
     },
     content = function(file) {
-      file.copy("data/Gene_info.csv", file)
+      file.copy("data/iris_column_annot.csv", file)
     }
   )
-  output$download_example_row_scrnaseq <- downloadHandler(
+  output$download_row_rnaseq <- downloadHandler(
     filename = function() {
-      "example scRNAseq_clusters.csv"
+      "RNAseq_gene_info.csv"
+    },
+    content = function(file) {
+      file.copy("data/RNAseq_gene_info.csv", file)
+    }
+  )
+  output$download_row_scrnaseq <- downloadHandler(
+    filename = function() {
+      "scRNAseq_clusters.csv"
     },
     content = function(file) {
       file.copy("data/scRNAseq_clusters.csv", file)
@@ -299,7 +307,8 @@ server <- function(input, output, session) {
       row_choices <- as.character(seq_len(nrow(annot_df)))
     }
     selectInput("col_annotation_select", "Column annotation:", 
-                choices = row_choices, selected = row_choices[1], multiple = TRUE)
+                choices = row_choices, selected = row_choices[1], 
+                multiple = TRUE)
   })
 
   # Render UI for row annotation column selection (merged from both sources)
@@ -334,8 +343,9 @@ server <- function(input, output, session) {
     
     # Create the selectInput if we have any choices
     if (length(all_choices) > 0) {
-      selectInput("row_annotation_select", "Row annotations:", 
-                  choices = all_choices, selected = default_selected, multiple = TRUE)
+      tags$div(style = "margin-top: 5px;",
+               selectInput("row_annotation_select", "Row annotations:", 
+                           choices = all_choices, selected = default_selected, multiple = TRUE))
     } else {
       return(NULL)
     }
