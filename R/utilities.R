@@ -135,23 +135,37 @@ create_dr_plot <- function(coords_data, x_label, y_label, point_annot = NULL, fo
   p <- with(plot_env, {
     # Set margins
     par(mar = c(5, 5, 2, 10) + 0.1)
-    
+
+    adjusted_xlim <- c(min(coords_data[, 1]), max(coords_data[, 1]))
+    adjusted_ylim <- c(min(coords_data[, 2]), max(coords_data[, 2]))
+    if(show_labels){
+      # extend xlimit in both directions
+      xrange_adjust <- (max(coords_data[, 1]) - min(coords_data[, 1])) * 0.05
+      adjusted_xlim <- c(min(coords_data[, 1]) - xrange_adjust, 
+                         max(coords_data[, 1]) + xrange_adjust)
+      # increase ylim on top
+      yrange_adjust <- (max(coords_data[, 2]) - min(coords_data[, 2])) * 0.05
+      adjusted_ylim <- c(min(coords_data[, 2]), max(coords_data[, 1]) + yrange_adjust)    
+    }
+
     # Create the points plot
     plot(coords_data[,1], coords_data[,2], 
-         xlab = x_label,
-         ylab = y_label,
-         main = "",
-         pch = point_shapes,
-         col = point_colors,
-         cex = point_sizes,
-         cex.lab = fontsize/12,
-         cex.axis = fontsize/12)
+       xlab = x_label,
+       ylab = y_label,
+       main = "",
+       pch = point_shapes,
+       col = point_colors,
+       cex = point_sizes,
+       cex.lab = fontsize/12,
+       cex.axis = fontsize/12,      # increase limits so that the labels show up.
+       xlim = adjusted_xlim,
+       ylim = adjusted_ylim)
     
     # Add point labels if enabled
     if (show_labels && !is.null(point_labels) && length(point_labels) >= nrow(coords_data)) {
       text(coords_data[,1], coords_data[,2], 
            labels = point_labels[1:nrow(coords_data)], 
-           pos = 4, offset = 0.5, cex = fontsize/15)
+             pos = 3, offset = 0.5, cex = fontsize/15)
     }
     
     # Add legend if using annotations

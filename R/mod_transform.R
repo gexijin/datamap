@@ -597,7 +597,7 @@ transform_server <- function(id, data) {
                         tags$ul(
                           tags$li(paste("Negative Values:", ifelse(rv$has_negative, "Yes", "No"))),
                           tags$li(paste("Skewness:", round(rv$skewness, 2))),
-                          tags$li(paste("Data Range:", round(rv$data_range[1], 2), "to", round(rv$data_range[2], 2)))
+                          tags$li(paste("Range:", round(rv$data_range[1], 2), "to", round(rv$data_range[2], 2)))
                         )
                     )
                  )
