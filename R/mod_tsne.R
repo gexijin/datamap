@@ -39,6 +39,8 @@ tsne_plot_ui <- function(id) {
         )
       )
     ),
+    # Add uiOutput for dynamic checkbox display
+    uiOutput(ns("labels_checkbox_ui")),
     plotOutput(ns("tsne_plot"), width = "100%", height = "auto"),
     downloadButton(ns("download_tsne_pdf"), "PDF"),
     downloadButton(ns("download_tsne_png"), "PNG")
@@ -49,6 +51,24 @@ tsne_plot_ui <- function(id) {
 tsne_plot_server <- function(id, current_data, col_annotation_for_heatmap, row_annotation_for_heatmap,
                              fontsize, width, height) {
   moduleServer(id, function(input, output, session) {
+    
+    # Create the dynamic UI for the labels checkbox
+    output$labels_checkbox_ui <- renderUI({
+      req(current_data())
+      data_mat <- as.matrix(current_data())
+      
+      # Determine if we should show the checkbox based on data dimensions
+      show_checkbox <- if(input$tsne_transpose == "column") {
+        ncol(data_mat) <= 200
+      } else {
+        nrow(data_mat) <= 200
+      }
+      
+      # Only render the checkbox if we have a reasonable number of points
+      if(show_checkbox) {
+        checkboxInput(session$ns("show_point_labels"), "Show point labels", value = FALSE)
+      }
+    })
     
     # Store the generated t-SNE code for later use
     tsne_code <- reactiveVal(NULL)
@@ -144,7 +164,22 @@ tsne_plot_server <- function(id, current_data, col_annotation_for_heatmap, row_a
                         "colnames(tsne_coords) <- c(\"tSNE1\", \"tSNE2\")",
                         "",
                         "# Plot t-SNE results",
-                        "plot(tsne_coords$tSNE1, tsne_coords$tSNE2, pch = 16, xlab = \"tSNE 1\", ylab = \"tSNE 2\")")
+                        "plot(tsne_coords$tSNE1, tsne_coords$tSNE2, pch = 16, xlab = \"tSNE 1\", ylab = \"tSNE 2\")"
+          )
+          
+          # Add point label code if checkbox is selected
+          if (!is.null(input$show_point_labels) && input$show_point_labels) {
+            code_parts <- c(code_parts,
+              "",
+              "# Add point labels",
+              if(input$tsne_transpose == "column") {
+                "text(tsne_coords$tSNE1, tsne_coords$tSNE2, labels = colnames(processed_data),"
+              } else {
+                "text(tsne_coords$tSNE1, tsne_coords$tSNE2, labels = rownames(processed_data),"
+              },
+              "     pos = 4, offset = 0.5, cex = fontsize/15)"
+            )
+          }
           
           # Store the code
           tsne_code(paste(code_parts, collapse = "\n"))
@@ -187,8 +222,27 @@ tsne_plot_server <- function(id, current_data, col_annotation_for_heatmap, row_a
       x_label <- "tSNE 1"
       y_label <- "tSNE 2"
       
+      # Get point labels if checkbox is selected and enabled
+      point_labels <- NULL
+      show_labels <- FALSE
+      
+      # Check if the checkbox is available and checked
+      if (!is.null(input$show_point_labels) && input$show_point_labels) {
+        show_labels <- TRUE
+        data_mat <- as.matrix(current_data())
+        
+        if (transposed) {
+          # Column names as labels in column mode
+          point_labels <- colnames(data_mat)
+        } else {
+          # Row names as labels in row mode
+          point_labels <- rownames(data_mat)
+        }
+      }
+      
       # Use the generic function to create the plot
-      create_dr_plot(tsne_coords, x_label, y_label, point_annot, fontsize())
+      create_dr_plot(tsne_coords, x_label, y_label, point_annot, fontsize(),
+                    show_labels = show_labels, point_labels = point_labels)
     }
 
     # Use the reactive plot in the renderPlot function

@@ -147,10 +147,6 @@ create_dr_plot <- function(coords_data, x_label, y_label, point_annot = NULL, fo
          cex.lab = fontsize/12,
          cex.axis = fontsize/12)
     
-    # Add reference lines
-    abline(h = 0, lty = 2, col = "gray50")
-    abline(v = 0, lty = 2, col = "gray50")
-    
     # Add point labels if enabled
     if (show_labels && !is.null(point_labels) && length(point_labels) >= nrow(coords_data)) {
       text(coords_data[,1], coords_data[,2], 
