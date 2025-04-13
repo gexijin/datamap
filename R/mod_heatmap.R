@@ -8,9 +8,9 @@ downloadButton <- function(...) {
 heatmap_ui <- function(id) {
   ns <- NS(id)
   tagList(
-    plotOutput(ns("heatmap"), width = "100%", height = "600px"),
     downloadButton(ns("download_pdf"), "PDF"),
-    downloadButton(ns("download_png"), "PNG")
+    downloadButton(ns("download_png"), "PNG"),
+    plotOutput(ns("heatmap"), width = "100%", height = "600px"),
   )
 }
 
