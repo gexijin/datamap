@@ -599,9 +599,6 @@
             <li><strong>PNG:</strong> Click the <strong>PNG</strong> button to download the current heatmap as a PNG image</li>
         </ul>
         
-        <div class="note">
-            <strong>Note:</strong> The exported visualizations will reflect all customizations you've applied.
-        </div>
     </div>
 
     <div class="content-section">
@@ -638,15 +635,13 @@
         <p>Yes. DataMap runs entirely in your browser using WebAssembly technology. Your data never leaves your device and is not sent to any server, providing maximum security and privacy.</p>
         
         <h4>What is the maximum file size I can upload?</h4>
-        <p>Since the application runs in your browser, the maximum file size depends on your device's memory. Most modern browsers can handle files up to 500MB, but for optimal performance, we recommend keeping files under 100MB.</p>
+        <p>Since the application runs in your browser, the maximum file size depends on your device's memory. However, this browser app gets slow when there are 5000 rows or columns. Users can install DataMap as an R package to run it natively. </p>
         
-        <h4>Can I analyze RNA-seq or microarray data?</h4>
+        <h4>Can I analyze RNA-seq (bulk or single cell) data?</h4>
         <p>Yes, DataMap is particularly well-suited for analyzing gene expression data from RNA-seq or microarray experiments. The scaling and transformation options are designed with these data types in mind.</p>
         
         <h4>How do I cite DataMap in my publication?</h4>
         <p>If you use DataMap in your research, please cite it as: "Ge, X. (2025). DataMap: A secure browser-based application for visualizing high-dimensional data matrices. [Software]. Available from: [URL]"</p>
-        
-        <h3>Technical Questions</h3>
         
         <h4>What browsers are supported?</h4>
         <p>DataMap works best with modern browsers like Chrome, Firefox, Edge, and Safari. We recommend using the latest version of your preferred browser for optimal performance.</p>
@@ -654,14 +649,28 @@
         <h4>My visualization is taking a long time to generate. What can I do?</h4>
         <p>For large datasets, consider these strategies to improve performance:</p>
         <ul>
+            <li>Try install DataMap as an R package. See instruction on the GitHub page.</li>
             <li>Filter your data to fewer rows (use the "Keep top most variable rows" option)</li>
             <li>Use simpler clustering methods (like "single" or "average" instead of "complete" or "ward.D")</li>
             <li>Reduce the perplexity value for t-SNE</li>
-            <li>Allocate more memory to your browser if possible</li>
         </ul>
         
         <h4>Can I use DataMap offline?</h4>
         <p>Yes, once loaded in your browser, DataMap can operate without an internet connection. You can bookmark the page for offline access in some browsers.</p>
+        <h4>Who owns the copyright of the produced plots?</h4>
+        <p>You!</p>
+    </div>
+
+    <div class="content-section">
+        <h2>Install as an R package</h2>
+        <p>remotes::install_github("gexijin/datamap", ref = "rPackage")</p>
+        <p>DataMap::run_datamap()</p>
+    </div>
+
+    <div class="content-section">
+        <h2>Source code, Bug Reports, and Feature Requests</h2>
+        <p>If you encounter any issues or have suggestions for improving DataMap, please report them on our GitHub repository:</p>
+        <p><a href="https://github.com/gexijin/datamap" target="_blank">https://github.com/gexijin/datamap</a></p>
     </div>
 
     <div class="author-info">
@@ -678,15 +687,9 @@
         </div>
     </div>
 
-    <div class="content-section">
-        <h2>Bug Reports and Feature Requests</h2>
-        <p>If you encounter any issues or have suggestions for improving DataMap, please report them on our GitHub repository:</p>
-        <p><a href="https://github.com/gexijin/datamap" target="_blank">https://github.com/gexijin/datamap</a></p>
-    </div>
-
     <div class="footer">
         <p>DataMap by Dr. Xijin Ge, South Dakota State University &copy; 2025</p>
-        <p>This documentation last updated: April 6, 2025</p>
+        <p>This documentation last updated: April 12, 2025</p>
     </div>
 
     <script>
