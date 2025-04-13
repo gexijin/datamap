@@ -140,12 +140,12 @@ create_dr_plot <- function(coords_data, x_label, y_label, point_annot = NULL, fo
     adjusted_ylim <- c(min(coords_data[, 2]), max(coords_data[, 2]))
     if(show_labels){
       # extend xlimit in both directions
-      xrange_adjust <- (max(coords_data[, 1]) - min(coords_data[, 1])) * 0.05
+      xrange_adjust <- (max(coords_data[, 1]) - min(coords_data[, 1])) * 0.1
       adjusted_xlim <- c(min(coords_data[, 1]) - xrange_adjust, 
                          max(coords_data[, 1]) + xrange_adjust)
       # increase ylim on top
       yrange_adjust <- (max(coords_data[, 2]) - min(coords_data[, 2])) * 0.05
-      adjusted_ylim <- c(min(coords_data[, 2]), max(coords_data[, 1]) + yrange_adjust)    
+      adjusted_ylim <- c(min(coords_data[, 2]), max(coords_data[, 2]) + yrange_adjust)
     }
 
     # Create the points plot

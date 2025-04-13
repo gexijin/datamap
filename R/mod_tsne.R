@@ -39,8 +39,7 @@ tsne_plot_ui <- function(id) {
         )
       )
     ),
-    # Add uiOutput for dynamic checkbox display
-    uiOutput(ns("labels_checkbox_ui")),
+    checkboxInput(ns("show_point_labels"), "Show point labels", value = FALSE),
     plotOutput(ns("tsne_plot"), width = "100%", height = "auto"),
     downloadButton(ns("download_tsne_pdf"), "PDF"),
     downloadButton(ns("download_tsne_png"), "PNG")
@@ -51,24 +50,6 @@ tsne_plot_ui <- function(id) {
 tsne_plot_server <- function(id, current_data, col_annotation_for_heatmap, row_annotation_for_heatmap,
                              fontsize, width, height) {
   moduleServer(id, function(input, output, session) {
-    
-    # Create the dynamic UI for the labels checkbox
-    output$labels_checkbox_ui <- renderUI({
-      req(current_data())
-      data_mat <- as.matrix(current_data())
-      
-      # Determine if we should show the checkbox based on data dimensions
-      show_checkbox <- if(input$tsne_transpose == "column") {
-        ncol(data_mat) <= 200
-      } else {
-        nrow(data_mat) <= 200
-      }
-      
-      # Only render the checkbox if we have a reasonable number of points
-      if(show_checkbox) {
-        checkboxInput(session$ns("show_point_labels"), "Show point labels", value = FALSE)
-      }
-    })
     
     # Store the generated t-SNE code for later use
     tsne_code <- reactiveVal(NULL)

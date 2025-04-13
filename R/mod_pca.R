@@ -10,16 +10,16 @@ downloadButton <- function(...) {
 
 # UI Function
 pca_plot_ui <- function(id) {
-  # Create a namespace function using the provided id
   ns <- NS(id)
   
   tagList(
-    selectInput(ns("pca_transpose"), "PCA Analysis Mode:",
-                choices = c("Row vectors" = "row", 
-                            "Column vectors" = "column"),
-                selected = "row"),
-    # Add uiOutput for dynamic checkbox display
-    uiOutput(ns("labels_checkbox_ui")),
+    fluidRow(
+      column(4, selectInput(ns("pca_transpose"), "PCA Analysis Mode:",
+        choices = c("Row vectors" = "row", 
+              "Column vectors" = "column"),
+        selected = "row")),
+      column(8, checkboxInput(ns("show_point_labels"), "Show names", value = FALSE), style = "margin-top:15px;", align = "left")
+    ),
     plotOutput(ns("pca_plot"), width = "100%", height = "auto"),
     downloadButton(ns("download_pca_pdf"), "PDF"),
     downloadButton(ns("download_pca_png"), "PNG")
@@ -29,24 +29,6 @@ pca_plot_ui <- function(id) {
 # Server Function
 pca_plot_server <- function(id, current_data, col_annotation_for_heatmap, row_annotation_for_heatmap, input_fontsize, input_width, input_height) {
   moduleServer(id, function(input, output, session) {
-    
-    # Create the dynamic UI for the labels checkbox
-    output$labels_checkbox_ui <- renderUI({
-      req(current_data())
-      data_mat <- as.matrix(current_data())
-      
-      # Determine if we should show the checkbox based on data dimensions
-      show_checkbox <- if(input$pca_transpose == "column") {
-        ncol(data_mat) <= 200
-      } else {
-        nrow(data_mat) <= 200
-      }
-      
-      # Only render the checkbox if we have a reasonable number of points
-      if(show_checkbox) {
-        checkboxInput(session$ns("show_point_labels"), "Show names", value = FALSE)
-      }
-    })
     
     # Modify the pca_data reactive to handle transposition
     pca_data <- reactive({
