@@ -10,7 +10,8 @@ DataMap::run_datamap()
 DataMap is a secure, browser-based application for visualizing high-dimensional 'omics and other data matrices with heatmaps, PCA, and t-SNE. Built with Shiny and running entirely in your browser through Shinylive technology, DataMap ensures your data never leaves your device.
 
 ![heatmap](https://github.com/user-attachments/assets/b649808a-d8d3-4a84-94ed-bec42a9b8f81)
-![image](https://github.com/user-attachments/assets/325d7761-e27d-4625-9c71-16a18faff1a7)
+![image](https://github.com/user-attachments/assets/cbdaaa45-e681-4cbd-b8ef-500b0c4b0b8a)
+
 
 
 
