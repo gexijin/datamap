@@ -455,9 +455,9 @@ heatmap_control_ui <- function(id) {
     fluidRow(
       column(3, p("Colors:", style="padding-top: 7px; text-align: right;")),
       column(9, selectInput(ns("color"), NULL,
-               choices = c("GreenBlackRed", "RdBu", "RdYlBu", "YlOrRd", 
-                           "YlGnBu", "Blues", "Greens", "Purples", "Reds", "OrRd"),
-               selected = "GreenBlackRed"))
+               choices = c("Green Black Red" = "GreenBlackRed", "Red yellow blue" ="RdYlBu", "Red Blue" = "RdBu", "Yellow orange red" = "YlOrRd", 
+                           "Yellow Green Blue" = "YlGnBu", "Blues", "Greens", "Purples", "Reds", "OrRd"),
+               selected = "RdYlBu"))
     ),
     
     # Font size - more compact

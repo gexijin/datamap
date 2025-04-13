@@ -1,7 +1,12 @@
 # DataMap: A Shiny app for visualizing data matrices with heatmaps, PCA, and t-SNE
 # by Steven Ge 4/5/2025  
 library(shiny)
-
+# this solves the issue of the download button not working from Chromium when this app is deployed as Shinylive
+downloadButton <- function(...) {
+ tag <- shiny::downloadButton(...)
+ tag$attribs$download <- NULL
+ tag
+}
 source("R/utilities.R")
 source("R/mod_file_upload.R")
 source("R/mod_transform.R")
@@ -14,12 +19,7 @@ source("R/mod_code_generation.R")
 max_rows_to_show <- 1000  # Maximum number of rows to show row names in the heatmap
 default_width <- 600
 default_height <- 600
-# this solves the issue of the download button not working from Chromium when this app is deployed as Shinylive
-downloadButton <- function(...) {
- tag <- shiny::downloadButton(...)
- tag$attribs$download <- NULL
- tag
-}
+
 ui <- fluidPage(
 
   titlePanel("DataMap: a portable app for visualizing data matrices"),  
