@@ -513,6 +513,7 @@ server <- function(input, output, session) {
     "heatmap",
     current_data,
     file_data,
+    transform_data$unprocessed_data,
     col_annotation_for_heatmap,
     row_annotation_for_heatmap,
     transform_data,

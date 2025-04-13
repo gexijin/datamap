@@ -43,6 +43,7 @@ transform_server <- function(id, data) {
     # Reactive values to store processed data and state
     rv <- reactiveValues(
       processed_data = NULL,
+      unprocessed_data = NULL, # same dimension as processed, but original data for labeling on heatmap
       has_missing = FALSE,
       has_negative = FALSE,
       has_zeros = FALSE,
@@ -171,6 +172,7 @@ transform_server <- function(id, data) {
       }
       
       rv$processed_data <- data_matrix
+      rv$unprocessed_data <- data_matrix
     }
     
     # Function to generate reproducible R code
@@ -420,6 +422,8 @@ transform_server <- function(id, data) {
         if (top_n < nrow(processed)) {
           top_indices <- order(row_sds, decreasing = TRUE)[1:top_n]
           processed <- processed[top_indices, , drop = FALSE]
+          # store corresponding raw data
+          rv$unprocessed_data <- rv$original_data_matrix[top_indices, , drop = FALSE]
         }
       }
 
@@ -753,6 +757,13 @@ transform_server <- function(id, data) {
       processed_data = reactive({ 
         if (rv$changes_applied) {
           rv$processed_data 
+        } else {
+          NULL
+        }
+      }),
+      unprocessed_data = reactive({
+        if (rv$changes_applied) {
+          rv$unprocessed_data 
         } else {
           NULL
         }

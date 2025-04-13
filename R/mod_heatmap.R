@@ -21,7 +21,8 @@ heatmap_ui <- function(id) {
 
 # Module server function
 heatmap_server <- function(id, current_data, 
-                         file_data, 
+                         file_data,
+                         unprocessed_data,
                          col_annotation_for_heatmap, 
                          row_annotation_for_heatmap, 
                          transform_data,
@@ -125,7 +126,7 @@ heatmap_server <- function(id, current_data,
                 annotation_row = row_annotation_for_heatmap(),
                 show_rownames = show_row_names,
                 silent = TRUE,
-                display_numbers = if (input$label_heatmap) round(as.matrix(current_data()), 2) else FALSE
+                display_numbers = if (input$label_heatmap) round(as.matrix(unprocessed_data()), 2) else FALSE
               )
               
               if (input$cluster_rows) {
@@ -176,7 +177,7 @@ heatmap_server <- function(id, current_data,
               annotation_row = row_annotation_for_heatmap(),
               show_rownames = show_row_names,
               silent = TRUE,
-              display_numbers = if (input$label_heatmap) round(as.matrix(current_data()), 2) else FALSE
+              display_numbers = if (input$label_heatmap) round(as.matrix(unprocessed_data()), 2) else FALSE
               )
               
               # Only add cutree parameters if clustering is enabled and value > 0
@@ -458,7 +459,7 @@ heatmap_control_ui <- function(id) {
       column(3, p("Distance:", style="padding-top: 7px; text-align: right;")),
       column(9, selectInput(ns("distance_method"), NULL,
                choices = c("euclidean", "manhattan", "maximum", "canberra", "binary", "minkowski", "pearson", "spearman", "kendall"),
-               selected = "pearson"))
+               selected = "euclidean"))
     ),
     
     # Color palette - compact
