@@ -453,7 +453,7 @@ heatmap_control_ui <- function(id) {
               choices = c("complete", "average", "single", "ward.D", "ward.D2", "mcquitty", "median", "centroid"),
               selected = "average"))
     ),
-               
+
     # Distance method - label to the left
     fluidRow(
       column(3, p("Distance:", style="padding-top: 7px; text-align: right;")),

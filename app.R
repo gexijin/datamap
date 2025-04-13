@@ -105,10 +105,12 @@ ui <- fluidPage(
           code_generation_ui("code_gen") 
         ),
         tabPanel("About",
-                titlePanel("DataMap: a portable app for visualizing data matrices"),  
+                titlePanel("DataMap: a portable app for visualizing data matrices v0.1"),  
                 img(src = "heatmap.png", width = "375px", height = "300px"),
+                img(src = "pca.png", width = "384px", height = "329px"),
+                img(src = "countries_label.png", width = "401px", height = "300px"),
                 img(src = "tsne.png", width = "335px", height = "300px"),
-                img(src = "countries.png", width = "286px", height = "300px"),
+                #img(src = "countries.png", width = "286px", height = "300px"),
                 includeHTML("www/help.html")
         )
       )
