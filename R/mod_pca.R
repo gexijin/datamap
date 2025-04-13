@@ -18,6 +18,8 @@ pca_plot_ui <- function(id) {
                 choices = c("Row vectors" = "row", 
                             "Column vectors" = "column"),
                 selected = "row"),
+    # Add uiOutput for dynamic checkbox display
+    uiOutput(ns("labels_checkbox_ui")),
     plotOutput(ns("pca_plot"), width = "100%", height = "auto"),
     downloadButton(ns("download_pca_pdf"), "PDF"),
     downloadButton(ns("download_pca_png"), "PNG")
@@ -27,6 +29,24 @@ pca_plot_ui <- function(id) {
 # Server Function
 pca_plot_server <- function(id, current_data, col_annotation_for_heatmap, row_annotation_for_heatmap, input_fontsize, input_width, input_height) {
   moduleServer(id, function(input, output, session) {
+    
+    # Create the dynamic UI for the labels checkbox
+    output$labels_checkbox_ui <- renderUI({
+      req(current_data())
+      data_mat <- as.matrix(current_data())
+      
+      # Determine if we should show the checkbox based on data dimensions
+      show_checkbox <- if(input$pca_transpose == "column") {
+        ncol(data_mat) <= 200
+      } else {
+        nrow(data_mat) <= 200
+      }
+      
+      # Only render the checkbox if we have a reasonable number of points
+      if(show_checkbox) {
+        checkboxInput(session$ns("show_point_labels"), "Show names", value = FALSE)
+      }
+    })
     
     # Modify the pca_data reactive to handle transposition
     pca_data <- reactive({
@@ -90,8 +110,27 @@ pca_plot_server <- function(id, current_data, col_annotation_for_heatmap, row_an
       x_label <- paste0("PC1 (", pc1_var, "%)")
       y_label <- paste0("PC2 (", pc2_var, "%)")
       
+      # Get point labels if checkbox is selected and enabled
+      point_labels <- NULL
+      show_labels <- FALSE
+      
+      # Check if the checkbox is available and checked
+      if (!is.null(input$show_point_labels) && input$show_point_labels) {
+        show_labels <- TRUE
+        data_mat <- as.matrix(current_data())
+        
+        if (transposed) {
+          # Column names as labels in column mode
+          point_labels <- colnames(data_mat)
+        } else {
+          # Row names as labels in row mode
+          point_labels <- rownames(data_mat)
+        }
+      }
+      
       # Use the generic function to create the plot
-      create_dr_plot(pc_data, x_label, y_label, point_annot, input_fontsize())
+      create_dr_plot(pc_data, x_label, y_label, point_annot, input_fontsize(), 
+                     show_labels = show_labels, point_labels = point_labels)
     }
     
     output$pca_plot <- renderPlot({
@@ -150,6 +189,17 @@ pca_plot_server <- function(id, current_data, col_annotation_for_heatmap, row_an
         ""
       )
       
+      # Add point label code if checkbox is selected
+      if (!is.null(input$show_point_labels) && input$show_point_labels) {
+        code <- c(code,
+          "",
+          "# Add point labels",
+          "text(pc_data$PC1, pc_data$PC2, labels = rownames(processed_data),",
+          "     pos = 4, offset = 0.5, cex = fontsize/15)",
+          ""
+        )
+      }
+      
       # Add row annotation code if used
       if (!is.null(row_annotation_for_heatmap())) {
         code <- c(code,
@@ -183,7 +233,20 @@ pca_plot_server <- function(id, current_data, col_annotation_for_heatmap, row_an
           "       cex = fontsize/12,",     
           "       cex.lab = fontsize/12,", 
           "       cex.axis = fontsize/12)",
-          "",
+          ""
+        )
+        
+        # Add point label code if checkbox is selected (for annotated plot)
+        if (!is.null(input$show_point_labels) && input$show_point_labels) {
+          code <- c(code,
+            "  # Add point labels",
+            "  text(pc_data$PC1, pc_data$PC2, labels = rownames(processed_data),",
+            "       pos = 4, offset = 0.5, cex = fontsize/15)",
+            ""
+          )
+        }
+        
+        code <- c(code,
           "  # Add reference lines",
           "  abline(h = 0, lty = 2, col = \"gray50\")",
           "  abline(v = 0, lty = 2, col = \"gray50\")",

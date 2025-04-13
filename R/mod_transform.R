@@ -558,7 +558,7 @@ transform_server <- function(id, data) {
                  # Outlier capping row
                  fluidRow(
                      column(6,
-                         checkboxInput(ns("do_zscore_cap"), "Cap outliers based on Z-score", 
+                         checkboxInput(ns("do_zscore_cap"), "Cap outliers by Z-score", 
                                       value = rv$ui_settings$do_zscore_cap)
                      ),
                      column(6,
@@ -573,7 +573,7 @@ transform_server <- function(id, data) {
                  # Row filtering row
                  fluidRow(
                      column(6,
-                         checkboxInput(ns("do_filter_rows"), "Keep top most variable rows", 
+                         checkboxInput(ns("do_filter_rows"), "Keep most variable rows", 
                                       value = rv$ui_settings$do_filter_rows)
                      ),
                      column(6,

@@ -76,7 +76,8 @@ guess_transform <- function(data_matrix) {
 }
 
 # Generic dimensionality reduction plot function
-create_dr_plot <- function(coords_data, x_label, y_label, point_annot = NULL, fontsize = 12) {
+create_dr_plot <- function(coords_data, x_label, y_label, point_annot = NULL, fontsize = 12, 
+                          show_labels = FALSE, point_labels = NULL) {
   # Default plot settings
   point_colors <- "black"
   point_shapes <- 16
@@ -145,6 +146,17 @@ create_dr_plot <- function(coords_data, x_label, y_label, point_annot = NULL, fo
          cex = point_sizes,
          cex.lab = fontsize/12,
          cex.axis = fontsize/12)
+    
+    # Add reference lines
+    abline(h = 0, lty = 2, col = "gray50")
+    abline(v = 0, lty = 2, col = "gray50")
+    
+    # Add point labels if enabled
+    if (show_labels && !is.null(point_labels) && length(point_labels) >= nrow(coords_data)) {
+      text(coords_data[,1], coords_data[,2], 
+           labels = point_labels[1:nrow(coords_data)], 
+           pos = 4, offset = 0.5, cex = fontsize/15)
+    }
     
     # Add legend if using annotations
     if (length(legend_items) > 0) {
