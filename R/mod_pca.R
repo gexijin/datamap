@@ -14,11 +14,11 @@ pca_plot_ui <- function(id) {
   
   tagList(
     fluidRow(
-      column(4, selectInput(ns("pca_transpose"), "PCA Analysis Mode:",
+      column(3, selectInput(ns("pca_transpose"), NULL,
         choices = c("Row vectors" = "row", 
               "Column vectors" = "column"),
-        selected = "row")),
-      column(8, checkboxInput(ns("show_point_labels"), "Show names", value = FALSE), style = "margin-top:15px;", align = "left")
+        selected = "row"), style = "margin-top:5px;"),
+      column(9, checkboxInput(ns("show_point_labels"), "Show names", value = FALSE), style = "margin-top:5px;", align = "left")
     ),
     plotOutput(ns("pca_plot"), width = "100%", height = "auto"),
     downloadButton(ns("download_pca_pdf"), "PDF"),

@@ -26,7 +26,7 @@ map_transform_code <- function(code) {
 #'
 transform_ui <- function(id) {
   ns <- NS(id)
-  actionButton(ns("show_preprocess"), "Data Prep.", 
+  actionButton(ns("show_preprocess"), "Transform", 
                icon = icon("filter"), style = "margin-top: 5px;")
 }
 

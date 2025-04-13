@@ -8,8 +8,13 @@ downloadButton <- function(...) {
 heatmap_ui <- function(id) {
   ns <- NS(id)
   tagList(
-    downloadButton(ns("download_pdf"), "PDF"),
-    downloadButton(ns("download_png"), "PNG"),
+    fluidRow(
+      column(
+        12, 
+        downloadButton(ns("download_pdf"), "PDF"),
+        downloadButton(ns("download_png"), "PNG"), 
+        align = "right")
+    ),
     plotOutput(ns("heatmap"), width = "100%", height = "600px"),
   )
 }

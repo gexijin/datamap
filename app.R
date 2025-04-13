@@ -16,19 +16,18 @@ default_width <- 600
 default_height <- 600
 
 ui <- fluidPage(
-
-  titlePanel("DataMap: a portable app for visualizing data matrices"),  
+  
   sidebarLayout(
     sidebarPanel(
       width = 3,
       
       # Place Upload Files and Reset buttons on the same row
       fluidRow(
-        column(7, 
-          actionButton("show_upload_modal", "Data Files", 
+        column(6, 
+          actionButton("show_upload_modal", "Files", 
                       icon = icon("upload"))
         ),
-        column(5,
+        column(6,
           conditionalPanel(
             condition = "output.data_loaded",
             actionButton("reset_session", "Reset", 
@@ -73,7 +72,7 @@ ui <- fluidPage(
         # Font size control
         fluidRow(
           column(3, p("Font:", style="padding-top: 7px; text-align: right;")),
-          column(9, sliderInput("global_fontsize", NULL, min = 5, max = 25, value = 12))
+          column(9, sliderInput("global_fontsize", NULL, min = 5, max = 30, value = 12))
         ),
         
         # Width & Height controls
@@ -84,7 +83,7 @@ ui <- fluidPage(
         
         fluidRow(
           column(3, p("Height:", style="padding-top: 7px; text-align: right;")),
-          column(9, sliderInput("global_height", NULL, min = 200, max = 2000, value = 600, step = 20))
+          column(9, sliderInput("global_height", NULL, min = 200, max = 2000, value = 500, step = 20))
         )
       )
     ),
@@ -106,7 +105,8 @@ ui <- fluidPage(
           code_generation_ui("code_gen") 
         ),
         tabPanel("About",
-                img(src = "heatmap.png", width = "300px", height = "300px"),
+                titlePanel("DataMap: a portable app for visualizing data matrices"),  
+                img(src = "heatmap.png", width = "375px", height = "300px"),
                 img(src = "tsne.png", width = "335px", height = "300px"),
                 img(src = "countries.png", width = "286px", height = "300px"),
                 includeHTML("www/help.html")
