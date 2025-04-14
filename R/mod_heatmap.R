@@ -481,12 +481,12 @@ heatmap_control_ui <- function(id) {
     # Width & Height in more compact form
     fluidRow(
       column(3, p("Width:", style="padding-top: 7px; text-align: right;")),
-      column(9, sliderInput(ns("width"), NULL, min = 200, max = 2000, value = 600, step = 20))
+      column(9, sliderInput(ns("width"), NULL, min = 200, max = 4000, value = 600, step = 20))
     ),
     
     fluidRow(
       column(3, p("Height:", style="padding-top: 7px; text-align: right;")),
-      column(9, sliderInput(ns("height"), NULL, min = 200, max = 2000, value = 600, step = 20))
+      column(9, sliderInput(ns("height"), NULL, min = 200, max = 6000, value = 600, step = 20))
     ),
     fluidRow(
       column(6, checkboxInput(ns("label_heatmap"), "Label Data", value = FALSE)),

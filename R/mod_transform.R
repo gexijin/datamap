@@ -452,9 +452,9 @@ transform_server <- function(id, data) {
         progress$set(value = 0.7, detail = "Capping outliers")
         z_input <- input$zscore_cutoff
         if (is.null(z_input) || is.na(z_input) || !is.numeric(z_input)) {
-          z_cutoff <- 1  # Default to 1 if the input is invalid
+          z_cutoff <- 3  # Default to 1 if the input is invalid
         } else {
-          z_cutoff <- max(1, as.numeric(z_input))
+          z_cutoff <- max(3, as.numeric(z_input))
         }
         flat_data <- as.numeric(processed)
         flat_data <- flat_data[is.finite(flat_data)]
