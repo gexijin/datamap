@@ -11,6 +11,7 @@ DataMap is a secure, browser-based application for visualizing high-dimensional 
 
 ![heatmap](https://github.com/user-attachments/assets/b649808a-d8d3-4a84-94ed-bec42a9b8f81)
 ![image](https://github.com/user-attachments/assets/cbdaaa45-e681-4cbd-b8ef-500b0c4b0b8a)
+![tsne](https://github.com/user-attachments/assets/e732c12b-d042-475a-baaf-3424232f63ce)
 
 
 
@@ -58,7 +59,7 @@ Slower in the browser when clustering 5000 rows or columns. Can take up to 2 min
 
 If you use DataMap in your research, please cite it as:
 
-> Ge, X. (2025). DataMap: A secure browser-based application for visualizing high-dimensional data matrices. [Software]. Available from: https://gexijin.github.io/datamap/
+> Ge, X. (2025). DataMap: A Portable Application for Visualizing High-Dimensional Data,	[arXiv:2504.08875](https://arxiv.org/abs/2504.08875), 2025.
 
 **Dr. Xijin Ge** is a Professor at South Dakota State University. [LinkedIn](https://www.linkedin.com/in/steven-ge-ab016947/), [BlueSky.](https://bsky.app/profile/stevenge.bsky.social)
 
