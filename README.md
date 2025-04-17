@@ -62,3 +62,93 @@ If you use DataMap in your research, please cite it as:
 
 **Dr. Xijin Ge** is a Professor at South Dakota State University. [LinkedIn](https://www.linkedin.com/in/steven-ge-ab016947/), [BlueSky.](https://bsky.app/profile/stevenge.bsky.social)
 
+# DataMap Project
+
+This project uses Python with various data science packages for data analysis and visualization.
+
+## Prerequisites
+
+- Python 3.8 or higher
+- pip (Python package installer)
+
+## Installation
+
+### Windows Installation
+
+1. Open PowerShell in the project directory
+2. Run the installation script:
+   ```powershell
+   .\install_packages.ps1
+   ```
+   If you encounter a PowerShell execution policy error, run:
+   ```powershell
+   Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+   ```
+
+### Unix-like Systems (Linux/macOS) Installation
+
+1. Open a terminal in the project directory
+2. Make the installation script executable:
+   ```bash
+   chmod +x install_packages.sh
+   ```
+3. Run the installation script:
+   ```bash
+   ./install_packages.sh
+   ```
+
+## Manual Installation
+
+If you prefer to install packages manually:
+
+1. Install `uv`:
+   ```bash
+   pip install uv
+   ```
+
+2. Create a virtual environment:
+   ```bash
+   uv venv
+   ```
+
+3. Activate the virtual environment:
+   - Windows:
+     ```powershell
+     .\venv\Scripts\Activate.ps1
+     ```
+   - Unix-like systems:
+     ```bash
+     source venv/bin/activate
+     ```
+
+4. Install required packages:
+   ```bash
+   uv pip install -r requirements.txt
+   ```
+
+## Required Packages
+
+The project requires the following Python packages:
+- numpy
+- pandas
+- matplotlib
+- seaborn
+- scipy
+- scikit-learn
+- openpyxl
+
+These packages will be automatically installed when running the installation script.
+
+## Troubleshooting
+
+If you encounter any issues during installation:
+
+1. Ensure Python and pip are properly installed
+2. Check your internet connection
+3. Try running the installation commands with administrator/root privileges
+4. If using Windows, make sure PowerShell execution policy allows script execution
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
