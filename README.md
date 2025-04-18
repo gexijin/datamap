@@ -6,7 +6,7 @@ install.packages("remotes")
 remotes::install_github("gexijin/datamap", ref = "rPackage", upgrade = "never")
 DataMap::run_datamap()
 ```
-Watch YouTube videos  [here](https://youtu.be/9G508BxzjBk) and  [here.](https://www.youtube.com/watch?v=a4ioAVTcCoo)
+Quick start: watch short YouTube videos  [here](https://youtu.be/9G508BxzjBk) and  [here.](https://www.youtube.com/watch?v=a4ioAVTcCoo)
 
 DataMap is a secure, browser-based application for visualizing high-dimensional 'omics and other data matrices with heatmaps, PCA, and t-SNE. Built with Shiny and running entirely in your browser through Shinylive technology, DataMap ensures your data never leaves your device.
 
