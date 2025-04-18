@@ -445,7 +445,7 @@ file_upload_server <- function(id) {
               header = input$import_header,
               sep = delimiter,
               stringsAsFactors = FALSE,
-              check.names = FALSE
+              check.names = TRUE # Ensure column names are valid R names
             )
           } else {
             df <- read.csv(
@@ -453,13 +453,15 @@ file_upload_server <- function(id) {
               header = input$import_header,
               sep = delimiter,
               stringsAsFactors = FALSE,
-              check.names = FALSE
+              check.names = TRUE # Ensure column names are valid R names
             )
           }
         }
 
         # Remove "-" or "." from sample names ----------
         colnames(df) <- gsub("-", "_", colnames(df))
+        colnames(df) <- gsub(" ", "", colnames(df))
+        #browser()
         # Process row names if selected - with safe logical checks
         if(isTRUE(using_rownames) && !is.null(df) && ncol(df) > 1) {
           row_names <- df[[1]]

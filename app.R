@@ -409,7 +409,7 @@ server <- function(input, output, session) {
     annot_df <- col_annotation_file_data$data()
     main_cols <- colnames(current_data())
     annot_cols <- colnames(annot_df)
-    
+
     # Tolerate extra samples in the annotation file:
     # Proceed as long as all data matrix columns are present in the annotation file.
     if (!all(main_cols %in% annot_cols)) {
