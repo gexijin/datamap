@@ -111,20 +111,6 @@ ui <- fluidPage(
           img(src = "countries_label.png", width = "401px", height = "300px"),
           img(src = "tsne.png", width = "335px", height = "300px"),
           #img(src = "countries.png", width = "286px", height = "300px"),
-          tags$iframe(
-            width = "560", height = "315",
-            src = "https://www.youtube.com/embed/9G508BxzjBk",
-            frameborder = "0",
-            allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture",
-            allowfullscreen = NA
-          ),
-          tags$iframe(
-            width = "560", height = "315",
-            src = "https://www.youtube.com/embed/a4ioAVTcCoo",
-            frameborder = "0",
-            allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture",
-            allowfullscreen = NA
-          ),
           includeHTML("www/help.html")
         )
       )
