@@ -399,37 +399,46 @@ server <- function(input, output, session) {
     }
   })
   
-  # Column annotation for heatmap
-  col_annotation_for_heatmap <- reactive({
-    req(current_data())
-    # If no column annotation file is uploaded, return NULL
-    if (is.null(col_annotation_file_data$data())) {
-      return(NULL)
-    }
-    annot_df <- col_annotation_file_data$data()
-    main_cols <- colnames(current_data())
-    annot_cols <- colnames(annot_df)
-
-    # Tolerate extra samples in the annotation file:
-    # Proceed as long as all data matrix columns are present in the annotation file.
-    if (!all(main_cols %in% annot_cols)) {
-      return(NULL)
-    }
-    # Subset and reorder annotation file columns to match the main data matrix
-    annot_df <- annot_df[, main_cols, drop = FALSE]
-    
-    # Use the selected annotation rows
-    selected <- input$col_annotation_select
-    
-    # If nothing selected (either NULL or length 0), return NULL
-    if (is.null(selected) || length(selected) == 0) {
-      return(NULL)
-    }
-    
-    annot_selected <- annot_df[selected, , drop = FALSE]
-    # Transpose so that each row corresponds to a sample (column in main data)
-    as.data.frame(t(annot_selected))
-  })
+# Column annotation for heatmap
+col_annotation_for_heatmap <- reactive({
+  req(current_data())
+  
+  # Check if we have annotation data
+  if (is.null(col_annotation_file_data$data())) {
+    return(NULL)
+  }
+  
+  # Get annotation data
+  annot_df <- col_annotation_file_data$data()
+  main_cols <- colnames(current_data())
+  
+  # Check if annotation rows are selected
+  selected <- input$col_annotation_select
+  if (is.null(selected) || length(selected) == 0) {
+    return(NULL)
+  }
+  
+  annot_selected <- annot_df[selected, , drop = FALSE]
+  
+  # Check if there are any common samples between main data and annotation file
+  common_samples <- intersect(main_cols, colnames(annot_selected))
+  if (length(common_samples) == 0) {
+    return(NULL)
+  }
+  
+  # Create an empty data frame with all main data samples
+  output_df <- data.frame(matrix(NA, nrow = length(main_cols), ncol = nrow(annot_selected)))
+  rownames(output_df) <- main_cols
+  colnames(output_df) <- rownames(annot_selected)
+  
+  for (ann in rownames(annot_selected)) {
+    values <- as.character(annot_selected[ann, common_samples])
+    names(values) <- common_samples
+    output_df[common_samples, ann] <- values
+  }
+  
+  return(output_df)
+})
   
    auto_row_annotation <- reactive({
     # Return the factor columns identified during data transformation
