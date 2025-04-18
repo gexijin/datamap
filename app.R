@@ -104,6 +104,16 @@ ui <- fluidPage(
         tabPanel("Code",
           code_generation_ui("code_gen") 
         ),
+        tabPanel("Data",
+          fluidRow(
+            column(12,
+              div(style = "overflow-x: auto;", 
+                  tableOutput("data_preview")
+              ),
+              downloadButton("download_data", "Transformed Data")
+            )
+          )
+        ),
         tabPanel("About",
           titlePanel("DataMap: a portable app for visualizing data matrices v0.1"),  
           img(src = "heatmap.png", width = "375px", height = "300px"),
@@ -707,13 +717,52 @@ col_annotation_for_heatmap <- reactive({
     height_for_plots     # Use our reactive
   )
   code_gen_results <- code_generation_server(
-  "code_gen",
-  file_data,
-  transform_data,
-  heatmap_results,
-  pca_results,
-  tsne_results
-)
+    "code_gen",
+    file_data,
+    transform_data,
+    heatmap_results,
+    pca_results,
+    tsne_results
+  )
+
+  output$data_preview <- renderTable({
+    req(current_data())
+    data <- current_data()
+    
+    # Ensure data is a data frame
+    if(!is.data.frame(data)) {
+      data <- as.data.frame(data)
+    }
+    
+    # Limit to 30 rows and 30 columns
+    max_rows <- min(30, nrow(data))
+    max_cols <- min(30, ncol(data))
+    
+    # Get the row indices and column indices
+    row_indices <- seq_len(max_rows)
+    col_indices <- seq_len(max_cols)
+    
+    # Create a preview version of the data
+    preview_data <- data[row_indices, col_indices, drop = FALSE]
+    
+    # Return the preview with row names preserved
+    preview_data
+  }, rownames = TRUE, colnames = TRUE, bordered = TRUE, width = "100%", 
+     digits = 3, align = 'c')
+
+  
+  # Download handler for the data
+  output$download_data <- downloadHandler(
+    filename = function() {
+      paste0("transformed_data-", format(Sys.time(), "%Y%m%d-%H%M%S"), ".csv")
+    },
+    content = function(file) {
+      data <- current_data()
+      write.csv(data, file, row.names = TRUE)
+    }
+  )
+
+
 }
 
 # Run the application
