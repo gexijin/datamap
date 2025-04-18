@@ -457,6 +457,9 @@ file_upload_server <- function(id) {
             )
           }
         }
+
+        # Remove "-" or "." from sample names ----------
+        colnames(df) <- gsub("-", "_", colnames(df))
         # Process row names if selected - with safe logical checks
         if(isTRUE(using_rownames) && !is.null(df) && ncol(df) > 1) {
           row_names <- df[[1]]
