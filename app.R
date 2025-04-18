@@ -105,13 +105,27 @@ ui <- fluidPage(
           code_generation_ui("code_gen") 
         ),
         tabPanel("About",
-                titlePanel("DataMap: a portable app for visualizing data matrices v0.1"),  
-                img(src = "heatmap.png", width = "375px", height = "300px"),
-                img(src = "pca.png", width = "384px", height = "329px"),
-                img(src = "countries_label.png", width = "401px", height = "300px"),
-                img(src = "tsne.png", width = "335px", height = "300px"),
-                #img(src = "countries.png", width = "286px", height = "300px"),
-                includeHTML("www/help.html")
+          titlePanel("DataMap: a portable app for visualizing data matrices v0.1"),  
+          img(src = "heatmap.png", width = "375px", height = "300px"),
+          img(src = "pca.png", width = "384px", height = "329px"),
+          img(src = "countries_label.png", width = "401px", height = "300px"),
+          img(src = "tsne.png", width = "335px", height = "300px"),
+          #img(src = "countries.png", width = "286px", height = "300px"),
+          tags$iframe(
+            width = "560", height = "315",
+            src = "https://www.youtube.com/embed/9G508BxzjBk",
+            frameborder = "0",
+            allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture",
+            allowfullscreen = NA
+          ),
+          tags$iframe(
+            width = "560", height = "315",
+            src = "https://www.youtube.com/embed/a4ioAVTcCoo",
+            frameborder = "0",
+            allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture",
+            allowfullscreen = NA
+          ),
+          includeHTML("www/help.html")
         )
       )
       #,tags$head(includeHTML("www/google_analytics.html"))
