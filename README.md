@@ -1,6 +1,6 @@
 ## DataMap: Visualizing Data Matrices in Your Browser
 
-To use this app, just visit this [static GitHub page.](https://gexijin.github.io/datamap/) For large datasets, install it as an R package for local execution: 
+To use this app, just visit this static [GitHub page](https://gexijin.github.io/datamap/) deployed from this repo via Actions. For large datasets, install it as an R package for local execution: 
 ```{R}
 install.packages("remotes")
 remotes::install_github("gexijin/datamap", ref = "rPackage", upgrade = "never")
