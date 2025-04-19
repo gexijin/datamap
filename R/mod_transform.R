@@ -177,109 +177,217 @@ transform_server <- function(id, data) {
     
     # Function to generate reproducible R code
     generate_code <- function(settings) {
+      # Input 'settings' should now include:
+      # na_method, do_log_transform, log_constant, center_scale,
+      # do_zscore_cap, zscore_cutoff, do_filter_rows, top_n_rows,
+      # original_has_zeros, original_has_negative
+
       code_lines <- c(
         "# Reproducible Data Transformation Code",
         "# This code will transform your data using the same settings applied in the app",
         "",
-        "# Load required package for skewness calculation if needed",
-        "if (!requireNamespace(\"e1071\", quietly = TRUE)) {",
-        "  install.packages(\"e1071\")",
-        "}",
-        "library(e1071)",
+        "# Load required package for skewness calculation if needed (optional, not used in transform)",
+        "# install.packages(\"e1071\") # Uncomment if you use e1071 elsewhere",
+        "# library(e1071)",
         "",
         "transform_data <- function(data) {",
         "  # Create a copy of the data to avoid modifying the original",
         "  processed <- data",
+        "  unprocessed_for_labels <- data # Store original for potential label use later",
         "",
-        "  # Step 1: Convert data frame to numeric matrix and handle factor columns",
+        "  # Step 1: Separate factor-like columns, convert to numeric matrix, handle NAs",
         "  original_row_names <- rownames(processed)",
         "  factor_like_cols <- list()",
+        "  cols_to_keep <- character(0)", # Keep track of numeric columns
         "  ",
         "  for (col_name in names(processed)) {",
         "    col_data <- processed[[col_name]]",
-        "    if ((is.character(col_data) || is.factor(col_data)) && ",
-        "        length(unique(col_data)) < min(50, nrow(processed) * 0.5)) {",
-        "      factor_like_cols[[col_name]] <- col_data",
+        "    # Use suppressWarnings to handle potential coercion issues gracefully",
+        "    is_numeric_col <- !all(is.na(suppressWarnings(as.numeric(as.character(col_data)))))", # Check if *any* value is numeric
+        "    ",
+        "    if (is_numeric_col) {",
+        "       # Check for factor-like characteristics (matching analyze_data logic)",
+        "       non_numbers <- sum(is.na(suppressWarnings(as.numeric(as.character(col_data)))))",
+        "       is_factor_like <- (is.character(col_data) || is.factor(col_data)) &&",
+        "                         length(unique(col_data)) < nrow(processed) * 0.5 &&",
+        "                         non_numbers > 0.5 * length(col_data)",
+        "       ",
+        "       if (is_factor_like) {",
+        "          factor_like_cols[[col_name]] <- col_data",
+        "       } else {",
+        "          # Treat as potentially numeric, attempt conversion later",
+        "          cols_to_keep <- c(cols_to_keep, col_name)",
+        "       }",
+        "    } else if (is.character(col_data) || is.factor(col_data)) {", # Handle columns that are fully non-numeric but might be factors
+        "       if (length(unique(col_data)) < nrow(processed) * 0.5) {", # Use original factor threshold
+        "           factor_like_cols[[col_name]] <- col_data",
+        "       }",
+        "       # Otherwise, non-numeric, non-factor like columns are implicitly dropped",
         "    }",
+        "    # Other column types (like logical, date) might be implicitly dropped if not convertible",
         "  }",
         "  ",
-        "  # Remove factor columns before numeric conversion",
+        "  # Store factor columns if any were found",
         "  if (length(factor_like_cols) > 0) {",
         "    factor_columns <- as.data.frame(factor_like_cols, check.names = FALSE)",
-        "    rownames(factor_columns) <- rownames(processed)",
-        "    processed <- processed[, !names(processed) %in% names(factor_like_cols), drop = FALSE]",
+        "    # Ensure factor_columns have the original row names before any filtering",
+        "    if (length(original_row_names) == nrow(factor_columns)) {",
+        "        rownames(factor_columns) <- original_row_names",
+        "    }",
+        "    # Keep only the potentially numeric columns for processing",
+        "    processed <- processed[, cols_to_keep, drop = FALSE]",
+        "    unprocessed_for_labels <- unprocessed_for_labels[, cols_to_keep, drop = FALSE]", # Keep same columns in unprocessed
+        "  } else {",
+        "    # If no factors, ensure we only keep columns intended (might remove fully non-numeric ones)",
+        "    processed <- processed[, cols_to_keep, drop = FALSE]",
+        "    unprocessed_for_labels <- unprocessed_for_labels[, cols_to_keep, drop = FALSE]",
         "  }",
         "  ",
-        "  # Convert to numeric matrix",
-        "  numeric_data <- as.data.frame(",
-        "    lapply(processed, function(x) as.numeric(as.character(x))),",
-        "    row.names = original_row_names",
-        "  )",
-        "  ",
-        "  processed <- as.matrix(numeric_data)",
-        "  rownames(processed) <- original_row_names",
-        "  ",
-        "  # Remove rows that are completely missing",
-        "  row_na_count <- rowSums(is.na(processed))",
-        "  row_all_na <- row_na_count == ncol(processed)",
-        "  if (any(row_all_na)) {",
-        "    processed <- processed[!row_all_na, , drop = FALSE]",
+        "  # Convert the remaining columns to numeric matrix",
+        "  if (ncol(processed) > 0) {",
+        "      numeric_data <- data.frame(lapply(processed, function(x) as.numeric(as.character(x))), check.names = FALSE)",
+        "      rownames(numeric_data) <- original_row_names ",
+        "      processed <- as.matrix(numeric_data)",
+        "      # Also create numeric unprocessed matrix for labels",
+        "      unprocessed_numeric <- data.frame(lapply(unprocessed_for_labels, function(x) as.numeric(as.character(x))), check.names=FALSE)",
+        "      rownames(unprocessed_numeric) <- original_row_names",
+        "      unprocessed_for_labels <- as.matrix(unprocessed_numeric)",
+        "  } else {",
+        "      warning('No numeric columns found/kept for processing.')",
+        "      processed <- matrix(NA_real_, nrow = nrow(data), ncol = 0)", # Empty matrix with original rows
+        "      rownames(processed) <- original_row_names",
+        "      unprocessed_for_labels <- processed",
         "  }",
         "  ",
-        "  # Remove columns that are entirely NA",
-        "  col_na_count <- colSums(is.na(processed))",
-        "  col_all_na <- col_na_count == nrow(processed)",
-        "  if (any(col_all_na)) {",
-        "    removed_cols <- colnames(processed)[col_all_na]",
-        "    cat(\"Removed non-numeric columns:\", paste(removed_cols, collapse = \", \"), \"\\n\")",
-        "    processed <- processed[, !col_all_na, drop = FALSE]",
-        "  }"
+        "  # Remove rows that are completely missing in the numeric matrix",
+        "  if(nrow(processed) > 0 && ncol(processed) > 0) {",
+        "      row_na_count <- rowSums(is.na(processed))",
+        "      row_all_na <- row_na_count == ncol(processed)",
+        "      if (any(row_all_na)) {",
+        "         processed <- processed[!row_all_na, , drop = FALSE]",
+        "         unprocessed_for_labels <- unprocessed_for_labels[!row_all_na, , drop = FALSE]", # Filter unprocessed same way
+        "         # If factor columns exist, filter them too",
+        "         if (exists(\"factor_columns\")) {",
+        "             factor_columns <- factor_columns[!row_all_na, , drop = FALSE]",
+        "         }",
+        "      }",
+        "  }",
+        "  ",
+        "  # Remove columns that are entirely NA (e.g., conversion failed for all rows)",
+        "  if(nrow(processed) > 0 && ncol(processed) > 0) {",
+        "      col_na_count <- colSums(is.na(processed))",
+        "      col_all_na <- col_na_count == nrow(processed)",
+        "      if (any(col_all_na)) {",
+        "         removed_cols <- colnames(processed)[col_all_na]",
+        "         cat(\"Removed columns that became all NA after conversion:\", paste(removed_cols, collapse = \", \"), \"\\n\")",
+        "         processed <- processed[, !col_all_na, drop = FALSE]",
+        "         unprocessed_for_labels <- unprocessed_for_labels[, !col_all_na, drop = FALSE]", # Filter unprocessed same way
+        "      }",
+        "  }",
+        "  # Check if data remains after initial processing",
+        "  if (nrow(processed) == 0 || ncol(processed) == 0) {",
+        "      warning('No data remaining after initial cleaning (NA row/column removal).')",
+        "      # Return structure depends on whether factor columns were found",
+        "      if (exists(\"factor_columns\")) {",
+        "         return(list(numeric_data = processed, factor_columns = factor_columns, unprocessed_numeric = unprocessed_for_labels))",
+        "      } else {",
+        "         return(processed)",
+        "      }",
+        "  }",
+        ""
       )
-      
-      # Handle missing values
+
+      # Transformation Steps - Order MUST match apply_preprocessing
+
+      # 1. Handle Missing Values
       if (settings$na_method != "leave") {
-        code_lines <- c(code_lines, "", "  # Handle missing values")
+        code_lines <- c(code_lines, "  # Step 2: Handle missing values")
         if (settings$na_method == "zero") {
           code_lines <- c(code_lines, "  processed[is.na(processed)] <- 0")
         } else if (settings$na_method == "mean") {
-          code_lines <- c(code_lines, 
-                          "  means <- colMeans(processed, na.rm = TRUE)",
-                          "  idx <- which(is.na(processed), arr.ind = TRUE)",
-                          "  processed[idx] <- means[idx[, 2]]")
-        } else if (settings$na_method == "median") {
+          # Calculate means *before* imputation
+          code_lines <- c(code_lines, "  col_means_for_na <- colMeans(processed, na.rm = TRUE)")
+          # Impute NA column by column to handle cases where a whole column was NA (mean would be NaN)
           code_lines <- c(code_lines,
-                          "  medians <- apply(processed, 2, median, na.rm = TRUE)",
-                          "  idx <- which(is.na(processed), arr.ind = TRUE)",
-                          "  processed[idx] <- medians[idx[, 2]]")
+                          "  for (j in seq_len(ncol(processed))) {",
+                          "      na_idx <- is.na(processed[, j])",
+                          "      if (any(na_idx)) {",
+                          "          # Use pre-calculated mean, or 0 if mean is NA (e.g., all-NA column somehow)",
+                          "          fill_value <- ifelse(is.na(col_means_for_na[j]), 0, col_means_for_na[j])",
+                          "          processed[na_idx, j] <- fill_value",
+                          "      }",
+                          "  }"
+                        )
+        } else if (settings$na_method == "median") {
+          # Calculate medians *before* imputation
+          code_lines <- c(code_lines, "  col_medians_for_na <- apply(processed, 2, median, na.rm = TRUE)")
+          # Impute NA column by column
+          code_lines <- c(code_lines,
+                          "  for (j in seq_len(ncol(processed))) {",
+                          "      na_idx <- is.na(processed[, j])",
+                          "      if (any(na_idx)) {",
+                          "          # Use pre-calculated median, or 0 if median is NA",
+                          "          fill_value <- ifelse(is.na(col_medians_for_na[j]), 0, col_medians_for_na[j])",
+                          "          processed[na_idx, j] <- fill_value",
+                          "      }",
+                          "  }"
+                        )
         }
+        code_lines <- c(code_lines, "") # Add blank line after step
       }
-      
-      # Apply log transformation
+
+      # 2. Apply Log Transformation
       if (settings$do_log_transform) {
-        code_lines <- c(code_lines, "", "  # Apply log10 transformation")
+        code_lines <- c(code_lines, "  # Step 3: Apply log10 transformation")
+        # Set negative values to 0 before log, mirroring apply_preprocessing
         code_lines <- c(code_lines, "  if (any(processed < 0, na.rm = TRUE)) {",
-                        "    processed[processed < 0] <- 0",
+                        "     processed[processed < 0] <- 0",
                         "  }")
-        code_lines <- c(code_lines, paste0("  const <- ", settings$log_constant))
+        # Conditionally define and add the constant based on original data properties
+        if (settings$original_has_zeros || settings$original_has_negative) {
+          code_lines <- c(code_lines, paste0("  const <- ", settings$log_constant))
+        } else {
+          code_lines <- c(code_lines, "  const <- 0") # No constant needed if data was all positive
+        }
         code_lines <- c(code_lines, "  processed <- log10(processed + const)")
+        code_lines <- c(code_lines, "") # Add blank line after step
       }
-      
-      # Filter to keep only top N most variable rows
+
+      # 3. Filter Rows (Top N by SD)
       if (settings$do_filter_rows) {
-        code_lines <- c(code_lines, "", "  # Keep top most variable rows")
+        code_lines <- c(code_lines, "  # Step 4: Keep top most variable rows (by Standard Deviation)")
+        code_lines <- c(code_lines, "  # Calculate SD on the data *after* previous steps (log, NA handling)")
         code_lines <- c(code_lines, "  row_sds <- apply(processed, 1, sd, na.rm = TRUE)")
-        code_lines <- c(code_lines, paste0("  top_n <- ", settings$top_n_rows))
-        code_lines <- c(code_lines, 
-                        "  if (top_n < nrow(processed)) {",
-                        "    top_indices <- order(row_sds, decreasing = TRUE)[1:top_n]",
-                        "    processed <- processed[top_indices, , drop = FALSE]",
-                        "  }")
+        # Remove rows with NA SD (e.g., single non-NA value rows after imputation/log)
+        code_lines <- c(code_lines, "  valid_sd_indices <- !is.na(row_sds)")
+        code_lines <- c(code_lines, "  processed <- processed[valid_sd_indices, , drop = FALSE]")
+        code_lines <- c(code_lines, "  row_sds <- row_sds[valid_sd_indices]")
+        code_lines <- c(code_lines, "  unprocessed_for_labels <- unprocessed_for_labels[valid_sd_indices, , drop = FALSE]") # Filter unprocessed same way
+        code_lines <- c(code_lines, "  if (exists(\"factor_columns\")) { factor_columns <- factor_columns[valid_sd_indices, , drop = FALSE] }") # Filter factors too
+
+        # Get the requested N from settings and apply validation
+        code_lines <- c(code_lines, paste0("  top_n_requested <- ", settings$top_n_rows))
+        code_lines <- c(code_lines, "  # Ensure top_n is at least 2 and not more than the current number of rows")
+        code_lines <- c(code_lines, "  top_n <- max(2, min(top_n_requested, nrow(processed)))")
+
+        # Apply filtering if needed
+        code_lines <- c(code_lines,
+                        "  if (nrow(processed) > 0 && top_n < nrow(processed)) {", # Check if rows exist before ordering
+                        "     # Order by SD (break ties by row index)",
+                        "     ordered_indices <- order(row_sds, decreasing = TRUE, na.last = TRUE)",
+                        "     top_indices <- ordered_indices[1:top_n]",
+                        "     processed <- processed[top_indices, , drop = FALSE]",
+                        "     unprocessed_for_labels <- unprocessed_for_labels[top_indices, , drop = FALSE]", # Filter unprocessed same way
+                        "     if (exists(\"factor_columns\")) { factor_columns <- factor_columns[top_indices, , drop = FALSE] }", # Filter factors too
+                        "  }"
+                        )
+        code_lines <- c(code_lines, "") # Add blank line after step
       }
-      
-      # Apply centering and scaling
+
+      # 4. Apply Centering and Scaling
       if (settings$center_scale != "none") {
-        code_lines <- c(code_lines, "", paste0("  # Apply ", settings$center_scale, " transformation"))
-        
+        code_lines <- c(code_lines, paste0("  # Step 5: Apply ", settings$center_scale, " transformation"))
+
         if (settings$center_scale == "center_row") {
           code_lines <- c(code_lines,
                           "  row_means <- rowMeans(processed, na.rm = TRUE)",
@@ -287,53 +395,71 @@ transform_server <- function(id, data) {
         } else if (settings$center_scale == "scale_row") {
           code_lines <- c(code_lines,
                           "  # Scale each row (Z-score normalization)",
-                          "  processed <- t(scale(t(processed)))",
-                          "  # Replace any NA values (from constant rows) with 0",
-                          "  processed[is.na(processed)] <- 0")
+                          "  processed <- t(scale(t(processed), center = TRUE, scale = TRUE))",
+                          "  # Replace any NA/NaN values (from constant rows) with 0",
+                          "  processed[is.na(processed) | is.nan(processed)] <- 0")
         } else if (settings$center_scale == "center_col") {
           code_lines <- c(code_lines,
                           "  col_means <- colMeans(processed, na.rm = TRUE)",
-                          "  processed <- t(t(processed) - col_means)")
+                          "  # Use sweep for column centering",
+                          "  processed <- sweep(processed, 2, col_means, \"-\")")
         } else if (settings$center_scale == "scale_col") {
           code_lines <- c(code_lines,
-                          "  processed <- scale(processed)",
-                          "  processed[is.na(processed)] <- 0")
+                          "  # Scale each column (Z-score normalization)",
+                          "  processed <- scale(processed, center = TRUE, scale = TRUE)",
+                          "  # Replace any NA/NaN values (from constant columns) with 0",
+                          "  processed[is.na(processed) | is.nan(processed)] <- 0")
         }
+        code_lines <- c(code_lines, "") # Add blank line after step
       }
-      
-      # Apply Z-score cutoff for outlier capping
+
+      # 5. Apply Z-score Outlier Capping
       if (settings$do_zscore_cap) {
-        code_lines <- c(code_lines, "", "  # Cap outliers based on Z-score")
-        code_lines <- c(code_lines, paste0("  z_cutoff <- ", settings$zscore_cutoff))
+        code_lines <- c(code_lines, "  # Step 6: Cap outliers based on Z-score across the entire matrix")
+        # Get the requested cutoff from settings and apply validation (min 3)
+        code_lines <- c(code_lines, paste0("  z_cutoff_requested <- ", settings$zscore_cutoff))
+        code_lines <- c(code_lines, "  z_cutoff <- max(3, z_cutoff_requested)") # Use min 3 as in apply_preprocessing
+
+        # Calculate overall mean and SD *after* scaling/centering
         code_lines <- c(code_lines,
-                        "  flat_data <- as.numeric(processed)",
-                        "  flat_data <- flat_data[is.finite(flat_data)]",
-                        "  if (length(flat_data) > 0) {",
-                        "    overall_mean <- mean(flat_data, na.rm = TRUE)",
-                        "    overall_sd <- sd(flat_data, na.rm = TRUE)",
-                        "    if (!is.na(overall_sd) && overall_sd > 0) {",
-                        "      upper_bound <- overall_mean + z_cutoff * overall_sd",
-                        "      lower_bound <- overall_mean - z_cutoff * overall_sd",
-                        "      processed[processed > upper_bound] <- upper_bound",
-                        "      processed[processed < lower_bound] <- lower_bound",
-                        "    }",
-                        "  }")
+                        "  # Calculate stats on finite values in the current processed matrix",
+                        "  finite_data <- processed[is.finite(processed)]",
+                        "  if (length(finite_data) > 0) {",
+                        "     overall_mean <- mean(finite_data, na.rm = TRUE)", # na.rm is good practice
+                        "     overall_sd <- sd(finite_data, na.rm = TRUE)",
+                        "     # Apply capping only if sd is valid and positive",
+                        "     if (!is.na(overall_sd) && overall_sd > 0) {",
+                        "        upper_bound <- overall_mean + z_cutoff * overall_sd",
+                        "        lower_bound <- overall_mean - z_cutoff * overall_sd",
+                        "        processed[processed > upper_bound] <- upper_bound",
+                        "        processed[processed < lower_bound] <- lower_bound",
+                        "     }",
+                        "  }"
+                      )
+        code_lines <- c(code_lines, "") # Add blank line after step
       }
-      
-      # Finish the function and add usage example
+
+      # Finish the function and return results
       code_lines <- c(code_lines,
+                      "  # Step 7: Return results",
+                      "  # The 'processed' matrix contains the fully transformed data for the heatmap.",
+                      "  # 'unprocessed_for_labels' matrix contains data filtered like 'processed' but without scaling/centering/capping/log, potentially useful for labels.",
+                      "  # 'factor_columns' contains any non-numeric columns identified as factors.",
                       "",
-                      "  # Merge back factor columns if any were extracted",
+                      "  # Return a list containing all relevant outputs",
+                      "  result_list <- list(numeric_data = processed, unprocessed_numeric = unprocessed_for_labels)",
                       "  if (exists(\"factor_columns\")) {",
-                      "    result_list <- list(numeric_data = processed, factor_columns = factor_columns)",
-                      "    return(result_list)",
-                      "  } else {",
-                      "    return(processed)",
+                      "    result_list$factor_columns <- factor_columns",
                       "  }",
+                      "  return(result_list)",
                       "}",
                       "",
-                      "transformed_data <- transform_data(data)")
-      
+                      "# Example usage:",
+                      "# Assuming 'my_original_data' is your starting data frame",
+                      "# transformed_results <- transform_data(my_original_data)",
+                      "# heatmap_data <- transformed_results$numeric_data"
+                    )
+
       return(paste(code_lines, collapse = "\n"))
     }
     
@@ -347,7 +473,11 @@ transform_server <- function(id, data) {
         do_zscore_cap = if (!is.null(input$do_zscore_cap)) input$do_zscore_cap else FALSE,
         zscore_cutoff = if (!is.null(input$zscore_cutoff)) input$zscore_cutoff else rv$ui_settings$zscore_cutoff,
         do_filter_rows = if (!is.null(input$do_filter_rows)) input$do_filter_rows else TRUE,
-        top_n_rows = if (!is.null(input$top_n_rows)) input$top_n_rows else rv$ui_settings$top_n_rows
+        top_n_rows = if (!is.null(input$top_n_rows)) input$top_n_rows else rv$ui_settings$top_n_rows,
+        # --- Add these lines ---
+        original_has_zeros = rv$has_zeros,
+        original_has_negative = rv$has_negative
+        # --- End of added lines ---
       )
       rv$ui_settings <- settings
       return(settings)
