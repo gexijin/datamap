@@ -290,12 +290,6 @@ server <- function(input, output, session) {
   # Use a separate file upload module for the row annotation file
   row_annotation_file_data <- file_upload_server("row_annotation_file_upload")
   
-  # Track if main data is loaded for UI conditionals
-  output$data_loaded <- reactive({
-    return(file_data$data_loaded())
-  })
-  outputOptions(output, "data_loaded", suspendWhenHidden = FALSE)
-  
   # Reactive to indicate if column annotation file is uploaded
   output$col_annotation_uploaded <- reactive({
     !is.null(col_annotation_file_data$data())
@@ -409,51 +403,47 @@ server <- function(input, output, session) {
     }
   })
   
-# Column annotation for heatmap
-col_annotation_for_heatmap <- reactive({
-  req(current_data())
-  
-  # Check if we have annotation data
-  if (is.null(col_annotation_file_data$data())) {
-    return(NULL)
-  }
-  
-  # Get annotation data
-  annot_df <- col_annotation_file_data$data()
-  main_cols <- colnames(current_data())
-  
-  # Check if annotation rows are selected
-  selected <- input$col_annotation_select
-  if (is.null(selected) || length(selected) == 0) {
-    return(NULL)
-  }
-  
-  annot_selected <- annot_df[selected, , drop = FALSE]
-  
-  # Check if there are any common samples between main data and annotation file
-  common_samples <- intersect(main_cols, colnames(annot_selected))
-  if (length(common_samples) == 0) {
-    return(NULL)
-  }
-  
-  # Create an empty data frame with all main data samples
-  output_df <- data.frame(matrix(NA, nrow = length(main_cols), ncol = nrow(annot_selected)))
-  rownames(output_df) <- main_cols
-  colnames(output_df) <- rownames(annot_selected)
-  
-  for (ann in rownames(annot_selected)) {
-    values <- as.character(annot_selected[ann, common_samples])
-    names(values) <- common_samples
-    output_df[common_samples, ann] <- values
-  }
-  
-  return(output_df)
-})
-  
-   auto_row_annotation <- reactive({
-    # Return the factor columns identified during data transformation
-    transform_data$factor_columns()
+  # Column annotation for heatmap
+  col_annotation_for_heatmap <- reactive({
+    req(current_data())
+    
+    # Check if we have annotation data
+    if (is.null(col_annotation_file_data$data())) {
+      return(NULL)
+    }
+    
+    # Get annotation data
+    annot_df <- col_annotation_file_data$data()
+    main_cols <- colnames(current_data())
+    
+    # Check if annotation rows are selected
+    selected <- input$col_annotation_select
+    if (is.null(selected) || length(selected) == 0) {
+      return(NULL)
+    }
+    
+    annot_selected <- annot_df[selected, , drop = FALSE]
+    
+    # Check if there are any common samples between main data and annotation file
+    common_samples <- intersect(main_cols, colnames(annot_selected))
+    if (length(common_samples) == 0) {
+      return(NULL)
+    }
+    
+    # Create an empty data frame with all main data samples
+    output_df <- data.frame(matrix(NA, nrow = length(main_cols), ncol = nrow(annot_selected)))
+    rownames(output_df) <- main_cols
+    colnames(output_df) <- rownames(annot_selected)
+    
+    for (ann in rownames(annot_selected)) {
+      values <- as.character(annot_selected[ann, common_samples])
+      names(values) <- common_samples
+      output_df[common_samples, ann] <- values
+    }
+    
+    return(output_df)
   })
+
 
   row_annotation_for_heatmap <- reactive({
     req(current_data())
@@ -565,138 +555,6 @@ col_annotation_for_heatmap <- reactive({
     session$reload()
   })
 
-  # Create a reactive expression for generating the full code
-  full_code <- reactive({
-    # Initialize an empty vector to store code parts
-    code_parts <- c()
-    
-    # Add file upload code if available
-    if (!is.null(file_data$code())) {
-      code_parts <- c(code_parts, "# Data Import Code", file_data$code(), "")
-    }
-    
-    # Add transform code if available
-    if (!is.null(transform_data$code())) {
-      code_parts <- c(code_parts, "# Data Transformation Code", transform_data$code(), "")
-    }
-    
-    # Add heatmap code from the module if available
-    if (!is.null(heatmap_results$heatmap_code())) {
-      code_parts <- c(code_parts, heatmap_results$heatmap_code())
-    }
-
-    # Get PCA code from the module
-    if (!is.null(pca_results$pca_code())) {
-      code_parts <- c(code_parts, pca_results$pca_code())
-    }
-    
-    # Get t-SNE code from the module
-    if (!is.null(tsne_results$tsne_code())) {
-      code_parts <- c(code_parts, tsne_results$tsne_code())
-    }
-    
-    # Combine all parts and return
-    paste(code_parts, collapse = "\n")
-  })
-
-  output$code_display <- renderUI({
-    req(full_code())
-    
-    code_text <- full_code()
-    
-    # Split the code into sections for better display
-    sections <- strsplit(code_text, "# ")[[1]]
-    
-    # Initialize HTML output
-    html_output <- tagList()
-    
-    # Process each section
-    current_section <- NULL
-    section_content <- NULL
-    
-    for (section in sections) {
-      if (nchar(section) == 0) next
-      
-      # First line is likely a section title
-      lines <- strsplit(section, "\n")[[1]]
-      section_title <- lines[1]
-      
-      # If it's a proper section title
-      if (section_title %in% c("Data Import Code", "Data Transformation Code", "Heatmap Generation Code")) {
-        # If we were building a previous section, add it to output
-        if (!is.null(current_section) && !is.null(section_content)) {
-          html_output <- tagAppendChild(html_output, 
-                                      tags$div(
-                                        tags$h3(current_section, class = "code-section-title"),
-                                        tags$pre(tags$code(class = "r", section_content))
-                                      ))
-        }
-        
-        # Start new section
-        current_section <- section_title
-        section_content <- paste(lines[-1], collapse = "\n")
-      } else {
-        # Just continuation of content
-        section_content <- paste(section_content, "# ", section, sep = "")
-      }
-    }
-    
-    # Add the last section
-    if (!is.null(current_section) && !is.null(section_content)) {
-      html_output <- tagAppendChild(html_output, 
-                                  tags$div(
-                                    tags$h3(current_section, class = "code-section-title"),
-                                    tags$pre(tags$code(class = "r", section_content))
-                                  ))
-    }
-    
-    # Add some CSS for styling
-    css <- tags$style(HTML("
-      .code-section-title {
-        color: #2c3e50;
-        border-bottom: 1px solid #eee;
-        padding-bottom: 10px;
-        margin-top: 20px;
-      }
-      pre {
-        background-color: #f5f5f5;
-        border: 1px solid #ccc;
-        border-radius: 4px;
-        padding: 10px;
-        margin-bottom: 20px;
-        overflow: auto;
-      }
-      code.r {
-        font-family: 'Courier New', Courier, monospace;
-        white-space: pre;
-      }
-    "))
-    
-    # Return the complete UI
-    tagList(
-      css,
-      tags$div(
-        tags$h2("Generated R Code"),
-        tags$p("This code can be used to reproduce the analysis:"),
-        html_output,
-        tags$hr(),
-        downloadButton("download_combined_code", "Download Code as R Script")
-      )
-    )
-  })
-
-  output$download_combined_code <- downloadHandler(
-    filename = function() {
-      paste0("data_analysis_code-", format(Sys.time(), "%Y%m%d-%H%M%S"), ".R")
-    },
-    content = function(file) {
-      # Get the code as text
-      code_text <- full_code()
-      # Write it to the file
-      writeLines(code_text, file)
-    }
-  )
-
   pca_results <- pca_plot_server(
     "pca", 
     current_data, 
@@ -716,6 +574,7 @@ col_annotation_for_heatmap <- reactive({
     width_for_plots,     # Use our reactive
     height_for_plots     # Use our reactive
   )
+
   code_gen_results <- code_generation_server(
     "code_gen",
     file_data,
@@ -763,8 +622,6 @@ col_annotation_for_heatmap <- reactive({
       write.csv(data, file, row.names = TRUE)
     }
   )
-
-
 }
 
 # Run the application
