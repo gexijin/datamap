@@ -471,6 +471,15 @@ heatmap_server <- function(id, current_data,
       paste(code_parts, collapse = "\n")
     })
 
+    
+    # Return reactives that will be needed by the parent module
+    return(list(
+      heatmap_code = heatmap_code,
+      params_used = pheatmap_params_used
+    ))
+  })
+}
+
 # Helper function to generate heatmap UI elements for the sidebar
 heatmap_control_ui <- function(id) {
   ns <- NS(id)
