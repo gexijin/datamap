@@ -722,7 +722,9 @@ col_annotation_for_heatmap <- reactive({
     transform_data,
     heatmap_results,
     pca_results,
-    tsne_results
+    tsne_results,
+    col_annotation_file_data,
+    row_annotation_file_data
   )
 
   output$data_preview <- renderTable({

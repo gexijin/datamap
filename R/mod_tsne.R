@@ -119,49 +119,121 @@ tsne_plot_server <- function(id, current_data, col_annotation_for_heatmap, row_a
             "library(Rtsne)",
             "",
             "# Prepare data for t-SNE",
+            "# Note: Replace 'processed_data' with your actual data variable name",
             "data_mat <- as.matrix(processed_data)"
           )
-          
+
           if(input$tsne_transpose == "column") {
             code_parts <- c(code_parts, "# Transpose data to analyze columns instead of rows", 
                           "data_mat <- t(data_mat)")
           }
-          
-          code_parts <- c(code_parts,
-                        "# Scale data to have mean=0 and sd=1 (important for t-SNE)",
-                        "scaled_data <- scale(data_mat)",
-                        "",
-                        "# Run t-SNE analysis",
-                        "set.seed(42)  # For reproducibility",
-                        paste0("tsne_result <- Rtsne(scaled_data, dims = 2, perplexity = ", perplexity, 
-                             ", check_duplicates = FALSE, pca = ", input$tsne_pca_preprocessing,
-                             ", normalize = FALSE, max_iter = ", input$tsne_iterations,
-                             ", eta = ", input$tsne_learning_rate,
-                             ", exaggeration_factor = ", input$tsne_early_exaggeration,
-                             ", verbose = TRUE)"),
-                        "",
-                        "# Create a data frame with t-SNE coordinates",
-                        "tsne_coords <- as.data.frame(tsne_result$Y)",
-                        "colnames(tsne_coords) <- c(\"tSNE1\", \"tSNE2\")",
-                        "",
-                        "# Plot t-SNE results",
-                        "plot(tsne_coords$tSNE1, tsne_coords$tSNE2, pch = 16, xlab = \"tSNE 1\", ylab = \"tSNE 2\")"
-          )
-          
-          # Add point label code if checkbox is selected
-          if (!is.null(input$show_point_labels) && input$show_point_labels) {
-            code_parts <- c(code_parts,
-              "",
-              "# Add point labels",
-              if(input$tsne_transpose == "column") {
-                "text(tsne_coords$tSNE1, tsne_coords$tSNE2, labels = colnames(processed_data),"
-              } else {
-                "text(tsne_coords$tSNE1, tsne_coords$tSNE2, labels = rownames(processed_data),"
-              },
-              "     pos = 4, offset = 0.5, cex = fontsize/15)"
-            )
+
+          # Get actual annotation data for code generation
+          if(input$tsne_transpose == "column") {
+            actual_annot <- col_annotation_for_heatmap()
+          } else {
+            actual_annot <- row_annotation_for_heatmap()
           }
-          
+
+          # Create code to recreate the annotation data structure
+          annot_code <- NULL
+          if (!is.null(actual_annot)) {
+            # Convert annotation data frame to code that recreates it
+            annot_code <- paste0("point_annot <- data.frame(", 
+              paste0(sapply(names(actual_annot), function(colname) {
+                col_values <- actual_annot[[colname]]
+                if (is.factor(col_values)) {
+                  # For factors, we need to recreate them with levels
+                  paste0(colname, " = factor(c(", 
+                        paste0(deparse(as.character(col_values)), collapse = ", "), 
+                        "), levels = c(", 
+                        paste0(deparse(levels(col_values)), collapse = ", "), 
+                        "))")
+                } else if (is.character(col_values)) {
+                  paste0(colname, " = c(", 
+                        paste0(deparse(col_values), collapse = ", "), 
+                        ")")
+                } else if (is.numeric(col_values)) {
+                  # Handle numeric values properly, including NA and Inf
+                  paste0(colname, " = c(", 
+                        paste0(sapply(col_values, function(x) {
+                          if (is.na(x)) "NA"
+                          else if (is.infinite(x)) {
+                            if (x > 0) "Inf" else "-Inf"
+                          }
+                          else x
+                        }), collapse = ", "), 
+                        ")")
+                } else {
+                  # For other types, use deparse as a general solution
+                  paste0(colname, " = ", deparse(col_values))
+                }
+              }), collapse = ", "),
+              ", stringsAsFactors = FALSE)"  # Ensure consistent behavior across R versions
+            )
+            # Add rownames
+            rnames <- rownames(actual_annot)
+            if (!is.null(rnames)) {
+              annot_code <- c(annot_code, 
+                            paste0("rownames(point_annot) <- c(", 
+                                    paste0(deparse(rnames), collapse = ", "), 
+                                    ")"))
+            }
+          } else {
+            annot_code <- "point_annot <- NULL"
+          }
+
+          # Add annotation code to code_parts
+          code_parts <- c(code_parts,
+            "",
+            "# Set up annotation data",
+            annot_code
+          )
+
+          code_parts <- c(code_parts,
+            "# Scale data to have mean=0 and sd=1 (important for t-SNE)",
+            "scaled_data <- scale(data_mat)",
+            "",
+            "# Run t-SNE analysis",
+            "set.seed(42)  # For reproducibility",
+            paste0("tsne_result <- Rtsne(scaled_data, dims = 2, perplexity = ", perplexity, 
+                ", check_duplicates = FALSE, pca = ", input$tsne_pca_preprocessing,
+                ", normalize = FALSE, max_iter = ", input$tsne_iterations,
+                ", eta = ", input$tsne_learning_rate,
+                ", exaggeration_factor = ", input$tsne_early_exaggeration,
+                ", verbose = TRUE)"),
+            "",
+            "# Create a data frame with t-SNE coordinates",
+            "tsne_coords <- as.data.frame(tsne_result$Y)",
+            "colnames(tsne_coords) <- c(\"tSNE1\", \"tSNE2\")",
+            "",
+            "# Prepare variables for plotting",
+            paste0("show_labels <- ", tolower(as.character(input$show_point_labels))),
+            "",
+            if(input$show_point_labels) {
+              c(
+                if(input$tsne_transpose == "column") {
+                  "point_labels <- colnames(data_mat)"
+                } else {
+                  "point_labels <- rownames(data_mat)"
+                },
+                ""
+              )
+            } else {
+              c("point_labels <- NULL", "")
+            },
+            "",
+            "# Set plot parameters",
+            paste0("size_param <- ", fontsize()),  # This will evaluate the reactive and insert the actual value
+            "x_label <- \"tSNE 1\"",
+            "y_label <- \"tSNE 2\"",
+            "",
+            "# Create the plot using the same function as the Shiny app",
+            "# Note: Ensure create_dr_plot() function is defined/loaded before running this code",
+            "create_dr_plot(tsne_coords, x_label, y_label, point_annot, size_param,",
+            "               show_labels = show_labels, point_labels = point_labels)"
+          )
+
           # Store the code
           tsne_code(paste(code_parts, collapse = "\n"))
           

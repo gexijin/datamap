@@ -441,24 +441,22 @@ transform_server <- function(id, data) {
 
       # Finish the function and return results
       code_lines <- c(code_lines,
-                      "  # Step 7: Return results",
-                      "  # The 'processed' matrix contains the fully transformed data for the heatmap.",
-                      "  # 'unprocessed_for_labels' matrix contains data filtered like 'processed' but without scaling/centering/capping/log, potentially useful for labels.",
-                      "  # 'factor_columns' contains any non-numeric columns identified as factors.",
-                      "",
-                      "  # Return a list containing all relevant outputs",
-                      "  result_list <- list(numeric_data = processed, unprocessed_numeric = unprocessed_for_labels)",
-                      "  if (exists(\"factor_columns\")) {",
-                      "    result_list$factor_columns <- factor_columns",
-                      "  }",
-                      "  return(result_list)",
-                      "}",
-                      "",
-                      "# Example usage:",
-                      "# Assuming 'my_original_data' is your starting data frame",
-                      "# transformed_results <- transform_data(my_original_data)",
-                      "# heatmap_data <- transformed_results$numeric_data"
-                    )
+        "  # Step 7: Return results",
+        "  # The 'processed' matrix contains the fully transformed data for the heatmap.",
+        "  # 'unprocessed_for_labels' matrix contains data filtered like 'processed' but without scaling/centering/capping/log, potentially useful for labels.",
+        "  # 'factor_columns' contains any non-numeric columns identified as factors.",
+        "",
+        "  # Return a list containing all relevant outputs",
+        "  result_list <- list(numeric_data = processed, unprocessed_numeric = unprocessed_for_labels)",
+        "  if (exists(\"factor_columns\")) {",
+        "    result_list$factor_columns <- factor_columns",
+        "  }",
+        "  return(result_list)",
+        "}",
+        "",
+        "# Run the transformation function on the data",
+        "transformed_data <- transform_data(raw_data)"
+      )
 
       return(paste(code_lines, collapse = "\n"))
     }

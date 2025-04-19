@@ -10,7 +10,8 @@ code_generation_ui <- function(id) {
 }
 
 # Server function for the code generation module
-code_generation_server <- function(id, file_data, transform_data, heatmap_results, pca_results, tsne_results) {
+code_generation_server <- function(id, file_data, transform_data, heatmap_results, 
+  pca_results, tsne_results, col_annotation_data, row_annotation_data) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
     
@@ -21,9 +22,22 @@ code_generation_server <- function(id, file_data, transform_data, heatmap_result
       
       # Add file upload code if available
       if (!is.null(file_data$code())) {
-        code_parts <- c(code_parts, "# Data Import Code", file_data$code(), "")
+        code_parts <- c(code_parts, "# Data Import Code", file_data$code(), 
+        "raw_data <- data", "rm(data)", "")
       }
       
+      # Add column annotation file upload code if available
+      if (!is.null(col_annotation_data$code())) {
+        code_parts <- c(code_parts, "# Column Annotation Import Code", 
+                        col_annotation_data$code(), "col_annotation <- data", "rm(data)", "")
+      }
+      
+      # Add row annotation file upload code if available
+      if (!is.null(row_annotation_data$code())) {
+        code_parts <- c(code_parts, "# Row Annotation Import Code", 
+                         row_annotation_data$code(), "row_annotation <- data", "rm(data)","")
+      }
+
       # Add transform code if available
       if (!is.null(transform_data$code())) {
         code_parts <- c(code_parts, "# Data Transformation Code", transform_data$code(), "")

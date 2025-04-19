@@ -146,118 +146,110 @@ pca_plot_server <- function(id, current_data, col_annotation_for_heatmap, row_an
     pca_code <- function() {
       req(pca_data())
       
+      # Capture the current user settings as values
+      transpose_selection <- input$pca_transpose
+      show_labels <- !is.null(input$show_point_labels) && input$show_point_labels
+      font_size <- input_fontsize()
+      
+      # Start with required inputs documentation
       code <- c(
+        "# Required inputs:",
+        "# - processed_data: The data matrix to analyze",
+        "# - row_annotation: Data frame with row annotations (if available)",
+        "# - col_annotation: Data frame with column annotations (if available)",
+        "# - create_dr_plot: Function for creating the dimensionality reduction plot",
+        sprintf("# User settings:"),
+        sprintf("#   Font size: %d", font_size),
+        sprintf("#   Transposition: '%s'", transpose_selection),
+        sprintf("#   Show point labels: %s", show_labels),
+        "",
         "# PCA Analysis Code",
         "library(stats)",
-        "",
-        "# Calculate PCA",
-        "pca_result <- prcomp(processed_data, center = TRUE, scale. = TRUE)",
-        "",
-        "# Extract the first two principal components",
-        "pc_data <- as.data.frame(pca_result$x[, 1:2])",
         ""
       )
       
-      # Add basic plot code
+      # Convert to matrix and handle transposition (matching app's pca_data reactive)
       code <- c(code,
-        "# Create a PCA plot",
-        "# Set margins to make room for legend",
-        "par(mar = c(5, 5, 2, 8) + 0.1)",
-        "plot(pc_data$PC1, pc_data$PC2,",
-        "     xlab = paste0(\"PC1 (\", round(summary(pca_result)$importance[2, 1] * 100, 1), \"%)\"),",
-        "     ylab = paste0(\"PC2 (\", round(summary(pca_result)$importance[2, 2] * 100, 1), \"%)\"),",
-        "     main = \"\",",
-        "     pch = 16, col = \"black\")",
+        "# Get the data and handle transposition based on user selection",
+        "data_mat <- as.matrix(processed_data)",
+        "",
+        "# Transpose if column PCA is selected",
+        if (transpose_selection == "column") {
+          "data_mat <- t(data_mat)"
+        },
         ""
       )
       
-      # Add point label code if checkbox is selected
-      if (!is.null(input$show_point_labels) && input$show_point_labels) {
-        code <- c(code,
-          "",
-          "# Add point labels",
-          "text(pc_data$PC1, pc_data$PC2, labels = rownames(processed_data),",
-          "     pos = 4, offset = 0.5, cex = fontsize/15)",
-          ""
-        )
-      }
+      # Add error handling for missing values (matching app exactly)
+      code <- c(code,
+        "# Handle missing values",
+        "if (any(is.na(data_mat))) {",
+        "  print(\"Warning: Missing values found. Using pairwise complete observations.\")",
+        "  data_mat <- na.omit(data_mat)",
+        "}",
+        ""
+      )
       
-      # Add row annotation code if used
-      if (!is.null(row_annotation_for_heatmap())) {
-        code <- c(code,
-          "",
-          "# Use row annotations for point colors and shapes",
-          "if (!is.null(row_annotation)) {",
-          "  # Color by first annotation column",
-          "  color_col <- names(row_annotation)[1]",
-          "  color_factor <- as.factor(row_annotation[[color_col]])",
-          "  color_palette <- rainbow(length(levels(color_factor)))",
-          "  point_colors <- color_palette[as.numeric(color_factor)]",
-          "",
-          "  # If there's a second annotation column, use for shapes",
-          "  if (ncol(row_annotation) >= 2) {",
-          "    shape_col <- names(row_annotation)[2]",
-          "    shape_factor <- as.factor(row_annotation[[shape_col]])",
-          "    available_shapes <- c(16, 17, 15, 18, 19, 1, 2, 5, 6, 8)",
-          "    shape_numbers <- available_shapes[1:min(length(available_shapes), length(levels(shape_factor)))]",
-          "    point_shapes <- shape_numbers[as.numeric(shape_factor)]",
-          "  } else {",
-          "    point_shapes <- 16  # Default circle",
-          "  }",
-          "",
-          "  # Replot with annotations",
-          "  plot(pc_data$PC1, pc_data$PC2,",
-          "       xlab = paste0(\"PC1 (\", round(summary(pca_result)$importance[2, 1] * 100, 1), \"%)\"),",
-          "       ylab = paste0(\"PC2 (\", round(summary(pca_result)$importance[2, 2] * 100, 1), \"%)\"),",
-          "       main = \"\",",
-          "       pch = point_shapes,",
-          "       col = point_colors,",
-          "       cex = fontsize/12,",     
-          "       cex.lab = fontsize/12,", 
-          "       cex.axis = fontsize/12)",
-          ""
-        )
-        
-        # Add point label code if checkbox is selected (for annotated plot)
-        if (!is.null(input$show_point_labels) && input$show_point_labels) {
-          code <- c(code,
-            "  # Add point labels",
-            "  text(pc_data$PC1, pc_data$PC2, labels = rownames(processed_data),",
-            "       pos = 4, offset = 0.5, cex = fontsize/15)",
-            ""
-          )
-        }
-        
-        code <- c(code,
-          "  # Add reference lines",
-          "  abline(h = 0, lty = 2, col = \"gray50\")",
-          "  abline(v = 0, lty = 2, col = \"gray50\")",
-          "",
-          "  # Add legends",
-          "  par(xpd = TRUE)  # Allow plotting outside plot region",
-          "  # Color legend",
-          "  legend(\"topright\", ",
-          "         legend = levels(color_factor),",
-          "         fill = color_palette,",
-          "         title = color_col,",
-          "         cex = fontsize/15,",
-          "         inset = c(-0.15, 0),",
-          "         bty = \"n\")",
-          "",
-          "  # Shape legend if applicable",
-          "  if (ncol(row_annotation) >= 2) {",
-          "    legend(\"topright\", ",
-          "           legend = levels(shape_factor),",
-          "           pch = shape_numbers,",
-          "           title = shape_col,",
-          "           cex = 0.8,",
-          "           inset = c(-0.15, 0.3),",
-          "           bty = \"n\")",
-          "  }",
-          "  par(xpd = FALSE)",
-          "}"
-        )
-      }
+      # Perform PCA (matching app exactly)
+      code <- c(code,
+        "# Perform PCA",
+        "pca_result <- prcomp(data_mat, center = TRUE, scale. = TRUE)",
+        "",
+        "# Store the transposition information with the result",
+        sprintf("attr(pca_result, \"transposed\") <- %s", if(transpose_selection == "column") "TRUE" else "FALSE"),
+        ""
+      )
+      
+      # Now match the app's create_pca_plot function exactly
+      code <- c(code,
+        "# Get PCA results and extract the first two principal components",
+        "pc_data <- as.data.frame(pca_result$x[, 1:2])",
+        "",
+        "# Check if we're in transposed mode",
+        "transposed <- attr(pca_result, \"transposed\")",
+        "",
+        "# Get appropriate annotations based on transposition mode",
+        "if (transposed) {",
+        "  # For column PCA mode (columns as points), use column annotation data",
+        "  point_annot <- col_annotation",
+        "} else {",
+        "  # For row PCA mode (rows as points), use row annotation data",
+        "  point_annot <- row_annotation",
+        "}",
+        "",
+        "# PC variances for axis labels",
+        "pc1_var <- round(summary(pca_result)$importance[2, 1] * 100, 1)",
+        "pc2_var <- round(summary(pca_result)$importance[2, 2] * 100, 1)",
+        "",
+        "# Create x and y labels",
+        "x_label <- paste0(\"PC1 (\", pc1_var, \"%)\")",
+        "y_label <- paste0(\"PC2 (\", pc2_var, \"%)\")",
+        "",
+        "# Get point labels if checkbox is selected",
+        "point_labels <- NULL",
+        sprintf("show_labels <- %s", if(show_labels) "TRUE" else "FALSE"),
+        "",
+        "# Check if the checkbox is available and checked",
+        "if (show_labels) {",
+        "  data_mat <- as.matrix(processed_data)",  # matching the app's logic exactly
+        "  ",
+        "  if (transposed) {",
+        "    # Column names as labels in column mode",
+        "    point_labels <- colnames(data_mat)",
+        "  } else {",
+        "    # Row names as labels in row mode",
+        "    point_labels <- rownames(data_mat)",
+        "  }",
+        "}",
+        ""
+      )
+      
+      # Use the generic function to create the plot (matching the app's call exactly)
+      code <- c(code,
+        "# Use the generic function to create the plot",
+        sprintf("create_dr_plot(pc_data, x_label, y_label, point_annot, %d,", font_size),
+        "               show_labels = show_labels, point_labels = point_labels)"
+      )
       
       return(code)
     }
