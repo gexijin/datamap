@@ -86,76 +86,93 @@ file_upload_server <- function(id) {
       return(FALSE)
     }
     
-    # Helper function to generate reproducible code
-    generate_code <- function(file_path, file_ext, delimiter = NULL, 
-                                         sheet = NULL, header = TRUE, 
-                                         rownames = FALSE) {
-      # Start with library imports
-      code <- "# Reproducible code for data import\n"
-      
-      # Add necessary libraries
-      if (file_ext %in% c("xls", "xlsx")) {
-        code <- paste0(code, "library(readxl)\n")
-      }
-      
-      # Add the data import code
-      if (file_ext %in% c("xls", "xlsx")) {
+  # Helper function to generate reproducible code
+  generate_code <- function(file_path, file_ext, delimiter = NULL,
+                                        sheet = NULL, header = TRUE,
+                                        rownames = FALSE) {
+    # Start with library imports
+    code <- "# Reproducible code for data import\n"
+
+    # Add necessary libraries
+    if (file_ext %in% c("xls", "xlsx")) {
+      code <- paste0(code, "library(readxl)\n")
+    }
+    code <- paste0(code, "library(utils) # For read.csv/read.delim\n") # Add utils library
+
+    # Add the data import code
+    if (file_ext %in% c("xls", "xlsx")) {
+      # For Excel files
+      # Note: The original app reads Excel sheets directly to data.frame
+      # with readxl::read_excel and then as.data.frame. This is replicated.
+      code <- paste0(
+        code,
+        "data <- readxl::read_excel(\n",
+        "  path = \"", file_path, "\",\n",
+        "  sheet = ", if (is.numeric(sheet)) as.character(sheet) else paste0("\"", sheet, "\""), ",\n", # Handle numeric or named sheets
+        "  col_names = ", as.character(header), "\n",
+        ")\n",
+        "data <- as.data.frame(data, stringsAsFactors = FALSE)\n"
+      )
+    } else {
+      # For CSV and other delimited text files
+      delimiter_name <- switch(delimiter,
+                              "," = "comma",
+                              "\t" = "tab",
+                              ";" = "semicolon",
+                              "|" = "pipe",
+                              " " = "space")
+
+      if (delimiter == "\t") {
         code <- paste0(
           code,
-          "data <- readxl::read_excel(\n",
-          "  path = \"", file_path, "\",\n",
-          "  sheet = \"", sheet, "\",\n",
-          "  col_names = ", as.character(header), "\n",
-          ")\n",
-          "data <- as.data.frame(data, stringsAsFactors = FALSE)\n"
+          "data <- utils::read.delim(\n", # Explicitly use utils::
+          "  file = \"", file_path, "\",\n",
+          "  header = ", as.character(header), ",\n",
+          "  sep = \"\\t\",\n",
+          "  stringsAsFactors = FALSE,\n",
+          "  check.names = TRUE\n", # Changed from FALSE to TRUE to match server logic
+          ")\n"
         )
       } else {
-        # For CSV and other delimited text files
-        delimiter_name <- switch(delimiter,
-                                "," = "comma",
-                                "\t" = "tab",
-                                ";" = "semicolon",
-                                "|" = "pipe",
-                                " " = "space")
-        
-        if (delimiter == "\t") {
-          code <- paste0(
-            code,
-            "data <- read.delim(\n",
-            "  file = \"", file_path, "\",\n",
-            "  header = ", as.character(header), ",\n",
-            "  sep = \"\\t\",\n",
-            "  stringsAsFactors = FALSE,\n",
-            "  check.names = FALSE\n",
-            ")\n"
-          )
-        } else {
-          code <- paste0(
-            code,
-            "data <- read.csv(\n",
-            "  file = \"", file_path, "\",\n",
-            "  header = ", as.character(header), ",\n",
-            "  sep = \"", gsub("\\", "\\\\", delimiter, fixed = TRUE), "\",\n",
-            "  stringsAsFactors = FALSE,\n",
-            "  check.names = FALSE\n",
-            ")\n"
-          )
-        }
-      }
-      
-      # Handle row names if applicable
-      if (rownames) {
         code <- paste0(
           code,
-          "\n# Set row names from first column\n",
-          "row_names <- data[[1]]\n",
-          "data <- data[, -1, drop = FALSE]\n",
-          "rownames(data) <- row_names\n"
+          "data <- utils::read.csv(\n", # Explicitly use utils::
+          "  file = \"", file_path, "\",\n",
+          "  header = ", as.character(header), ",\n",
+          "  sep = \"", gsub("\\", "\\\\", delimiter, fixed = TRUE), "\",\n",
+          "  stringsAsFactors = FALSE,\n",
+          "  check.names = TRUE\n", # Changed from FALSE to TRUE to match server logic
+          ")\n"
         )
       }
-      
-      return(code)
     }
+
+    # Add column name sanitization step to match server logic
+    code <- paste0(
+      code,
+      "\n# Sanitize column names (replicate app behavior)\n",
+      "colnames(data) <- gsub(\"-\", \"_\", colnames(data))\n",
+      "colnames(data) <- gsub(\" \", \"\", colnames(data))\n"
+    )
+
+    # Handle row names if applicable
+    if (rownames) {
+      code <- paste0(
+        code,
+        "\n# Set row names from first column (replicate app behavior)\n",
+        "# Ensure first column exists before setting row names\n",
+        "if (ncol(data) > 1) {\n", # Add check for number of columns
+        "  row_names <- data[[1]]\n",
+        "  data <- data[, -1, drop = FALSE]\n",
+        "  rownames(data) <- row_names\n",
+        "} else {\n",
+        "  warning(\"Cannot set row names: dataset has only one column after import.\")\n", # Add warning
+        "}\n"
+      )
+    }
+
+    return(code)
+  }
     
     # Reactive value to track if first column is suitable for row names
     can_use_rownames <- reactiveVal(FALSE)
