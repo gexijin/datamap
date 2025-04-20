@@ -20,15 +20,6 @@ library(shiny)
 # Note: The images and html files are saved into two copies!!!!!
 # when running directly: using www and extdata
 # when running as a package: using inst/www and inst/extdata
-addResourcePath("datamap", system.file("www", package = "datamap"))
-# if runing as a package, append "datamap/" to the image path
-get_image_path <- function(filename) {
-  if (isNamespaceLoaded("datamap")) {
-    paste0("datamap/", filename)
-  } else {
-    filename
-  }
-}
 
 max_rows_to_show <- 1000  # Maximum number of rows to show row names in the heatmap
 default_width <- 600
@@ -135,10 +126,10 @@ ui <- fluidPage(
         ),
         tabPanel("About",
                  titlePanel("DataMap: a portable app for visualizing data matrices v0.11"),  
-                 img(src = get_image_path("heatmap.png"), width = "375px", height = "300px"),
-                 img(src = get_image_path("pca.png"), width = "384px", height = "329px"),
-                 img(src = get_image_path("countries_label.png"), width = "401px", height = "300px"),
-                 img(src = get_image_path("tsne.png"), width = "335px", height = "300px"),
+                 img(src = "heatmap.png", width = "375px", height = "300px"),
+                 img(src = "pca.png", width = "384px", height = "329px"),
+                 img(src = "countries_label.png", width = "401px", height = "300px"),
+                 img(src = "tsne.png", width = "335px", height = "300px"),
                  includeHTML(datamap_resource("www/help.html"))
         )
       )
