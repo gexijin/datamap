@@ -153,17 +153,6 @@ pca_plot_server <- function(id, current_data, col_annotation_for_heatmap, row_an
       
       # Start with required inputs documentation
       code <- c(
-        "# Required inputs:",
-        "# - processed_data: The data matrix to analyze",
-        "# - row_annotation: Data frame with row annotations (if available)",
-        "# - col_annotation: Data frame with column annotations (if available)",
-        "# - create_dr_plot: Function for creating the dimensionality reduction plot",
-        sprintf("# User settings:"),
-        sprintf("#   Font size: %d", font_size),
-        sprintf("#   Transposition: '%s'", transpose_selection),
-        sprintf("#   Show point labels: %s", show_labels),
-        "",
-        "# PCA Analysis Code",
         "library(stats)",
         ""
       )
