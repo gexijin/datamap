@@ -51,9 +51,6 @@ tsne_plot_server <- function(id, current_data, col_annotation_for_heatmap, row_a
                              fontsize, width, height) {
   moduleServer(id, function(input, output, session) {
     
-    # Store the generated t-SNE code for later use
-    tsne_code <- reactiveVal(NULL)
-    
     # t-SNE data reactive
     tsne_data <- reactive({
       req(current_data())
@@ -112,130 +109,6 @@ tsne_plot_server <- function(id, current_data, col_annotation_for_heatmap, row_a
             exaggeration_factor = input$tsne_early_exaggeration,  # From UI slider
             verbose = FALSE                               # Disable verbose output
           )
-          
-          # Generate code for t-SNE
-          code_parts <- c(
-            "# t-SNE Analysis Code",
-            "library(Rtsne)",
-            "",
-            "# Prepare data for t-SNE",
-            "# Note: Replace 'processed_data' with your actual data variable name",
-            "data_mat <- as.matrix(processed_data)"
-          )
-
-          if(input$tsne_transpose == "column") {
-            code_parts <- c(code_parts, "# Transpose data to analyze columns instead of rows", 
-                          "data_mat <- t(data_mat)")
-          }
-
-          # Get actual annotation data for code generation
-          if(input$tsne_transpose == "column") {
-            actual_annot <- col_annotation_for_heatmap()
-          } else {
-            actual_annot <- row_annotation_for_heatmap()
-          }
-
-          # Create code to recreate the annotation data structure
-          annot_code <- NULL
-          if (!is.null(actual_annot)) {
-            # Convert annotation data frame to code that recreates it
-            annot_code <- paste0("point_annot <- data.frame(", 
-              paste0(sapply(names(actual_annot), function(colname) {
-                col_values <- actual_annot[[colname]]
-                if (is.factor(col_values)) {
-                  # For factors, we need to recreate them with levels
-                  paste0(colname, " = factor(c(", 
-                        paste0(deparse(as.character(col_values)), collapse = ", "), 
-                        "), levels = c(", 
-                        paste0(deparse(levels(col_values)), collapse = ", "), 
-                        "))")
-                } else if (is.character(col_values)) {
-                  paste0(colname, " = c(", 
-                        paste0(deparse(col_values), collapse = ", "), 
-                        ")")
-                } else if (is.numeric(col_values)) {
-                  # Handle numeric values properly, including NA and Inf
-                  paste0(colname, " = c(", 
-                        paste0(sapply(col_values, function(x) {
-                          if (is.na(x)) "NA"
-                          else if (is.infinite(x)) {
-                            if (x > 0) "Inf" else "-Inf"
-                          }
-                          else x
-                        }), collapse = ", "), 
-                        ")")
-                } else {
-                  # For other types, use deparse as a general solution
-                  paste0(colname, " = ", deparse(col_values))
-                }
-              }), collapse = ", "),
-              ", stringsAsFactors = FALSE)"  # Ensure consistent behavior across R versions
-            )
-            # Add rownames
-            rnames <- rownames(actual_annot)
-            if (!is.null(rnames)) {
-              annot_code <- c(annot_code, 
-                            paste0("rownames(point_annot) <- c(", 
-                                    paste0(deparse(rnames), collapse = ", "), 
-                                    ")"))
-            }
-          } else {
-            annot_code <- "point_annot <- NULL"
-          }
-
-          # Add annotation code to code_parts
-          code_parts <- c(code_parts,
-            "",
-            "# Set up annotation data",
-            annot_code
-          )
-
-          code_parts <- c(code_parts,
-            "# Scale data to have mean=0 and sd=1 (important for t-SNE)",
-            "scaled_data <- scale(data_mat)",
-            "",
-            "# Run t-SNE analysis",
-            "set.seed(42)  # For reproducibility",
-            paste0("tsne_result <- Rtsne(scaled_data, dims = 2, perplexity = ", perplexity, 
-                ", check_duplicates = FALSE, pca = ", input$tsne_pca_preprocessing,
-                ", normalize = FALSE, max_iter = ", input$tsne_iterations,
-                ", eta = ", input$tsne_learning_rate,
-                ", exaggeration_factor = ", input$tsne_early_exaggeration,
-                ", verbose = TRUE)"),
-            "",
-            "# Create a data frame with t-SNE coordinates",
-            "tsne_coords <- as.data.frame(tsne_result$Y)",
-            "colnames(tsne_coords) <- c(\"tSNE1\", \"tSNE2\")",
-            "",
-            "# Prepare variables for plotting",
-            paste0("show_labels <- ", tolower(as.character(input$show_point_labels))),
-            "",
-            if(input$show_point_labels) {
-              c(
-                if(input$tsne_transpose == "column") {
-                  "point_labels <- colnames(data_mat)"
-                } else {
-                  "point_labels <- rownames(data_mat)"
-                },
-                ""
-              )
-            } else {
-              c("point_labels <- NULL", "")
-            },
-            "",
-            "# Set plot parameters",
-            paste0("size_param <- ", fontsize()),  # This will evaluate the reactive and insert the actual value
-            "x_label <- \"tSNE 1\"",
-            "y_label <- \"tSNE 2\"",
-            "",
-            "# Create the plot using the same function as the Shiny app",
-            "# Note: Ensure create_dr_plot() function is defined/loaded before running this code",
-            "create_dr_plot(tsne_coords, x_label, y_label, point_annot, size_param,",
-            "               show_labels = show_labels, point_labels = point_labels)"
-          )
-
-          # Store the code
-          tsne_code(paste(code_parts, collapse = "\n"))
           
           # Store the transposition information for the plotting function
           attr(tsne_result, "transposed") <- (input$tsne_transpose == "column")
@@ -326,8 +199,148 @@ tsne_plot_server <- function(id, current_data, col_annotation_for_heatmap, row_a
       }
     )
     
-    # Return the t-SNE code for use in the main app
+    # Generate the t-SNE code (matching the PCA module's approach)
+    tsne_code <- function() {
+      req(tsne_data())
+      
+      # Capture the actual adjusted perplexity value from the tsne_data reactive
+      # to ensure reproducibility
+      tsne_result <- tsne_data()
+      data_mat <- as.matrix(current_data())
+      if(input$tsne_transpose == "column") {
+        data_mat <- t(data_mat)
+      }
+      actual_perplexity <- min(input$tsne_perplexity, floor(nrow(data_mat)/3) - 1)
+      if(actual_perplexity < 5) actual_perplexity <- 5
+      
+      # Start with required libraries
+      code <- c(
+        "library(Rtsne)",
+        ""
+      )
+      
+      # Convert to matrix and handle transposition
+      code <- c(code,
+        "# Get the data and handle transposition based on user selection",
+        "data_mat <- as.matrix(processed_data)",
+        ""
+      )
+      
+      # Add the transpose code only if needed
+      if (input$tsne_transpose == "column") {
+        code <- c(code,
+          "# Transpose matrix for column-based analysis",
+          "data_mat <- t(data_mat)",
+          ""
+        )
+      }
+      
+      # Add error handling for missing values
+      code <- c(code,
+        "# Handle missing values",
+        "if (any(is.na(data_mat))) {",
+        "  print(\"Warning: Missing values found. Using complete cases only.\")",
+        "  data_mat <- na.omit(data_mat)",
+        "}",
+        ""
+      )
+      
+      # Check perplexity and data size - use the ACTUAL value being used in the app
+      code <- c(code,
+        "# Check perplexity against data size",
+        paste0("perplexity <- ", actual_perplexity, " # Adjusted perplexity value"),
+        "",
+        "# Verify we have enough data",
+        "if(nrow(data_mat) < perplexity * 3 + 1) {",
+        "  stop(\"Not enough samples for t-SNE with current perplexity. Try reducing perplexity.\")",
+        "}",
+        ""
+      )
+      
+      # Scale data
+      code <- c(code,
+        "# Scale data to have mean=0 and sd=1 (important for t-SNE)",
+        "scaled_data <- scale(data_mat)",
+        "",
+        "# Set seed for reproducibility",
+        "set.seed(42)",
+        ""
+      )
+      
+      # Perform t-SNE (use the exact parameters from the UI)
+      code <- c(code,
+        "# Perform t-SNE",
+        paste0("tsne_result <- Rtsne::Rtsne(",
+               "\n  scaled_data,", 
+               "\n  dims = 2,", 
+               "\n  perplexity = perplexity,", 
+               "\n  check_duplicates = FALSE,", 
+               sprintf("\n  pca = %s,", ifelse(input$tsne_pca_preprocessing, "TRUE", "FALSE")),
+               "\n  normalize = FALSE,", 
+               sprintf("\n  max_iter = %d,", input$tsne_iterations),
+               sprintf("\n  eta = %d,", input$tsne_learning_rate),
+               sprintf("\n  exaggeration_factor = %d,", input$tsne_early_exaggeration),
+               "\n  verbose = TRUE",
+               "\n)"),
+        "",
+        "# Extract t-SNE coordinates",
+        "tsne_coords <- as.data.frame(tsne_result$Y)",
+        "colnames(tsne_coords) <- c(\"tSNE1\", \"tSNE2\")",
+        ""
+      )
+      
+      # Prepare for plotting (matching the logic in create_tsne_plot)
+      code <- c(code,
+        "# Define transposed setting based on analysis mode",
+        sprintf("transposed <- %s", ifelse(input$tsne_transpose == "column", "TRUE", "FALSE")),
+        "",
+        "# Get appropriate annotations based on transposition mode",
+        "if (transposed) {",
+        "  # For column t-SNE mode (columns as points), use column annotation data",
+        "  point_annot <- col_annotation",
+        "} else {",
+        "  # For row t-SNE mode (rows as points), use row annotation data",
+        "  point_annot <- row_annotation",
+        "}",
+        "",
+        "# Create axis labels",
+        "x_label <- \"tSNE 1\"",
+        "y_label <- \"tSNE 2\"",
+        ""
+      )
+      
+      # Handle point labels
+      code <- c(code,
+        "# Point label settings",
+        sprintf("show_labels <- %s", ifelse(input$show_point_labels, "TRUE", "FALSE")),
+        "point_labels <- NULL",
+        "",
+        "# Set up point labels if needed",
+        "if (show_labels) {",
+        "  if (transposed) {",
+        "    # Use column names as labels in column mode",
+        "    point_labels <- colnames(processed_data)",
+        "  } else {",
+        "    # Use row names as labels in row mode",
+        "    point_labels <- rownames(processed_data)",
+        "  }",
+        "}",
+        ""
+      )
+      
+      # Use the generic function to create the plot
+      code <- c(code,
+        "# Plot the t-SNE results",
+        sprintf("create_dr_plot(tsne_coords, x_label, y_label, point_annot, %d,", fontsize()),
+        "               show_labels = show_labels, point_labels = point_labels)"
+      )
+      
+      return(code)
+    }
+    
+    # Return the tsne_data and code generation function for use outside the module
     return(list(
+      tsne_data = tsne_data,
       tsne_code = tsne_code
     ))
   })
