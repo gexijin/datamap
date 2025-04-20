@@ -149,7 +149,7 @@ code_generation_server <- function(id, file_data, transform_data, heatmap_result
         css,
         tags$div(
           fluidRow(
-            column(width = 8, style = "margin-top:5px;", tags$p("To reproduce the plots, save and run it in a directory that also contains all the data files.")),
+            column(width = 8, style = "margin-top:5px;", tags$p("To reproduce the plots, download and execute the generated R script in RStudio, ensuring all required data files are in the same folder.")),
             column(width = 4, style = "margin-top:5px;", downloadButton(ns("download_combined_code"), "Generated R Script"))
           ),
           html_output
