@@ -404,6 +404,62 @@ server <- function(input, output, session) {
   })
   
   # Column annotation for heatmap
+  process_column_annotations <- function(main_data_cols, annotation_df, selected_annotations) {
+    # Check if annotation rows are selected
+    if (is.null(selected_annotations) || length(selected_annotations) == 0) {
+      return(NULL)
+    }
+    
+    # Safely select annotation rows - note the difference in approach here
+    annot_selected <- NULL
+    tryCatch({
+      annot_selected <- annotation_df[selected_annotations, , drop = FALSE]
+    }, error = function(e) {
+      # Log the error
+      warning("Error selecting annotations: ", e$message)
+    })
+    
+    # Check if annotation selection failed
+    if (is.null(annot_selected)) {
+      return(NULL)
+    }
+    
+    # Check if there are any common samples between main data and annotation file
+    common_samples <- intersect(main_data_cols, colnames(annot_selected))
+    if (length(common_samples) == 0) {
+      return(NULL)
+    }
+    
+    # Create an empty data frame with all main data samples
+    output_df <- data.frame(matrix(NA, nrow = length(main_data_cols), ncol = nrow(annot_selected)))
+    rownames(output_df) <- main_data_cols
+    colnames(output_df) <- rownames(annot_selected)
+    
+    for (ann in rownames(annot_selected)) {
+      success <- tryCatch({
+        values <- as.character(annot_selected[ann, common_samples])
+        names(values) <- common_samples
+        output_df[common_samples, ann] <- values
+        TRUE #indicate success
+      }, error = function(e) {
+        warning("Error processing annotation '", ann, "': ", e$message)
+        FALSE #indicate failure
+      })
+      if (!success) {
+        output_df <- output_df[, colnames(output_df) != ann, drop = FALSE]
+      }
+    }
+
+    # Check if we have any annotations left
+    if (ncol(output_df) == 0) {
+      warning("All annotations failed to process")
+      return(NULL)
+    }
+    
+    return(output_df)
+  }
+
+  # Modified reactive function that matches original behavior
   col_annotation_for_heatmap <- reactive({
     req(current_data())
     
@@ -415,57 +471,15 @@ server <- function(input, output, session) {
     # Get annotation data
     annot_df <- col_annotation_file_data$data()
     main_cols <- colnames(current_data())
-    
-    # Check if annotation rows are selected
     selected <- input$col_annotation_select
-    if (is.null(selected) || length(selected) == 0) {
-      return(NULL)
-    }
     
-    # Safely select annotation rows
-    tryCatch({
-      annot_selected <- annot_df[selected, , drop = FALSE]
-    }, error = function(e) {
-      # Log the error and return NULL
-      warning("Error selecting annotations: ", e$message)
-      return(NULL)
-    })
-    
-    # Check if there are any common samples between main data and annotation file
-    common_samples <- intersect(main_cols, colnames(annot_selected))
-    if (length(common_samples) == 0) {
-      return(NULL)
-    }
-    
-    # Create an empty data frame with all main data samples
-    output_df <- data.frame(matrix(NA, nrow = length(main_cols), ncol = nrow(annot_selected)))
-    rownames(output_df) <- main_cols
-    colnames(output_df) <- rownames(annot_selected)
-    
-    for (ann in rownames(annot_selected)) {
-      success <- tryCatch({
-        values <- as.character(annot_selected[ann, common_samples])
-        names(values) <- common_samples
-        output_df[common_samples, ann] <- values
-        TRUE #indicate success
-      }, error = function(e) {
-         warning("Error processing annotation '", ann, "': ", e$message)
-         FALSE #indicate failure
-      })
-      if (!success) {
-        output_df <- output_df[, colnames(output_df) != ann, drop = FALSE]
-      }
-    }
-  
-    # Check if we have any annotations left
-    if (ncol(output_df) == 0) {
-      warning("All annotations failed to process")
-      return(NULL)
-    }
-    
-    return(output_df)
+    # Process annotations using the extracted function
+    process_column_annotations(
+      main_data_cols = main_cols,
+      annotation_df = annot_df,
+      selected_annotations = selected
+    )
   })
-
 
   row_annotation_for_heatmap <- reactive({
     req(current_data())
