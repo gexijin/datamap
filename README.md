@@ -4,7 +4,7 @@ To use this app, just visit this static [GitHub page](https://gexijin.github.io/
 ```{R}
 install.packages("remotes")
 remotes::install_github("gexijin/datamap", upgrade = "never")
-DataMap::run_datamap()
+datamap::run_app()
 ```
 
 DataMap is a secure, browser-based application for visualizing high-dimensional 'omics and other data matrices with heatmaps, PCA, and t-SNE. Built with Shiny and running entirely in your browser through Shinylive technology, DataMap ensures your data never leaves your device.

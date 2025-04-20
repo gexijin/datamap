@@ -126,10 +126,10 @@ ui <- fluidPage(
         ),
         tabPanel("About",
                  titlePanel("DataMap: a portable app for visualizing data matrices v0.11"),  
-                 img(src = "heatmap.png", width = "375px", height = "300px"),
-                 img(src = "pca.png", width = "384px", height = "329px"),
-                 img(src = "countries_label.png", width = "401px", height = "300px"),
-                 img(src = "tsne.png", width = "335px", height = "300px"),
+                 img(src = "heatmap.png", width = "375px", height = "300px", alt = "Example heatmap does not show when using R pckage"),
+                 img(src = "pca.png", width = "384px", height = "329px", alt = "Exaple PCA plot does not show when using R pckage"),
+                 img(src = "countries_label.png", width = "401px", height = "300px", alt = "Exaple heatmap does not show when using R pckage"),
+                 img(src = "tsne.png", width = "335px", height = "300px", alt = "Exaple tSNE plot does not show when using R pckage"),
                  includeHTML(datamap_resource("www/help.html"))
         )
       )
