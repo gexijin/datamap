@@ -29,13 +29,13 @@ code_generation_server <- function(id, file_data, transform_data, heatmap_result
       # Add column annotation file upload code if available
       if (!is.null(col_annotation_data$code())) {
         code_parts <- c(code_parts, "# Column Annotation Import Code", 
-                        col_annotation_data$code(), "col_annotation <- data", "rm(data)", "")
+                        col_annotation_data$code(), "col_annotation_raw <- t(data)", "rm(data)", "")
       }
       
       # Add row annotation file upload code if available
       if (!is.null(row_annotation_data$code())) {
         code_parts <- c(code_parts, "# Row Annotation Import Code", 
-                         row_annotation_data$code(), "row_annotation <- data", "rm(data)","")
+                         row_annotation_data$code(), "row_annotation_raw <- data", "rm(data)","")
       }
 
       # Add transform code if available
