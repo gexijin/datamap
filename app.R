@@ -422,7 +422,14 @@ server <- function(input, output, session) {
       return(NULL)
     }
     
-    annot_selected <- annot_df[selected, , drop = FALSE]
+    # Safely select annotation rows
+    tryCatch({
+      annot_selected <- annot_df[selected, , drop = FALSE]
+    }, error = function(e) {
+      # Log the error and return NULL
+      warning("Error selecting annotations: ", e$message)
+      return(NULL)
+    })
     
     # Check if there are any common samples between main data and annotation file
     common_samples <- intersect(main_cols, colnames(annot_selected))
@@ -436,9 +443,24 @@ server <- function(input, output, session) {
     colnames(output_df) <- rownames(annot_selected)
     
     for (ann in rownames(annot_selected)) {
-      values <- as.character(annot_selected[ann, common_samples])
-      names(values) <- common_samples
-      output_df[common_samples, ann] <- values
+      success <- tryCatch({
+        values <- as.character(annot_selected[ann, common_samples])
+        names(values) <- common_samples
+        output_df[common_samples, ann] <- values
+        TRUE #indicate success
+      }, error = function(e) {
+         warning("Error processing annotation '", ann, "': ", e$message)
+         FALSE #indicate failure
+      })
+      if (!success) {
+        output_df <- output_df[, colnames(output_df) != ann, drop = FALSE]
+      }
+    }
+  
+    # Check if we have any annotations left
+    if (ncol(output_df) == 0) {
+      warning("All annotations failed to process")
+      return(NULL)
     }
     
     return(output_df)
