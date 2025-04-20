@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DataMap Documentation</title>
+</head>
+<body>
+<div class="datamap-docs">
+    <style>
+        .datamap-docs {
+            /* Reset styles to avoid conflicts */
+            all: initial;
+            /* Restore base styling for the documentation container */
+            display: block;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        
+        /* All styles namespaced with .datamap-docs to isolate from app styles */
+        .datamap-docs h1, 
+        .datamap-docs h2, 
+        .datamap-docs h3, 
+        .datamap-docs h4 {
+            color: #2c3e50;
+            font-weight: bold;
+            margin: 1em 0 0.5em 0;
+        }
+        
+        .datamap-docs h1 {
+            font-size: 2em;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+        
+        .datamap-docs h2 {
+            font-size: 1.75em;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 5px;
+            margin-top: 30px;
+        }
+        
+        .datamap-docs h3 {
+            font-size: 1.5em;
+        }
+        
+        .datamap-docs h4 {
+            font-size: 1.25em;
+        }
+        
+        .datamap-docs p {
+            margin: 0 0 1em 0;
+        }
+        
+        .datamap-docs .content-section {
+            margin-bottom: 40px;
+        }
+        
+        .datamap-docs code {
+            background-color: #f8f9fa;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.9em;
+        }
+        
+        .datamap-docs pre {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            font-family: 'Courier New', Courier, monospace;
+            border: 1px solid #e9ecef;
+        }
+        
+        .datamap-docs .note {
+            background-color: #e9f7fe;
+            border-left: 4px solid #3498db;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        
+        .datamap-docs .warning {
+            background-color: #fff4e5;
+            border-left: 4px solid #f39c12;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        
+        .datamap-docs table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        
+        .datamap-docs th, 
+        .datamap-docs td {
+            border: 1px solid #ddd;
+            padding: 8px 12px;
+            text-align: left;
+        }
+        
+        .datamap-docs th {
+            background-color: #f8f9fa;
+        }
+        
+        .datamap-docs img {
+            max-width: 100%;
+            height: auto;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin: 15px 0;
+        }
+        
+        .datamap-docs ul,
+        .datamap-docs ol {
+            margin: 1em 0;
+            padding-left: 2em;
+        }
+        
+        .datamap-docs ul li,
+        .datamap-docs ol li {
+            margin-bottom: 0.5em;
+        }
+        
+        .datamap-docs .feature-list {
+            list-style-type: none;
+            padding-left: 0;
+        }
+        
+        .datamap-docs .feature-list li {
+            margin-bottom: 10px;
+            padding-left: 25px;
+            position: relative;
+        }
+        
+        .datamap-docs .feature-list li:before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: #27ae60;
+            font-weight: bold;
+        }
+        
+        .datamap-docs .footer {
+            margin-top: 50px;
+            border-top: 1px solid #ddd;
+            padding-top: 20px;
+            font-size: 0.9em;
+        }
+        
+        .datamap-docs a {
+            color: #3498db;
+            text-decoration: none;
+        }
+        
+        .datamap-docs a:hover {
+            text-decoration: underline;
+        }
+        
+        .datamap-docs .author-info {
+            display: flex;
+            align-items: center;
+            margin-top: 30px;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+        }
+        
+        .datamap-docs .author-photo {
+            margin-right: 20px;
+            border-radius: 50%;
+            width: 120px;
+            height: 120px;
+            object-fit: cover;
+        }
+        
+        .datamap-docs .social-links {
+            margin-top: 10px;
+        }
+        
+        .datamap-docs .social-links a {
+            margin-right: 15px;
+            display: inline-block;
+        }
+        
+        .datamap-docs .tab {
+            overflow: hidden;
+            border: 1px solid #ccc;
+            background-color: #f1f1f1;
+            border-radius: 5px 5px 0 0;
+        }
+        
+        .datamap-docs .tab button {
+            background-color: inherit;
+            float: left;
+            border: none;
+            outline: none;
+            cursor: pointer;
+            padding: 14px 16px;
+            transition: 0.3s;
+            font-size: 17px;
+        }
+        
+        .datamap-docs .tab button:hover {
+            background-color: #ddd;
+        }
+        
+        .datamap-docs .tab button.active {
+            background-color: #fff;
+            border-bottom: 2px solid #3498db;
+        }
+        
+        .datamap-docs .tabcontent {
+            display: none;
+            padding: 20px;
+            border: 1px solid #ccc;
+            border-top: none;
+            border-radius: 0 0 5px 5px;
+        }
+    </style>
+    <!--<header>
+         <h1>DataMap: Visualizating High-Dimensional Data in Your Browser</h1> 
+    </header>-->
+
+        <p>A secure, browser-based application for visualizing high-dimensional 'omics and other data matrices with heatmaps, PCA, and t-SNE.  V. 0.1</p>
+	    <div class="content-section">
+        <h2>Video tutorials</h2>
+<p>
+  Watch a 2-min video on <a href="https://www.youtube.com/watch?v=9G508BxzjBk"  target="_blank" rel="noopener noreferrer">
+    YouTube 
+  </a> to get a quick start. Here is another 
+  <a href="https://www.youtube.com/watch?v=a4ioAVTcCoo"  target="_blank" rel="noopener noreferrer">
+    video
+  </a> on countries with negative population growth.
+</p>
+</div>
+    <div class="content-section">
+        <h2>Overview</h2>
+        <p>DataMap is a Shiny application designed to provide researchers and data analysts with an easy-to-use tool for visualizing high-dimensional data matrices. What makes DataMap unique is that it runs entirely in your browser through Shinylive technology, ensuring your data never leaves your device, providing both security and scalability.</p>
+        
+        <div class="note">
+            <strong>Why DataMap?</strong>
+            <ul class="feature-list">
+                <li>Runs completely in your browser - no server required</li>
+                <li>Your data stays on your device, providing maximum security</li>
+                <li>Interactive visualizations including heatmaps, PCA, and t-SNE</li>
+                <li>Support for data transformations (scaling, normalization, etc.)</li>
+                <li>Exportable code to reproduce your analysis in R</li>
+                <li>Supports multiple data formats (CSV, TSV, TXT, Excel)</li>
+                <li>Customizable visualization parameters</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="content-section">
+        <h2>Getting Started</h2>
+        
+        <h3>Launching the Application</h3>
+        <p>DataMap is accessed through your web browser. Simply navigate to the DataMap URL to launch the application. No installation is required.</p>
+        
+        <h3>Interface Overview</h3>
+        <p>The DataMap interface consists of:</p>
+        <ul>
+            <li><strong>Left Sidebar:</strong> Contains controls for data upload, transformations, and visualization settings</li>
+            <li><strong>Main Panel:</strong> Displays the visualizations in tabbed panels (Heatmap, PCA, t-SNE, Code)</li>
+        </ul>
+    </div>
+
+    <div class="content-section">
+        <h2>Data Upload</h2>
+        
+        <h3>Supported File Formats</h3>
+        <p>DataMap supports the following file formats:</p>
+        <ul>
+            <li>CSV files (.csv)</li>
+            <li>Tab-separated files (.tsv, .txt)</li>
+            <li>Excel files (.xls, .xlsx)</li>
+        </ul>
+        
+        <h3>Data Format Requirements</h3>
+        <p>Your data should be organized in a matrix format where:</p>
+        <ul>
+            <li>Rows typically represent features (genes, metabolites, proteins, etc.)</li>
+            <li>Columns typically represent samples or observations</li>
+            <li>The first row may contain column headers (sample names)</li>
+            <li>The first column may contain row identifiers (feature names)</li>
+        </ul>
+        
+        <div class="tab">
+            <button class="tablinks" data-format="CSV" id="defaultOpen">Example Data 1</button>
+            <button class="tablinks" data-format="Excel">Example Data 2</button>
+        </div>
+        
+        <div id="CSV" class="tabcontent">
+            <table>
+                <tr>
+                    <th>Name1</th>
+                    <th>Name2</th>
+                    <th>Name3</th>
+                    <th>Name4</th>
+                    <th>Name5</th>
+                    <th>Name6</th>
+                </tr>
+                <tr>
+                    <td>5.6</td>
+                    <td>2.9</td>
+                    <td>4.3</td>
+                    <td>9.1</td>
+                    <td>3.1</td>
+                    <td>3.4</td>
+                </tr>
+                <tr>
+                    <td>3.2</td>
+                    <td>2.1</td>
+                    <td>NA</td>
+                    <td>2.8</td>
+                    <td>1.5</td>
+                    <td>2.9</td>
+                </tr>
+                <tr>
+                    <td>8.9</td>
+                    <td>8.7</td>
+                    <td>9.0</td>
+                    <td>8.5</td>
+                    <td>3.5</td>
+                    <td>2.4</td>
+                </tr>
+                <tr>
+                    <td>1.9</td>
+                    <td>8.0</td>
+                    <td>1.0</td>
+                    <td>1.5</td>
+                    <td>2.5</td>
+                    <td>1.8</td>
+                </tr>
+                <tr>
+                    <td>1.0</td>
+                    <td>2.1</td>
+                    <td>1.5</td>
+                    <td>3.1</td>
+                    <td>6.6</td>
+                    <td>7.8</td>
+                </tr>
+            </table>
+            <p>The column names should not have duplicates. Missing values in the data matrix are tolerated.</p>
+        </div>
+        
+        <div id="Excel" class="tabcontent">
+            <table>
+                <tr>
+                    <th>GeneID</th>
+                    <th>Name</th>
+                    <th>Sample1</th>
+                    <th>Sample2</th>
+                    <th>Sample3</th>
+                    <th>Sample4</th>
+                    <th>Protein_coding</th>
+                </tr>
+                <tr>
+                    <td>Gene1</td>
+                    <td>DNA Repair 2</td>
+                    <td>5.6</td>
+                    <td>7.8</td>
+                    <td>4.3</td>
+                    <td>9.1</td>
+                    <td>Yes</td>
+                </tr>
+                <tr>
+                    <td>Gene2</td>
+                    <td>Energy 3B</td>
+                    <td>3.2</td>
+                    <td>2.1</td>
+                    <td>3.5</td>
+                    <td>2.8</td>
+                    <td>Yes</td>
+                </tr>
+                <tr>
+                    <td>Gene3</td>
+                    <td>Stress related 1</td>
+                    <td>8.9</td>
+                    <td>8.7</td>
+                    <td>9.0</td>
+                    <td>8.5</td>
+                    <td>No</td>
+                </tr>
+                <tr>
+                    <td>Gene4</td>
+                    <td>Transporter 2</td>
+                    <td>1.2</td>
+                    <td>1.0</td>
+                    <td>1.4</td>
+                    <td>1.3</td>
+                    <td>Yes</td>
+                </tr>
+                <tr>
+                    <td>Gene5</td>
+                    <td></td>
+                    <td>6.7</td>
+                    <td>6.9</td>
+                    <td>6.2</td>
+                    <td>7.1</td>
+                    <td>Yes</td>
+                </tr>
+            </table>
+            <p>The first column contains row names (here is gene ids). 
+                The row must not contain duplicates. Otherwise, it will be ignored, just like the 2nd column.
+                You can have one or more columns with categorical data, such as the last one here. 
+                Such information will be used to label rows. You can also save such columns in a separate 
+                file to be uploaded as row annotations (See below).</p>
+
+        </div>
+        
+        <h3>Optional Annotation Files</h3>
+        <p>DataMap allows you to upload additional annotation files to provide context for your data:</p>
+        
+        <h4>Column Annotation File</h4>
+        <p>This file provides metadata about your samples (columns). The file should have:</p>
+        <ul>
+            <li>Column names matching the column names in your main data file</li>
+            <li>Rows containing different annotations (e.g., treatment, time point, etc.)</li>
+        </ul>
+        <table>
+            <tr>
+                <th>SampleID</th>
+                <th>Sample1</th>
+                <th>Sample2</th>
+                <th>Sample3</th>
+                <th>Sample4</th>
+            </tr>
+            <tr>
+                <td>Treatment</td>
+                <td>Control</td>
+                <td>Treatment</td>
+                <td>Control</td>
+                <td>Treatment</td>
+            </tr>
+            <tr>
+                <td>TimePoint</td>
+                <td>0h</td>
+                <td>0h</td>
+                <td>24h</td>
+                <td>24h</td>
+            </tr>
+        </table>
+        
+        <h4>Row Annotation File</h4>
+        <p>This file provides metadata about your features (rows). The file should have:</p>
+        <ul>
+            <li>Row names matching the row names in your main data file</li>
+            <li>Columns containing different annotations (e.g., pathways, functions, etc.)</li>
+        </ul>
+        <table>
+            <tr>
+                <th>GeneID</th>
+                <th>Pathway</th>
+                <th>Function</th>
+            </tr>
+            <tr>
+                <td>Gene1</td>
+                <td>Glycolysis</td>
+                <td>Enzyme</td>
+            </tr>
+            <tr>
+                <td>Gene2</td>
+                <td>TCA Cycle</td>
+                <td>Transporter</td>
+            </tr>
+            <tr>
+                <td>Gene3</td>
+                <td>Glycolysis</td>
+                <td>Transcription Factor</td>
+            </tr>
+            <tr>
+                <td>Gene4</td>
+                <td>TCA Cycle</td>
+                <td>Enzyme</td>
+            </tr>
+            <tr>
+                <td>Gene5</td>
+                <td>Lipid Metabolism</td>
+                <td>Signaling</td>
+            </tr>
+        </table>
+        
+        <h3>Uploading Your Data</h3>
+        <ol>
+            <li>Click the <strong>Data Files</strong> button in the sidebar</li>
+            <li>Use the file upload controls to select and upload your files</li>
+            <li>Configure import settings (delimiter, headers, row names) in the dialog</li>
+            <li>Preview your data to ensure it's imported correctly</li>
+            <li>Click <strong>Import Data</strong> to load your data into the application</li>
+        </ol>
+        
+        <div class="note">
+            <strong>Tip:</strong> The application will attempt to auto-detect the optimal import settings, but you can adjust these manually if needed.
+        </div>
+    </div>
+
+    <div class="content-section">
+        <h2>Data Transformation</h2>
+        
+        <p>DataMap provides various options for transforming your data to improve visualization and analysis:</p>
+        
+        <h3>Available Transformations</h3>
+        <ul>
+            <li><strong>Log10 Transformation:</strong> Useful for skewed data with large ranges</li>
+            <li><strong>Missing Value Handling:</strong> Replace missing values with zeros, means, or medians</li>
+            <li><strong>Scaling Options:</strong>
+                <ul>
+                    <li>Center by row: Subtract row means from each row</li>
+                    <li>Scale by row (Z-score): Standardize each row to have mean 0 and standard deviation 1</li>
+                    <li>Center by column: Subtract column means from each column</li>
+                    <li>Scale by column (Z-score): Standardize each column to have mean 0 and standard deviation 1</li>
+                </ul>
+            </li>
+            <li><strong>Outlier Capping:</strong> Limit extreme values based on a Z-score threshold</li>
+            <li><strong>Row Filtering:</strong> Keep only the most variable rows (features) for clearer visualization</li>
+        </ul>
+        
+        <h3>Applying Transformations</h3>
+        <ol>
+            <li>Click the <strong>Data Prep.</strong> button in the sidebar</li>
+            <li>Select the desired transformations in the dialog</li>
+            <li>Preview the effect of your transformations in the histogram</li>
+            <li>Click <strong>Apply Changes</strong> to implement the transformations</li>
+        </ol>
+        
+        <div class="note">
+            <strong>Note:</strong> The application will recommend appropriate transformations based on your data characteristics, such as skewness and the presence of missing values.
+        </div>
+    </div>
+
+    <div class="content-section">
+        <h2>Visualization Options</h2>
+        
+        <h3>Heatmap</h3>
+        <p>The heatmap visualization allows you to see patterns in your data matrix through color intensity.</p>
+        
+        <h4>Customization Options</h4>
+        <ul>
+            <li><strong>Clustering:</strong> Enable/disable clustering for rows and columns</li>
+            <li><strong>Clustering Method:</strong> Choose from various linkage methods (complete, average, single, ward.D, etc.)</li>
+            <li><strong>Distance Metric:</strong> Select the distance measure (euclidean, manhattan, pearson correlation, etc.)</li>
+            <li><strong>Color Palette:</strong> Choose from various color schemes for the heatmap</li>
+            <li><strong>Font Size:</strong> Adjust the text size in the visualization</li>
+            <li><strong>Heatmap Size:</strong> Control the width and height of the heatmap</li>
+            <li><strong>Data Labels:</strong> Toggle display of data values in the cells</li>
+            <li><strong>Row Names:</strong> Toggle display of row identifiers</li>
+            <li><strong>Clustering Cutoffs:</strong> Set specific numbers of clusters to display</li>
+        </ul>
+        
+        <h3>Principal Component Analysis (PCA)</h3>
+        <p>PCA reduces the dimensionality of your data to display the main sources of variation.</p>
+        
+        <h4>PCA Options</h4>
+        <ul>
+            <li><strong>Analysis Mode:</strong> Choose whether to analyze row vectors or column vectors</li>
+            <li><strong>Annotation Coloring:</strong> Automatically colors points by row or column annotations</li>
+        </ul>
+        
+        <h3>t-SNE (t-Distributed Stochastic Neighbor Embedding)</h3>
+        <p>t-SNE is a nonlinear dimensionality reduction technique that is particularly good at visualizing high-dimensional data clusters.</p>
+        
+        <h4>t-SNE Options</h4>
+        <ul>
+            <li><strong>Analysis Mode:</strong> Choose whether to analyze row vectors or column vectors</li>
+            <li><strong>Perplexity:</strong> Adjust the perplexity parameter to balance local and global structure (typically between 5-50)</li>
+            <li><strong>Annotation Coloring:</strong> Automatically colors points by row or column annotations</li>
+        </ul>
+    </div>
+
+    <div class="content-section">
+        <h2>Generating Reproducible Code</h2>
+        <p>One of the most powerful features of DataMap is its ability to generate reproducible R code for your analysis.</p>
+        
+        <h3>Code Generation</h3>
+        <p>The application automatically generates R code that replicates all steps of your analysis:</p>
+        <ul>
+            <li>Data import with the correct parameters</li>
+            <li>Data transformations applied</li>
+            <li>Heatmap generation with all customized settings</li>
+            <li>PCA and t-SNE configurations</li>
+        </ul>
+        
+        <h3>Accessing the Code</h3>
+        <ol>
+            <li>Navigate to the <strong>Code</strong> tab in the main panel</li>
+            <li>Review the generated R code</li>
+            <li>Click <strong>Download Code as R Script</strong> to save the code for later use</li>
+        </ol>
+        
+        <div class="note">
+            <strong>Tip:</strong> This feature is especially useful for documentation, publications, and ensuring reproducibility of your analysis.
+        </div>
+    </div>
+
+    <div class="content-section">
+        <h2>Exporting Results</h2>
+        
+        <h3>Saving Visualizations</h3>
+        <p>You can save your visualizations in various formats:</p>
+        <ul>
+            <li><strong>PDF:</strong> Click the <strong>PDF</strong> button to download the current heatmap as a PDF file</li>
+            <li><strong>PNG:</strong> Click the <strong>PNG</strong> button to download the current heatmap as a PNG image</li>
+        </ul>
+        
+    </div>
+
+    <div class="content-section">
+        <h2>Tips and Best Practices</h2>
+        
+        <h3>Data Preparation</h3>
+        <ul>
+            <li><strong>Data Size:</strong> While the application can handle large matrices, performance may decrease with extremely large datasets (e.g., >50,000 rows). Consider filtering your data to the most relevant features before uploading.</li>
+            <li><strong>Missing Values:</strong> Consider how to handle missing values based on your data type. For gene expression data, replacing with zeros often makes sense, while for other data types, means or medians might be more appropriate.</li>
+            <li><strong>Log Transformation:</strong> For gene expression data and many other biological datasets, log transformation often improves visualization by reducing the effect of extreme values.</li>
+        </ul>
+        
+        <h3>Visualization</h3>
+        <ul>
+            <li><strong>Row Names:</strong> Displaying row names on large matrices can make the heatmap unreadable. Use the toggle to show or hide row names as needed.</li>
+            <li><strong>Clustering:</strong> Different distance metrics and linkage methods can reveal different patterns. Explore multiple combinations to find the most informative visualization for your data.</li>
+            <li><strong>Color Palettes:</strong> For divergent data (with both positive and negative values), use divergent color schemes like RdBu. For sequential data, gradients like YlOrRd or Blues are more appropriate.</li>
+        </ul>
+        
+        <h3>Troubleshooting</h3>
+        <ul>
+            <li><strong>Import Issues:</strong> If your data isn't importing correctly, check for special characters in headers, mixed data types, or unusual delimiters.</li>
+            <li><strong>Missing Row/Column Annotations:</strong> Ensure that the identifiers in your annotation files exactly match those in your main data file.</li>
+            <li><strong>t-SNE Performance:</strong> t-SNE can be computationally intensive for large datasets. If you experience slow performance, try reducing the number of rows with the row filtering option.</li>
+        </ul>
+    </div>
+
+    <div class="content-section">
+        <h2>FAQ</h2>
+        
+        <h3>General Questions</h3>
+        
+        <h4>Is my data secure?</h4>
+        <p>Yes. DataMap runs entirely in your browser using WebAssembly technology. Your data never leaves your device and is not sent to any server, providing maximum security and privacy.</p>
+        
+        <h4>What is the maximum file size I can upload?</h4>
+        <p>Since the application runs in your browser, the maximum file size depends on your device's memory. However, this browser app gets slow when there are 5000 rows or columns. Users can install DataMap as an R package to run it natively. </p>
+        
+        <h4>Can I analyze RNA-seq (bulk or single cell) data?</h4>
+        <p>Yes, DataMap is particularly well-suited for analyzing gene expression data from RNA-seq or microarray experiments. The scaling and transformation options are designed with these data types in mind.</p>
+        
+        <h4>How do I cite DataMap in my publication?</h4>
+        <p>If you use DataMap in your research, please cite it as: "Ge, X. (2025). DataMap: A secure browser-based application for visualizing high-dimensional data matrices. [Software]. Available from: [URL]"</p>
+        
+        <h4>What browsers are supported?</h4>
+        <p>DataMap works best with modern browsers like Chrome, Firefox, Edge, and Safari. We recommend using the latest version of your preferred browser for optimal performance.</p>
+        
+        <h4>My visualization is taking a long time to generate. What can I do?</h4>
+        <p>For large datasets, consider these strategies to improve performance:</p>
+        <ul>
+            <li>Try install DataMap as an R package. See instruction on the GitHub page.</li>
+            <li>Filter your data to fewer rows (use the "Keep top most variable rows" option)</li>
+            <li>Use simpler clustering methods (like "single" or "average" instead of "complete" or "ward.D")</li>
+            <li>Reduce the perplexity value for t-SNE</li>
+        </ul>
+        
+        <h4>Can I use DataMap offline?</h4>
+        <p>Yes, once loaded in your browser, DataMap can operate without an internet connection. You can bookmark the page for offline access in some browsers.</p>
+        <h4>Who owns the copyright of the produced plots?</h4>
+        <p>You!</p>
+    </div>
+
+    <div class="content-section">
+        <h2>Install as an R package</h2>
+        <p>remotes::install_github("gexijin/datamap", ref = "rPackage")</p>
+        <p>DataMap::run_datamap()</p>
+    </div>
+
+    <div class="content-section">
+        <h2>Source code, Bug Reports, and Feature Requests</h2>
+        <p>If you encounter any issues or have suggestions for improving DataMap, please report them on our GitHub repository:</p>
+        <p><a href="https://github.com/gexijin/datamap" target="_blank">https://github.com/gexijin/datamap</a></p>
+    </div>
+    <div class="content-section">
+<h2>Paper & Citation</h2>
+
+<p>For more information, please read this preprint. If you use DataMap in your research, please cite it:</p>
+
+<blockquote>
+  Ge, X. (2025). DataMap: A Portable Application for Visualizing High-Dimensional Data, 
+  <a href="https://arxiv.org/abs/2504.08875">arXiv:2504.08875</a>, 2025.
+</blockquote>
+    </div>
+    <div class="author-info">
+        <div>
+            <h3>About the Author</h3>
+            <p><strong>Dr. Xijin Ge</strong> is a Professor at South Dakota State University specializing in bioinformatics and data visualization.</p>
+            
+            <div class="social-links">
+                <a href="mailto:Xijin.Ge@sdstate.edu"><strong>Email:</strong> Xijin.Ge@sdstate.edu</a><br>
+                <a href="https://www.sdstate.edu/directory/xijin-ge"><strong>University Profile:</strong> SDSU Directory</a><br>
+                <a href="https://www.linkedin.com/in/steven-ge-ab016947/"><strong>LinkedIn:</strong> Steven Ge</a><br>
+                <a href="https://bsky.app/profile/stevenge.bsky.social"><strong>BlueSky:</strong> @stevenge.bsky.social</a><br>
+				<a href="https://x.com/StevenXGe"><strong>Twitter/X:</strong> @StevenXGe</a>
+            </div>  
+        </div>
+    </div>
+
+    <div class="footer">
+        <p>DataMap by Dr. Xijin Ge, South Dakota State University &copy; 2025</p>
+        <p>This documentation last updated: April 17, 2025</p>
+    </div>
+
+    <script>
+        // Scope all JavaScript functions to avoid conflicts with the app
+        (function() {
+            // Function to safely find elements within our documentation container only
+            function findInDoc(selector) {
+                return document.querySelector('.datamap-docs').querySelectorAll(selector);
+            }
+            
+            // Modified tab function to only work within our documentation div
+            function openDataFormat(evt, formatName) {
+                var tabcontents = findInDoc(".tabcontent");
+                for (var i = 0; i < tabcontents.length; i++) {
+                    tabcontents[i].style.display = "none";
+                }
+                
+                var tablinks = findInDoc(".tablinks");
+                for (var i = 0; i < tablinks.length; i++) {
+                    tablinks[i].className = tablinks[i].className.replace(" active", "");
+                }
+                
+                // Safely find the tab content within our doc container
+                var tabContent = document.querySelector('.datamap-docs #' + formatName);
+                if (tabContent) {
+                    tabContent.style.display = "block";
+                }
+                
+                evt.currentTarget.className += " active";
+            }
+            
+            // Attach the event handler to tab buttons
+            function initTabs() {
+                var tablinks = findInDoc(".tablinks");
+                for (var i = 0; i < tablinks.length; i++) {
+                    tablinks[i].addEventListener('click', function(e) {
+                        var formatName = this.getAttribute('data-format');
+                        openDataFormat(e, formatName);
+                    });
+                }
+                
+                // Open the default tab
+                var defaultTab = document.querySelector('.datamap-docs #defaultOpen');
+                if (defaultTab) {
+                    defaultTab.click();
+                }
+            }
+            
+            // Add event listener to initialize tabs when DOM is loaded
+            document.addEventListener('DOMContentLoaded', initTabs);
+            
+            // If documentation is added after DOM load, initialize manually
+            if (document.readyState === 'complete' || document.readyState === 'interactive') {
+                setTimeout(initTabs, 1);
+            }
+        })();
+    </script>
+</div>
+</body>
+</html>

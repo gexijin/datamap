@@ -22,7 +22,7 @@ code_generation_server <- function(id, file_data, transform_data, heatmap_result
       # Initialize an empty vector to store code parts
       code_parts <- c()
       
-      utilities_file <- "R/utilities.R"
+      utilities_file <- datamap_resource("R/utilities.R")
       if (file.exists(utilities_file)) {
         utilities_code <- readLines(utilities_file)
         code_parts <- c(delimiter, "# Utilty functions", utilities_code, "")
