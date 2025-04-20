@@ -3,9 +3,9 @@
 
 # this solves the issue of the download button not working from Chromium when this app is deployed as Shinylive
 downloadButton <- function(...) {
- tag <- shiny::downloadButton(...)
- tag$attribs$download <- NULL
- tag
+  tag <- shiny::downloadButton(...)
+  tag$attribs$download <- NULL
+  tag
 }
 
 # UI Function
@@ -15,10 +15,11 @@ pca_plot_ui <- function(id) {
   tagList(
     fluidRow(
       column(3, selectInput(ns("pca_transpose"), NULL,
-        choices = c("Row vectors" = "row", 
-              "Column vectors" = "column"),
-        selected = "row"), style = "margin-top:5px;"),
-      column(9, checkboxInput(ns("show_point_labels"), "Show names", value = FALSE), style = "margin-top:5px;", align = "left")
+                           choices = c("Row vectors" = "row", 
+                                      "Column vectors" = "column"),
+                           selected = "row"), style = "margin-top:5px;"),
+      column(9, checkboxInput(ns("show_point_labels"), "Show names", value = FALSE), 
+             style = "margin-top:5px;", align = "left")
     ),
     plotOutput(ns("pca_plot"), width = "100%", height = "auto"),
     downloadButton(ns("download_pca_pdf"), "PDF"),
@@ -27,7 +28,8 @@ pca_plot_ui <- function(id) {
 }
 
 # Server Function
-pca_plot_server <- function(id, current_data, col_annotation_for_heatmap, row_annotation_for_heatmap, input_fontsize, input_width, input_height) {
+pca_plot_server <- function(id, current_data, col_annotation_for_heatmap, row_annotation_for_heatmap, 
+                           input_fontsize, input_width, input_height) {
   moduleServer(id, function(input, output, session) {
     
     # Modify the pca_data reactive to handle transposition
@@ -38,14 +40,14 @@ pca_plot_server <- function(id, current_data, col_annotation_for_heatmap, row_an
       data_mat <- as.matrix(current_data())
       
       # Transpose if column PCA is selected
-      if(input$pca_transpose == "column") {
+      if (input$pca_transpose == "column") {
         data_mat <- t(data_mat)
       }
       
       # Use prcomp for PCA calculation, scaling the data
       tryCatch({
         # Handle missing values
-        if(any(is.na(data_mat))) {
+        if (any(is.na(data_mat))) {
           showNotification("Warning: Missing values found. Using pairwise complete observations.", type = "warning")
           data_mat <- na.omit(data_mat)
         }
@@ -112,7 +114,7 @@ pca_plot_server <- function(id, current_data, col_annotation_for_heatmap, row_an
       
       # Use the generic function to create the plot
       create_dr_plot(pc_data, x_label, y_label, point_annot, input_fontsize(), 
-                     show_labels = show_labels, point_labels = point_labels)
+                    show_labels = show_labels, point_labels = point_labels)
     }
     
     output$pca_plot <- renderPlot({
@@ -159,85 +161,85 @@ pca_plot_server <- function(id, current_data, col_annotation_for_heatmap, row_an
       
       # Convert to matrix and handle transposition (matching app's pca_data reactive)
       code <- c(code,
-        "# Get the data and handle transposition based on user selection",
-        "data_mat <- as.matrix(processed_data)",
-        "",
-        "# Transpose if column PCA is selected",
-        if (transpose_selection == "column") {
-          "data_mat <- t(data_mat)"
-        },
-        ""
+               "# Get the data and handle transposition based on user selection",
+               "data_mat <- as.matrix(processed_data)",
+               "",
+               "# Transpose if column PCA is selected",
+               if (transpose_selection == "column") {
+                 "data_mat <- t(data_mat)"
+               },
+               ""
       )
       
       # Add error handling for missing values (matching app exactly)
       code <- c(code,
-        "# Handle missing values",
-        "if (any(is.na(data_mat))) {",
-        "  print(\"Warning: Missing values found. Using pairwise complete observations.\")",
-        "  data_mat <- na.omit(data_mat)",
-        "}",
-        ""
+               "# Handle missing values",
+               "if (any(is.na(data_mat))) {",
+               "  print(\"Warning: Missing values found. Using pairwise complete observations.\")",
+               "  data_mat <- na.omit(data_mat)",
+               "}",
+               ""
       )
       
       # Perform PCA (matching app exactly)
       code <- c(code,
-        "# Perform PCA",
-        "pca_result <- prcomp(data_mat, center = TRUE, scale. = TRUE)",
-        "",
-        "# Store the transposition information with the result",
-        sprintf("attr(pca_result, \"transposed\") <- %s", if(transpose_selection == "column") "TRUE" else "FALSE"),
-        ""
+               "# Perform PCA",
+               "pca_result <- prcomp(data_mat, center = TRUE, scale. = TRUE)",
+               "",
+               "# Store the transposition information with the result",
+               sprintf("attr(pca_result, \"transposed\") <- %s", if (transpose_selection == "column") "TRUE" else "FALSE"),
+               ""
       )
       
       # Now match the app's create_pca_plot function exactly
       code <- c(code,
-        "# Get PCA results and extract the first two principal components",
-        "pc_data <- as.data.frame(pca_result$x[, 1:2])",
-        "",
-        "# Check if we're in transposed mode",
-        "transposed <- attr(pca_result, \"transposed\")",
-        "",
-        "# Get appropriate annotations based on transposition mode",
-        "if (transposed) {",
-        "  # For column PCA mode (columns as points), use column annotation data",
-        "  point_annot <- col_annotation",
-        "} else {",
-        "  # For row PCA mode (rows as points), use row annotation data",
-        "  point_annot <- row_annotation",
-        "}",
-        "",
-        "# PC variances for axis labels",
-        "pc1_var <- round(summary(pca_result)$importance[2, 1] * 100, 1)",
-        "pc2_var <- round(summary(pca_result)$importance[2, 2] * 100, 1)",
-        "",
-        "# Create x and y labels",
-        "x_label <- paste0(\"PC1 (\", pc1_var, \"%)\")",
-        "y_label <- paste0(\"PC2 (\", pc2_var, \"%)\")",
-        "",
-        "# Get point labels if checkbox is selected",
-        "point_labels <- NULL",
-        sprintf("show_labels <- %s", if(show_labels) "TRUE" else "FALSE"),
-        "",
-        "# Check if the checkbox is available and checked",
-        "if (show_labels) {",
-        "  data_mat <- as.matrix(processed_data)",  # matching the app's logic exactly
-        "  ",
-        "  if (transposed) {",
-        "    # Column names as labels in column mode",
-        "    point_labels <- colnames(data_mat)",
-        "  } else {",
-        "    # Row names as labels in row mode",
-        "    point_labels <- rownames(data_mat)",
-        "  }",
-        "}",
-        ""
+               "# Get PCA results and extract the first two principal components",
+               "pc_data <- as.data.frame(pca_result$x[, 1:2])",
+               "",
+               "# Check if we're in transposed mode",
+               "transposed <- attr(pca_result, \"transposed\")",
+               "",
+               "# Get appropriate annotations based on transposition mode",
+               "if (transposed) {",
+               "  # For column PCA mode (columns as points), use column annotation data",
+               "  point_annot <- col_annotation",
+               "} else {",
+               "  # For row PCA mode (rows as points), use row annotation data",
+               "  point_annot <- row_annotation",
+               "}",
+               "",
+               "# PC variances for axis labels",
+               "pc1_var <- round(summary(pca_result)$importance[2, 1] * 100, 1)",
+               "pc2_var <- round(summary(pca_result)$importance[2, 2] * 100, 1)",
+               "",
+               "# Create x and y labels",
+               "x_label <- paste0(\"PC1 (\", pc1_var, \"%)\")",
+               "y_label <- paste0(\"PC2 (\", pc2_var, \"%)\")",
+               "",
+               "# Get point labels if checkbox is selected",
+               "point_labels <- NULL",
+               sprintf("show_labels <- %s", if (show_labels) "TRUE" else "FALSE"),
+               "",
+               "# Check if the checkbox is available and checked",
+               "if (show_labels) {",
+               "  data_mat <- as.matrix(processed_data)",  # matching the app's logic exactly
+               "  ",
+               "  if (transposed) {",
+               "    # Column names as labels in column mode",
+               "    point_labels <- colnames(data_mat)",
+               "  } else {",
+               "    # Row names as labels in row mode",
+               "    point_labels <- rownames(data_mat)",
+               "  }",
+               "}",
+               ""
       )
       
       # Use the generic function to create the plot (matching the app's call exactly)
       code <- c(code,
-        "# Use the generic function to create the plot",
-        sprintf("create_dr_plot(pc_data, x_label, y_label, point_annot, %d,", font_size),
-        "               show_labels = show_labels, point_labels = point_labels)"
+               "# Use the generic function to create the plot",
+               sprintf("create_dr_plot(pc_data, x_label, y_label, point_annot, %d,", font_size),
+               "               show_labels = show_labels, point_labels = point_labels)"
       )
       
       return(code)

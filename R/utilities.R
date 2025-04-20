@@ -31,7 +31,7 @@
 #' replayPlot(plot_obj)
 #'
 create_dr_plot <- function(coords_data, x_label, y_label, point_annot = NULL, fontsize = 12, 
-                          show_labels = FALSE, point_labels = NULL) {
+                           show_labels = FALSE, point_labels = NULL) {
   # Default plot settings
   point_colors <- "black"
   point_shapes <- 16
@@ -92,7 +92,7 @@ create_dr_plot <- function(coords_data, x_label, y_label, point_annot = NULL, fo
 
     adjusted_xlim <- c(min(coords_data[, 1]), max(coords_data[, 1]))
     adjusted_ylim <- c(min(coords_data[, 2]), max(coords_data[, 2]))
-    if(show_labels){
+    if (show_labels) {
       # extend xlimit in both directions
       xrange_adjust <- (max(coords_data[, 1]) - min(coords_data[, 1])) * 0.1
       adjusted_xlim <- c(min(coords_data[, 1]) - xrange_adjust, 
@@ -103,23 +103,23 @@ create_dr_plot <- function(coords_data, x_label, y_label, point_annot = NULL, fo
     }
 
     # Create the points plot
-    plot(coords_data[,1], coords_data[,2], 
-       xlab = x_label,
-       ylab = y_label,
-       main = "",
-       pch = point_shapes,
-       col = point_colors,
-       cex = point_sizes,
-       cex.lab = fontsize/12,
-       cex.axis = fontsize/12,      # increase limits so that the labels show up.
-       xlim = adjusted_xlim,
-       ylim = adjusted_ylim)
+    plot(coords_data[, 1], coords_data[, 2], 
+         xlab = x_label,
+         ylab = y_label,
+         main = "",
+         pch = point_shapes,
+         col = point_colors,
+         cex = point_sizes,
+         cex.lab = fontsize/12,
+         cex.axis = fontsize/12,      # increase limits so that the labels show up.
+         xlim = adjusted_xlim,
+         ylim = adjusted_ylim)
     
     # Add point labels if enabled
     if (show_labels && !is.null(point_labels) && length(point_labels) >= nrow(coords_data)) {
-      text(coords_data[,1], coords_data[,2], 
+      text(coords_data[, 1], coords_data[, 2], 
            labels = point_labels[1:nrow(coords_data)], 
-             pos = 3, offset = 0.5, cex = fontsize/15)
+           pos = 3, offset = 0.5, cex = fontsize/15)
     }
     
     # Add legend if using annotations
@@ -255,9 +255,9 @@ process_column_annotations <- function(main_data_cols, annotation_df, selected_a
 #'   NULL if no annotations are selected or if no matching annotations are found.
 #'
 process_row_annotations <- function(main_data_rows, 
-                                   file_annotation_df = NULL,
-                                   factor_annotation_df = NULL,
-                                   selected_annotations) {
+                                    file_annotation_df = NULL,
+                                    factor_annotation_df = NULL,
+                                    selected_annotations) {
   # Return NULL if no annotations are selected
   if (is.null(selected_annotations) || length(selected_annotations) == 0) {
     return(NULL)

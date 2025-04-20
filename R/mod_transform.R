@@ -899,7 +899,7 @@ transform_server <- function(id, data) {
       has_transformed = reactive({ rv$changes_applied }),
       modal_closed = reactive({ rv$modal_closed }),
       factor_columns = reactive({ rv$factor_columns }),
-      code = reactive({ rv$code })  # NEW: Return the reproducible code
+      code = reactive({ rv$code })  
     ))
   })
 }

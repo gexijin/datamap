@@ -1,9 +1,10 @@
 # this solves the issue of the download button not working from Chromium when this app is deployed as Shinylive
 downloadButton <- function(...) {
- tag <- shiny::downloadButton(...)
- tag$attribs$download <- NULL
- tag
+  tag <- shiny::downloadButton(...)
+  tag$attribs$download <- NULL
+  tag
 }
+
 # Module UI function
 heatmap_ui <- function(id) {
   ns <- NS(id)
@@ -29,6 +30,7 @@ heatmap_server <- function(id, current_data,
                          max_rows_to_show = 1000,
                          default_width = 600,
                          default_height = 600) {
+                          
   moduleServer(id, function(input, output, session) {
     # Initialize internal reactive values for width/height
     width <- reactiveVal(default_width)
@@ -105,66 +107,66 @@ heatmap_server <- function(id, current_data,
         incProgress(0.3, detail = "Rendering heatmap")
         tryCatch({
           if (using_correlation) {
-              # Calculate the distance matrices for rows and columns
-              dist_rows <- NULL
-              if (input$cluster_rows) {
-                dist_rows <- custom_cor(t(heatmap_data))
-              }
-              dist_cols <- NULL
-              if (input$cluster_cols) {
-                dist_cols <- custom_cor(heatmap_data)
-              }
-              
-              display_params <- list(
-                mat = heatmap_data,
-                color = colors,
-                cluster_rows = input$cluster_rows,
-                cluster_cols = input$cluster_cols,
-                clustering_method = clustering_method,
-                fontsize = input$fontsize,
-                annotation_col = col_annotation_for_heatmap(),
-                annotation_row = row_annotation_for_heatmap(),
-                show_rownames = show_row_names,
-                silent = TRUE,
-                display_numbers = if (input$label_heatmap) round(as.matrix(unprocessed_data()), 2) else FALSE
-              )
-              
-              if (input$cluster_rows) {
-                display_params$clustering_distance_rows = correlation_method
-              }
-              if (input$cluster_cols) {
-                display_params$clustering_distance_cols = correlation_method
-              }
+            # Calculate the distance matrices for rows and columns
+            dist_rows <- NULL
+            if (input$cluster_rows) {
+              dist_rows <- custom_cor(t(heatmap_data))
+            }
+            dist_cols <- NULL
+            if (input$cluster_cols) {
+              dist_cols <- custom_cor(heatmap_data)
+            }
+            
+            display_params <- list(
+              mat = heatmap_data,
+              color = colors,
+              cluster_rows = input$cluster_rows,
+              cluster_cols = input$cluster_cols,
+              clustering_method = clustering_method,
+              fontsize = input$fontsize,
+              annotation_col = col_annotation_for_heatmap(),
+              annotation_row = row_annotation_for_heatmap(),
+              show_rownames = show_row_names,
+              silent = TRUE,
+              display_numbers = if (input$label_heatmap) round(as.matrix(unprocessed_data()), 2) else FALSE
+            )
+            
+            if (input$cluster_rows) {
+              display_params$clustering_distance_rows = correlation_method
+            }
+            if (input$cluster_cols) {
+              display_params$clustering_distance_cols = correlation_method
+            }
 
-              # Only add cutree parameters if clustering is enabled and value > 0
-              if(!is.na(input$cutree_rows)) { # when user delete the number in the input box, it will be NA
-                if (input$cluster_rows && input$cutree_rows > 1 && input$cutree_rows <= nrow(heatmap_data)) {
-                  display_params$cutree_rows <- input$cutree_rows
-                }
+            # Only add cutree parameters if clustering is enabled and value > 0
+            if(!is.na(input$cutree_rows)) { # when user delete the number in the input box, it will be NA
+              if (input$cluster_rows && input$cutree_rows > 1 && input$cutree_rows <= nrow(heatmap_data)) {
+                display_params$cutree_rows <- input$cutree_rows
               }
-              if(!is.na(input$cutree_cols)) {
-                if (input$cluster_cols && input$cutree_cols > 1 && input$cutree_cols <= ncol(heatmap_data)) {
-                  display_params$cutree_cols <- input$cutree_cols
-                }
+            }
+            if(!is.na(input$cutree_cols)) {
+              if (input$cluster_cols && input$cutree_cols > 1 && input$cutree_cols <= ncol(heatmap_data)) {
+                display_params$cutree_cols <- input$cutree_cols
               }
+            }
 
-              # Store the parameters for code generation
-              pheatmap_params_used(display_params)
-              
-              # Create the actual parameters with the distance objects for rendering
-              render_params <- display_params
-              if (input$cluster_rows) {
-                render_params$clustering_distance_rows <- dist_rows
-              }
-              if (input$cluster_cols) {
-                render_params$clustering_distance_cols <- dist_cols
-              }
-              
-              # Call pheatmap with the parameter list that includes the distance objects
-              do.call(pheatmap::pheatmap, render_params)
+            # Store the parameters for code generation
+            pheatmap_params_used(display_params)
+            
+            # Create the actual parameters with the distance objects for rendering
+            render_params <- display_params
+            if (input$cluster_rows) {
+              render_params$clustering_distance_rows <- dist_rows
+            }
+            if (input$cluster_cols) {
+              render_params$clustering_distance_cols <- dist_cols
+            }
+            
+            # Call pheatmap with the parameter list that includes the distance objects
+            do.call(pheatmap::pheatmap, render_params)
           } else {
             # For non-correlation methods, use the standard distance_method
-              pheatmap_params <- list(
+            pheatmap_params <- list(
               mat = heatmap_data,
               color = colors,
               cluster_rows = input$cluster_rows,
@@ -178,25 +180,25 @@ heatmap_server <- function(id, current_data,
               show_rownames = show_row_names,
               silent = TRUE,
               display_numbers = if (input$label_heatmap) round(as.matrix(unprocessed_data()), 2) else FALSE
-              )
-              
-              # Only add cutree parameters if clustering is enabled and value > 0
-              if(!is.null(input$cutree_rows)) {
-                if (input$cluster_rows && input$cutree_rows > 1 && input$cutree_rows <= nrow(heatmap_data)) {
-                  pheatmap_params$cutree_rows <- input$cutree_rows
-                }
+            )
+            
+            # Only add cutree parameters if clustering is enabled and value > 0
+            if(!is.null(input$cutree_rows)) {
+              if (input$cluster_rows && input$cutree_rows > 1 && input$cutree_rows <= nrow(heatmap_data)) {
+                pheatmap_params$cutree_rows <- input$cutree_rows
               }
+            }
 
-              if(!is.null(input$cutree_cols)) {
-                if (input$cluster_cols && input$cutree_cols > 1 && input$cutree_cols <= ncol(heatmap_data)) {
-                  pheatmap_params$cutree_cols <- input$cutree_cols
-                }
+            if(!is.null(input$cutree_cols)) {
+              if (input$cluster_cols && input$cutree_cols > 1 && input$cutree_cols <= ncol(heatmap_data)) {
+                pheatmap_params$cutree_cols <- input$cutree_cols
               }
-              
-              # Store the parameters for code generation
-              pheatmap_params_used(pheatmap_params)
-              
-              do.call(pheatmap::pheatmap, pheatmap_params)
+            }
+            
+            # Store the parameters for code generation
+            pheatmap_params_used(pheatmap_params)
+            
+            do.call(pheatmap::pheatmap, pheatmap_params)
           }
         }, error = function(e) {
           # If any clustering fails, fall back to euclidean
@@ -543,12 +545,8 @@ heatmap_control_ui <- function(id) {
       column(6, checkboxInput(ns("show_row_names"), "Row Names", value = FALSE))
     ),
     fluidRow(
-      column(6, 
-        numericInput(ns("cutree_rows"), "Row clusters", value = 1, min = 1, max = 100, step = 1),
-      ),
-      column(6, 
-        numericInput(ns("cutree_cols"), "Col. Clusters", value = 1, min = 1, max = 100, step = 1),
-      )
+      column(6, numericInput(ns("cutree_rows"), "Row clusters", value = 1, min = 1, max = 100, step = 1)),
+      column(6, numericInput(ns("cutree_cols"), "Col. Clusters", value = 1, min = 1, max = 100, step = 1))
     )
   )
 }

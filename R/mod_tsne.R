@@ -1,10 +1,10 @@
 # t-SNE module
 
-# this solves the issue of the download button not working from Chromium when this app is deployed as Shinylive
+# This solves the issue of the download button not working from Chromium when this app is deployed as Shinylive
 downloadButton <- function(...) {
- tag <- shiny::downloadButton(...)
- tag$attribs$download <- NULL
- tag
+  tag <- shiny::downloadButton(...)
+  tag$attribs$download <- NULL
+  tag
 }
 
 # UI function
@@ -15,28 +15,28 @@ tsne_plot_ui <- function(id) {
     # Single row with 4 elements
     fluidRow(
       column(3, selectInput(ns("tsne_transpose"), "Analysis Mode:",
-        choices = c("Row vectors" = "row", "Column vectors" = "column"),
-        selected = "row")),
+                           choices = c("Row vectors" = "row", "Column vectors" = "column"),
+                           selected = "row")),
       column(3, sliderInput(ns("tsne_perplexity"), "Perplexity:", 
-        min = 5, max = 50, value = 30, step = 5)),
+                           min = 5, max = 50, value = 30, step = 5)),
       column(3, sliderInput(ns("tsne_early_exaggeration"), "Early Exagg.:", 
-        min = 4, max = 20, value = 12, step = 1)),
+                           min = 4, max = 20, value = 12, step = 1)),
       column(3, sliderInput(ns("tsne_learning_rate"), "Learning Rate:", 
-        min = 50, max = 1000, value = 200, step = 50))
+                           min = 50, max = 1000, value = 200, step = 50))
     ),
     # Second row with 3 elements and a checkbox
     fluidRow(
       column(3, sliderInput(ns("tsne_iterations"), "Max Iterations:", 
-        min = 500, max = 2000, value = 1000, step = 100)),
+                           min = 500, max = 2000, value = 1000, step = 100)),
       column(3, checkboxInput(ns("tsne_pca_preprocessing"), "Use PCA Preprocessing", value = FALSE)),
       column(6,
-        tags$div(
-          style = "background-color: #f8f9fa; padding: 10px; border-radius: 5px; margin-bottom: 15px;",
-          tags$p(
-            style = "margin-bottom: 0; font-size: 0.85em; color: #495057;",
-            "Increase Early Exaggeration (12-20) for more distinct clusters. Perplexity balances local (5-10) vs global (30-50) structure. Higher Learning Rate can improve separation but may cause instability. More Iterations allow for better optimization and clearer boundaries. PCA preprocessing can reduce noise."
-          )
-        )
+             tags$div(
+               style = "background-color: #f8f9fa; padding: 10px; border-radius: 5px; margin-bottom: 15px;",
+               tags$p(
+                 style = "margin-bottom: 0; font-size: 0.85em; color: #495057;",
+                 "Increase Early Exaggeration (12-20) for more distinct clusters. Perplexity balances local (5-10) vs global (30-50) structure. Higher Learning Rate can improve separation but may cause instability. More Iterations allow for better optimization and clearer boundaries. PCA preprocessing can reduce noise."
+               )
+             )
       )
     ),
     checkboxInput(ns("show_point_labels"), "Show point labels", value = FALSE),
@@ -59,7 +59,7 @@ tsne_plot_server <- function(id, current_data, col_annotation_for_heatmap, row_a
       data_mat <- as.matrix(current_data())
       
       # Transpose if column t-SNE is selected
-      if(input$tsne_transpose == "column") {
+      if (input$tsne_transpose == "column") {
         data_mat <- t(data_mat)
       }
       
@@ -67,7 +67,7 @@ tsne_plot_server <- function(id, current_data, col_annotation_for_heatmap, row_a
       withProgress(message = 'Computing t-SNE', value = 0, {
         tryCatch({
           # Handle missing values
-          if(any(is.na(data_mat))) {
+          if (any(is.na(data_mat))) {
             showNotification("Warning: Missing values found in t-SNE calculation. Using complete cases only.", type = "warning")
             data_mat <- na.omit(data_mat)
           }
@@ -75,13 +75,13 @@ tsne_plot_server <- function(id, current_data, col_annotation_for_heatmap, row_a
           # Check if we have enough data points for the perplexity
           # t-SNE requires at least perplexity*3 + 1 points
           perplexity <- min(input$tsne_perplexity, floor(nrow(data_mat)/3) - 1)
-          if(perplexity < 5) {
+          if (perplexity < 5) {
             perplexity <- 5
             showNotification(paste("Perplexity adjusted to", perplexity, "due to small sample size"), type = "warning")
           }
           
           # Double-check we have enough data
-          if(nrow(data_mat) < perplexity * 3 + 1) {
+          if (nrow(data_mat) < perplexity * 3 + 1) {
             showNotification("Not enough samples for t-SNE with current perplexity. Try reducing perplexity.", type = "error")
             return(NULL)
           }
@@ -207,11 +207,11 @@ tsne_plot_server <- function(id, current_data, col_annotation_for_heatmap, row_a
       # to ensure reproducibility
       tsne_result <- tsne_data()
       data_mat <- as.matrix(current_data())
-      if(input$tsne_transpose == "column") {
+      if (input$tsne_transpose == "column") {
         data_mat <- t(data_mat)
       }
       actual_perplexity <- min(input$tsne_perplexity, floor(nrow(data_mat)/3) - 1)
-      if(actual_perplexity < 5) actual_perplexity <- 5
+      if (actual_perplexity < 5) actual_perplexity <- 5
       
       # Start with required libraries
       code <- c(
@@ -251,7 +251,7 @@ tsne_plot_server <- function(id, current_data, col_annotation_for_heatmap, row_a
         paste0("perplexity <- ", actual_perplexity, " # Adjusted perplexity value"),
         "",
         "# Verify we have enough data",
-        "if(nrow(data_mat) < perplexity * 3 + 1) {",
+        "if (nrow(data_mat) < perplexity * 3 + 1) {",
         "  stop(\"Not enough samples for t-SNE with current perplexity. Try reducing perplexity.\")",
         "}",
         ""

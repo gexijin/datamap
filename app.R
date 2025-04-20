@@ -23,16 +23,16 @@ ui <- fluidPage(
       # Place Upload Files and Reset buttons on the same row
       fluidRow(
         column(6, 
-          actionButton("show_upload_modal", "Files", 
-                      icon = icon("upload"))
+               actionButton("show_upload_modal", "Files", 
+                            icon = icon("upload"))
         ),
         column(6,
-          conditionalPanel(
-            condition = "output.data_loaded",
-            actionButton("reset_session", "Reset", 
-                        icon = icon("refresh"), 
-                        style = "background-color: #f8d7da; color: #721c24;")
-          )
+               conditionalPanel(
+                 condition = "output.data_loaded",
+                 actionButton("reset_session", "Reset", 
+                              icon = icon("refresh"), 
+                              style = "background-color: #f8d7da; color: #721c24;")
+               )
         )
       ),
 
@@ -70,18 +70,18 @@ ui <- fluidPage(
         
         # Font size control
         fluidRow(
-          column(3, p("Font:", style="padding-top: 7px; text-align: right;")),
+          column(3, p("Font:", style = "padding-top: 7px; text-align: right;")),
           column(9, sliderInput("global_fontsize", NULL, min = 5, max = 30, value = 12))
         ),
         
         # Width & Height controls
         fluidRow(
-          column(3, p("Width:", style="padding-top: 7px; text-align: right;")),
+          column(3, p("Width:", style = "padding-top: 7px; text-align: right;")),
           column(9, sliderInput("global_width", NULL, min = 200, max = 2000, value = 600, step = 20))
         ),
         
         fluidRow(
-          column(3, p("Height:", style="padding-top: 7px; text-align: right;")),
+          column(3, p("Height:", style = "padding-top: 7px; text-align: right;")),
           column(9, sliderInput("global_height", NULL, min = 200, max = 2000, value = 500, step = 20))
         )
       )
@@ -91,36 +91,36 @@ ui <- fluidPage(
       width = 9,
       tabsetPanel(id = "main_tabs", selected = "About",
         tabPanel("Heatmap", 
-                # Use the heatmap module UI
-                heatmap_ui("heatmap")
+                 # Use the heatmap module UI
+                 heatmap_ui("heatmap")
         ),
         tabPanel("PCA",
-          pca_plot_ui("pca")
+                 pca_plot_ui("pca")
         ),
         tabPanel("t-SNE",
-          tsne_plot_ui("tsne")
+                 tsne_plot_ui("tsne")
         ),
         tabPanel("Code",
-          code_generation_ui("code_gen") 
+                 code_generation_ui("code_gen") 
         ),
         tabPanel("Data",
-          fluidRow(
-            column(12,
-              div(style = "overflow-x: auto;", 
-                  tableOutput("data_preview")
-              ),
-              downloadButton("download_data", "Transformed Data")
-            )
-          )
+                 fluidRow(
+                   column(12,
+                          div(style = "overflow-x: auto;", 
+                              tableOutput("data_preview")
+                          ),
+                          downloadButton("download_data", "Transformed Data")
+                   )
+                 )
         ),
         tabPanel("About",
-          titlePanel("DataMap: a portable app for visualizing data matrices v0.11"),  
-          img(src = "heatmap.png", width = "375px", height = "300px"),
-          img(src = "pca.png", width = "384px", height = "329px"),
-          img(src = "countries_label.png", width = "401px", height = "300px"),
-          img(src = "tsne.png", width = "335px", height = "300px"),
-          #img(src = "countries.png", width = "286px", height = "300px"),
-          includeHTML("www/help.html")
+                 titlePanel("DataMap: a portable app for visualizing data matrices v0.11"),  
+                 img(src = "heatmap.png", width = "375px", height = "300px"),
+                 img(src = "pca.png", width = "384px", height = "329px"),
+                 img(src = "countries_label.png", width = "401px", height = "300px"),
+                 img(src = "tsne.png", width = "335px", height = "300px"),
+                 #img(src = "countries.png", width = "286px", height = "300px"),
+                 includeHTML("www/help.html")
         )
       )
       #,tags$head(includeHTML("www/google_analytics.html"))
@@ -138,7 +138,7 @@ server <- function(input, output, session) {
 
   # Switch to Heatmap tab when data is loaded
   observe({
-    if(file_data$data_loaded()) {
+    if (file_data$data_loaded()) {
       updateTabsetPanel(session, "main_tabs", selected = "Heatmap")
     }
   })
@@ -162,11 +162,11 @@ server <- function(input, output, session) {
         fluidRow(
           column(2, h5("Examples:", style = "margin-top: -8px;  text-align: right;")),
           column(10, 
-            downloadButton("download_countries", "Countries", style = "margin-top: -15px;"),
-            downloadButton("download_rnaseq", "RNAseq", style = "margin-top: -15px;"),
-            downloadButton("download_iris", "Iris", style = "margin-top: -15px;"),
-            downloadButton("download_scrnaseq", "scRNAseq", style = "margin-top: -15px;"),
-            align = "left"
+                 downloadButton("download_countries", "Countries", style = "margin-top: -15px;"),
+                 downloadButton("download_rnaseq", "RNAseq", style = "margin-top: -15px;"),
+                 downloadButton("download_iris", "Iris", style = "margin-top: -15px;"),
+                 downloadButton("download_scrnaseq", "scRNAseq", style = "margin-top: -15px;"),
+                 align = "left"
           )
         )
       )
@@ -186,23 +186,22 @@ server <- function(input, output, session) {
         fluidRow(
           column(2, h5("Examples:", style = "margin-top: -8px;  text-align: right;")),
           column(10, 
-            downloadButton("download_col_rnaseq", "RNA-seq factors", style = "margin-top: -15px;"),
-            downloadButton("download_col_iris", "Iris column info", style = "margin-top: -15px;"),
-            align = "left"
+                 downloadButton("download_col_rnaseq", "RNA-seq factors", style = "margin-top: -15px;"),
+                 downloadButton("download_col_iris", "Iris column info", style = "margin-top: -15px;"),
+                 align = "left"
           )
         )
       ),
       hr(),
       tags$div(
-
         tags$h4("Optional: Row Annotations"),
         file_upload_ui("row_annotation_file_upload"),
         fluidRow(         
           column(2, h5("Examples:", style = "margin-top: -8px; text-align: right;")),
           column(10,
-             downloadButton("download_row_rnaseq", "RNAseq gene info", style = "margin-top: -15px;"),
-             downloadButton("download_row_scrnaseq", "scRNAseq clusters", style = "margin-top: -15px;"),
-             align = "left"
+                 downloadButton("download_row_rnaseq", "RNAseq gene info", style = "margin-top: -15px;"),
+                 downloadButton("download_row_scrnaseq", "scRNAseq clusters", style = "margin-top: -15px;"),
+                 align = "left"
           )
         )
       ),
@@ -458,13 +457,13 @@ server <- function(input, output, session) {
 
   # Create reactives for font size, width, and height to ensure availability for PCA and t-SNE
   fontsize_for_plots <- reactive({ 
-    if(!is.null(input$global_fontsize)) input$global_fontsize else 12 
+    if (!is.null(input$global_fontsize)) input$global_fontsize else 12 
   })
   width_for_plots <- reactive({ 
-    if(!is.null(input$global_width)) input$global_width else default_width
+    if (!is.null(input$global_width)) input$global_width else default_width
   })
   height_for_plots <- reactive({ 
-    if(!is.null(input$global_height)) input$global_height else default_height
+    if (!is.null(input$global_height)) input$global_height else default_height
   })
 
   # Use the heatmap module
@@ -539,7 +538,7 @@ server <- function(input, output, session) {
     data <- current_data()
     
     # Ensure data is a data frame
-    if(!is.data.frame(data)) {
+    if (!is.data.frame(data)) {
       data <- as.data.frame(data)
     }
     

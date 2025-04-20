@@ -22,7 +22,6 @@ code_generation_server <- function(id, file_data, transform_data, heatmap_result
       # Initialize an empty vector to store code parts
       code_parts <- c()
       
-
       utilities_file <- "R/utilities.R"
       if (file.exists(utilities_file)) {
         utilities_code <- readLines(utilities_file)
@@ -34,19 +33,19 @@ code_generation_server <- function(id, file_data, transform_data, heatmap_result
       # Add file upload code if available
       if (!is.null(file_data$code())) {
         code_parts <- c(code_parts, delimiter, "# Data Import Code", file_data$code(), 
-        "raw_data <- data", "rm(data)", "")
+          "raw_data <- data", "rm(data)", "")
       }
       
       # Add column annotation file upload code if available
       if (!is.null(col_annotation_data$code())) {
         code_parts <- c(code_parts, "# Column Annotation Import Code", 
-                        col_annotation_data$code(), "col_annotation_raw <- data", "rm(data)", "")
+          col_annotation_data$code(), "col_annotation_raw <- data", "rm(data)", "")
       }
       
       # Add row annotation file upload code if available
       if (!is.null(row_annotation_data$code())) {
         code_parts <- c(code_parts, "# Row Annotation Import Code", 
-                         row_annotation_data$code(), "row_annotation_raw <- data", "rm(data)","")
+          row_annotation_data$code(), "row_annotation_raw <- data", "rm(data)","")
       }
 
       # Add transform code if available
@@ -102,10 +101,10 @@ code_generation_server <- function(id, file_data, transform_data, heatmap_result
         # If we were building a previous section, add it to output
         if (!is.null(current_section) && !is.null(section_content)) {
           html_output <- tagAppendChild(html_output, 
-                                      tags$div(
-                                        tags$h3(current_section, class = "code-section-title"),
-                                        tags$pre(tags$code(class = "r", section_content))
-                                      ))
+            tags$div(
+              tags$h3(current_section, class = "code-section-title"),
+              tags$pre(tags$code(class = "r", section_content))
+            ))
         }
         
         # Start new section
@@ -116,10 +115,10 @@ code_generation_server <- function(id, file_data, transform_data, heatmap_result
       # Add the last section
       if (!is.null(current_section) && !is.null(section_content)) {
         html_output <- tagAppendChild(html_output, 
-                                    tags$div(
-                                      tags$h3(current_section, class = "code-section-title"),
-                                      tags$pre(tags$code(class = "r", section_content))
-                                    ))
+          tags$div(
+            tags$h3(current_section, class = "code-section-title"),
+            tags$pre(tags$code(class = "r", section_content))
+          ))
       }
       
       # Add some CSS for styling

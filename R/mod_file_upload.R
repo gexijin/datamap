@@ -3,11 +3,7 @@
 
 library(shiny)
 
-#' UI function for file upload module
-#'
-#' @param id The module namespace id
-#' @return A tagList of UI elements
-#'
+
 file_upload_ui <- function(id) {
   ns <- NS(id)
   
@@ -22,11 +18,6 @@ file_upload_ui <- function(id) {
   )
 }
 
-#' Server function for file upload module
-#'
-#' @param id The module namespace id
-#' @return A list of reactive values: data, data_loaded, has_rownames, and reproducible_code
-#'
 file_upload_server <- function(id) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
