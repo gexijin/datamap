@@ -279,257 +279,203 @@ heatmap_server <- function(id, current_data,
     )
     
     # Generate heatmap code using the actual parameters that were used
-heatmap_code <- reactive({
-  req(current_data(), pheatmap_params_used())
-  # Extract the params that were used
-  params <- pheatmap_params_used()
-  
-  code_parts <- c(
-    "# Heatmap Generation Code",
-    "library(pheatmap)",
-    "library(RColorBrewer)",
-    "library(grid)",
-    "",
-    "# Use the processed data from transformation",
-    "processed_data <- transformed_data$numeric_data",
-    ""
-  )
-  
-  # Add color palette code
-  if (!is.null(params$color)) {
-    if (identical(params$color, colorRampPalette(c("green", "black", "red"))(100))) {
-      code_parts <- c(code_parts, "# Define color palette",
-                      "colors <- colorRampPalette(c(\"green\", \"black\", \"red\"))(100)")
-    } else {
-      # Determine which palette was used
-      for (palette_name in c("RdBu", "RdYlBu", "YlOrRd", "YlGnBu", "Blues", "Greens", "Purples", "Reds", "OrRd")) {
-        if (identical(params$color, colorRampPalette(rev(RColorBrewer::brewer.pal(11, palette_name)))(100))) {
+    heatmap_code <- reactive({
+      req(current_data(), pheatmap_params_used())
+      # Extract the params that were used
+      params <- pheatmap_params_used()
+      
+      code_parts <- c(
+        "# Heatmap Generation Code",
+        "library(pheatmap)",
+        "library(RColorBrewer)",
+        "library(grid)",
+        "",
+        "processed_data <- transformed_data$numeric_data",
+        ""
+      )
+      
+      # Add color palette code
+      if (!is.null(params$color)) {
+        if (identical(params$color, colorRampPalette(c("green", "black", "red"))(100))) {
           code_parts <- c(code_parts, "# Define color palette",
-                          paste0("colors <- colorRampPalette(rev(RColorBrewer::brewer.pal(11, \"", palette_name, "\")))(100)"))
-          break
+                          "colors <- colorRampPalette(c(\"green\", \"black\", \"red\"))(100)")
+        } else {
+          # Determine which palette was used
+          for (palette_name in c("RdBu", "RdYlBu", "YlOrRd", "YlGnBu", "Blues", "Greens", "Purples", "Reds", "OrRd")) {
+            if (identical(params$color, colorRampPalette(rev(RColorBrewer::brewer.pal(11, palette_name)))(100))) {
+              code_parts <- c(code_parts, "# Define color palette",
+                              paste0("colors <- colorRampPalette(rev(RColorBrewer::brewer.pal(11, \"", palette_name, "\")))(100)"))
+              break
+            }
+          }
         }
       }
-    }
-  }
-  params$silent <- FALSE # otherwise pheatmap will not show
-  
-  # Check if we need to add custom correlation functions
-  needs_custom_cor <- FALSE
-  
-  if (!is.null(params$clustering_distance_rows)) {
-    if (params$clustering_distance_rows %in% c("pearson", "spearman", "kendall")) {
-      needs_custom_cor <- TRUE
-    }
-  }
-  
-  if (!is.null(params$clustering_distance_cols)) {
-    if (params$clustering_distance_cols %in% c("pearson", "spearman", "kendall")) {
-      needs_custom_cor <- TRUE
-    }
-  }
-  
-  # If correlation methods are used, add the custom correlation function
-  if (needs_custom_cor) {
-    code_parts <- c(code_parts, "", 
-                    "# Custom correlation function for distance calculation",
-                    "custom_cor <- function(x, method = \"pearson\") {",
-                    "  cors <- cor(x, method = method, use = \"pairwise.complete.obs\")",
-                    "  # Replace NAs with 0 correlations",
-                    "  cors[is.na(cors)] <- 0",
-                    "  as.dist(1 - cors)",
-                    "}")
-  }
-  
-  # Add annotation preparation code if annotations are used
-  if (!is.null(params$annotation_col)) {
-    # Extract the selected column annotation rows
-    if (!is.null(col_annotation_for_heatmap())) {
-      selected_col_anno_rows <- colnames(col_annotation_for_heatmap())
-      if (length(selected_col_anno_rows) > 0) {
-        selected_rows_code <- paste0("c(", paste0("\"", selected_col_anno_rows, "\"", collapse = ", "), ")")
-        code_parts <- c(code_parts, "",
-                      "# Create column annotation from user selection",
-                      paste0("selected_col_anno_cols <- ", selected_rows_code),
-                      "if (exists(\"col_annotation_raw\") && !is.null(col_annotation_raw)) {",
-                      "  # The raw annotation data may have samples as rows and metadata as columns",
-                      "  # First, check if the selected columns are in the data",
-                      "  if (all(selected_col_anno_cols %in% colnames(col_annotation_raw))) {",
-                      "    col_annotation <- col_annotation_raw[, selected_col_anno_cols, drop = FALSE]",
-                      "  } else {",
-                      "    warning(\"Selected annotation columns not found in col_annotation_raw\")",
-                      "    col_annotation <- NULL",
-                      "  }",
-                      "",
-                      "  # Ensure the annotation has the correct rownames matching the heatmap columns",
-                      "  if (!is.null(col_annotation)) {",
-                      "    if (!all(colnames(processed_data) %in% rownames(col_annotation))) {",
-                      "      # Check if columns in processed_data match rownames in annotation",
-                      "      matching_cols <- colnames(processed_data)[colnames(processed_data) %in% rownames(col_annotation)]",
-                      "      if (length(matching_cols) == 0) {",
-                      "        # Check if columns in processed_data match rownames in raw data",
-                      "        matching_cols <- colnames(processed_data)[colnames(processed_data) %in% rownames(col_annotation_raw)]",
-                      "        if (length(matching_cols) > 0) {",
-                      "          # Use the raw data for annotation, selecting the appropriate rows and columns",
-                      "          col_annotation <- col_annotation_raw[matching_cols, selected_col_anno_cols, drop = FALSE]",
-                      "        }",
-                      "      } else {",
-                      "        col_annotation <- col_annotation[matching_cols, , drop = FALSE]",
-                      "      }",
-
-                      "    } else {",
-                      "      # All columns match, ensure order is correct",
-                      "      col_annotation <- col_annotation[colnames(processed_data), , drop = FALSE]",
-                      "    }",
-                      "  }",
-                      "  col_annotation <- as.data.frame(col_annotation) #critical!",
-                      "} else {",
-                      "  warning(\"col_annotation_raw object not found, proceeding without column annotations\")",
-                      "  col_annotation <- NULL",
-                      "}")
-      }
-    }
-  }
-  
-  if (!is.null(params$annotation_row)) {
-    # Extract the selected row annotation rows
-    if (!is.null(row_annotation_for_heatmap())) {
-      selected_row_anno_rows <- colnames(row_annotation_for_heatmap())
-      if (length(selected_row_anno_rows) > 0) {
-        selected_rows_code <- paste0("c(", paste0("\"", selected_row_anno_rows, "\"", collapse = ", "), ")")
-        code_parts <- c(code_parts, "",
-                      "# Create row annotation from user selection",
-                      paste0("selected_row_anno_cols <- ", selected_rows_code),
-                      "if (exists(\"row_annotation_raw\") && !is.null(row_annotation_raw)) {",
-                      "  # The raw annotation data may have genes as rows and metadata as columns",
-                      "  # Check if the selected columns are in the data",
-                      "  if (all(selected_row_anno_cols %in% colnames(row_annotation_raw))) {",
-                      "    row_annotation <- row_annotation_raw[, selected_row_anno_cols, drop = FALSE]",
-                      "  } else if (all(selected_row_anno_cols %in% rownames(t(row_annotation_raw)))) {",
-                      "    # If not, check if they're in the transposed data",
-                      "    row_annotation <- t(row_annotation_raw)[selected_row_anno_cols, , drop = FALSE]",
-                      "    row_annotation <- as.data.frame(t(row_annotation))",
-                      "  } else {",
-                      "    warning(\"Selected annotation columns not found in row_annotation_raw\")",
-                      "    row_annotation <- NULL",
-                      "  }",
-                      "",
-                      "  # Ensure the annotation has the correct rownames matching the heatmap rows",
-                      "  if (!is.null(row_annotation)) {",
-                      "    if (!all(rownames(processed_data) %in% rownames(row_annotation))) {",
-                      "      # Check if rows in processed_data match rownames in annotation",
-                      "      matching_rows <- rownames(processed_data)[rownames(processed_data) %in% rownames(row_annotation)]",
-                      "      if (length(matching_rows) == 0) {",
-                      "        # Check if rows in processed_data match rownames in raw data",
-                      "        matching_rows <- rownames(processed_data)[rownames(processed_data) %in% rownames(row_annotation_raw)]",
-                      "        if (length(matching_rows) > 0) {",
-                      "          # Use the raw data for annotation, selecting the appropriate rows and columns",
-                      "          row_annotation <- row_annotation_raw[matching_rows, selected_row_anno_cols, drop = FALSE]",
-                      "        }",
-                      "      } else {",
-                      "        row_annotation <- row_annotation[matching_rows, , drop = FALSE]",
-                      "      }",
-                      "    } else {",
-                      "      # All rows match, ensure order is correct",
-                      "      row_annotation <- row_annotation[rownames(processed_data), , drop = FALSE]",
-                      "    }",
-                      "  }",
-                      "} else {",
-                      "  warning(\"row_annotation_raw object not found, proceeding without row annotations\")",
-                      "  row_annotation <- NULL",
-                      "}")
-      }
-    }
-  }
-  
-  # Start building pheatmap code
-  pheatmap_call <- "pheatmap(\n  processed_data"
-  
-  # Add all the non-complex parameters
-  simple_params <- c(
-    "cluster_rows", "cluster_cols", "clustering_method", 
-    "fontsize", "show_rownames", "silent", "cutree_rows", "cutree_cols"
-  )
-  
-  for (param in simple_params) {
-    if (!is.null(params[[param]])) {
-      # Format the value based on its type
-      if (is.logical(params[[param]])) {
-        value <- ifelse(params[[param]], "TRUE", "FALSE")
-      } else if (is.character(params[[param]])) {
-        value <- paste0("\"", params[[param]], "\"")
-      } else {
-        value <- as.character(params[[param]])
+      params$silent <- FALSE # otherwise pheatmap will not show
+      
+      # Check if we need to add custom correlation functions
+      needs_custom_cor <- FALSE
+      
+      if (!is.null(params$clustering_distance_rows)) {
+        if (params$clustering_distance_rows %in% c("pearson", "spearman", "kendall")) {
+          needs_custom_cor <- TRUE
+        }
       }
       
-      pheatmap_call <- paste0(pheatmap_call, ",\n  ", param, " = ", value)
-    }
-  }
-  
-  # Handle distance methods correctly
-  if (!is.null(params$clustering_distance_rows)) {
-    if (params$clustering_distance_rows %in% c("pearson", "spearman", "kendall")) {
-      # Add code to create the distance object before the pheatmap call
-      code_parts <- c(code_parts, "",
-                    "# Calculate distance matrices for clustering",
-                    paste0("row_dist <- custom_cor(t(processed_data), method = \"", params$clustering_distance_rows, "\")"))
-      pheatmap_call <- paste0(pheatmap_call, ",\n  clustering_distance_rows = row_dist")
-    } else {
-      # For standard distance methods, use the string
-      pheatmap_call <- paste0(pheatmap_call, ",\n  clustering_distance_rows = \"", params$clustering_distance_rows, "\"")
-    }
-  }
-
-  if (!is.null(params$clustering_distance_cols)) {
-    if (params$clustering_distance_cols %in% c("pearson", "spearman", "kendall")) {
-      # Add code to create the distance object before the pheatmap call
-      code_parts <- c(code_parts, "",
-                    paste0("col_dist <- custom_cor(processed_data, method = \"", params$clustering_distance_cols, "\")"))
-      pheatmap_call <- paste0(pheatmap_call, ",\n  clustering_distance_cols = col_dist")
-    } else {
-      # For standard distance methods, use the string
-      pheatmap_call <- paste0(pheatmap_call, ",\n  clustering_distance_cols = \"", params$clustering_distance_cols, "\"")
-    }
-  }
-  
-  # Handle annotation parameters
-  if (!is.null(params$annotation_col)) {
-    pheatmap_call <- paste0(pheatmap_call, ",\n  annotation_col = col_annotation")
-  }
-  
-  if (!is.null(params$annotation_row)) {
-    pheatmap_call <- paste0(pheatmap_call, ",\n  annotation_row = row_annotation")
-  }
-  
-  # Handle display_numbers if it was used
-  if (!is.null(params$display_numbers)) {
-    if (is.logical(params$display_numbers)) {
-      if (params$display_numbers) {
-        pheatmap_call <- paste0(pheatmap_call, ",\n  display_numbers = TRUE")
+      if (!is.null(params$clustering_distance_cols)) {
+        if (params$clustering_distance_cols %in% c("pearson", "spearman", "kendall")) {
+          needs_custom_cor <- TRUE
+        }
       }
-    } else {
-      # If display_numbers contains a matrix of values, use the unprocessed data
-      code_parts <- c(code_parts, "",
-                    "# Create display numbers matrix from unprocessed data",
-                    "if (exists(\"transformed_data\") && !is.null(transformed_data$unprocessed_numeric)) {",
-                    "  display_numbers <- round(as.matrix(transformed_data$unprocessed_numeric), 2)",
-                    "} else {",
-                    "  display_numbers <- round(as.matrix(processed_data), 2)",
-                    "}")
-      pheatmap_call <- paste0(pheatmap_call, ",\n  display_numbers = display_numbers")
-    }
-  }
-  
-  # Add colors
-  pheatmap_call <- paste0(pheatmap_call, ",\n  color = colors")
-  
-  # Close the pheatmap call
-  pheatmap_call <- paste0(pheatmap_call, "\n)")
-  
-  # Complete the heatmap code
-  code_parts <- c(code_parts, "", "# Generate the heatmap", pheatmap_call)
-  
-  paste(code_parts, collapse = "\n")
-})
+      
+      # If correlation methods are used, add the custom correlation function
+      if (needs_custom_cor) {
+        code_parts <- c(code_parts, "", 
+                        "# Custom correlation function for distance calculation",
+                        "custom_cor <- function(x, method = \"pearson\") {",
+                        "  cors <- cor(x, method = method, use = \"pairwise.complete.obs\")",
+                        "  # Replace NAs with 0 correlations",
+                        "  cors[is.na(cors)] <- 0",
+                        "  as.dist(1 - cors)",
+                        "}")
+      }
+      
+      # Add annotation handling code if annotations are used
+      if (!is.null(params$annotation_col)) {
+        # Extract the selected column annotation rows
+        if (!is.null(col_annotation_for_heatmap())) {
+          selected_col_anno_rows <- colnames(col_annotation_for_heatmap())
+          if (length(selected_col_anno_rows) > 0) {
+            selected_rows_code <- paste0("c(", paste0("\"", selected_col_anno_rows, "\"", collapse = ", "), ")")
+            code_parts <- c(code_parts, "",
+                          "# Column annotation code",
+                          paste0("selected_col_anno_rows <- ", selected_rows_code),
+                          "main_cols <- colnames(processed_data)",
+                          "col_annotation <- NULL",
+                          "if (exists(\"col_annotation_raw\") && !is.null(col_annotation_raw)) {",
+                          "  col_annotation <- process_column_annotations(",
+                          "    main_data_cols = main_cols,",
+                          "    annotation_df = col_annotation_raw,",
+                          "    selected_annotations = selected_col_anno_rows",
+                          "  )",
+                          "}")
+          }
+        }
+      }
+      
+      if (!is.null(params$annotation_row)) {
+        # Extract the selected row annotation rows
+        if (!is.null(row_annotation_for_heatmap())) {
+          selected_row_anno_rows <- colnames(row_annotation_for_heatmap())
+          if (length(selected_row_anno_rows) > 0) {
+            selected_rows_code <- paste0("c(", paste0("\"", selected_row_anno_rows, "\"", collapse = ", "), ")")
+            code_parts <- c(code_parts, "",
+                          "# Row annotation code",
+                          paste0("selected_row_anno_rows <- ", selected_rows_code),
+                          "main_rows <- rownames(processed_data)",
+                          "row_annotation <- NULL",
+                          "if (exists(\"row_annotation_raw\") && !is.null(row_annotation_raw)) {",
+                          "  factor_annotation_df <- NULL",
+                          "  # Factor columns might come from transformed_data if available",
+                          "  if (exists(\"transformed_data\") && !is.null(transformed_data$factor_columns)) {",
+                          "    factor_annotation_df <- transformed_data$factor_columns",
+                          "  }",
+                          "  row_annotation <- process_row_annotations(",
+                          "    main_data_rows = main_rows,",
+                          "    file_annotation_df = row_annotation_raw,",
+                          "    factor_annotation_df = factor_annotation_df,",
+                          "    selected_annotations = selected_row_anno_rows",
+                          "  )",
+                          "}")
+          }
+        }
+      }
+      
+      # Start building pheatmap code
+      pheatmap_call <- "pheatmap(\n  processed_data"
+      
+      # Add all the non-complex parameters
+      simple_params <- c(
+        "cluster_rows", "cluster_cols", "clustering_method", 
+        "fontsize", "show_rownames", "silent", "cutree_rows", "cutree_cols"
+      )
+      
+      for (param in simple_params) {
+        if (!is.null(params[[param]])) {
+          # Format the value based on its type
+          if (is.logical(params[[param]])) {
+            value <- ifelse(params[[param]], "TRUE", "FALSE")
+          } else if (is.character(params[[param]])) {
+            value <- paste0("\"", params[[param]], "\"")
+          } else {
+            value <- as.character(params[[param]])
+          }
+          
+          pheatmap_call <- paste0(pheatmap_call, ",\n  ", param, " = ", value)
+        }
+      }
+      
+      # Handle distance methods correctly
+      if (!is.null(params$clustering_distance_rows)) {
+        if (params$clustering_distance_rows %in% c("pearson", "spearman", "kendall")) {
+          # Add code to create the distance object before the pheatmap call
+          code_parts <- c(code_parts, "",
+                        "# Calculate distance matrices for clustering",
+                        paste0("row_dist <- custom_cor(t(processed_data), method = \"", params$clustering_distance_rows, "\")"))
+          pheatmap_call <- paste0(pheatmap_call, ",\n  clustering_distance_rows = row_dist")
+        } else {
+          # For standard distance methods, use the string
+          pheatmap_call <- paste0(pheatmap_call, ",\n  clustering_distance_rows = \"", params$clustering_distance_rows, "\"")
+        }
+      }
+
+      if (!is.null(params$clustering_distance_cols)) {
+        if (params$clustering_distance_cols %in% c("pearson", "spearman", "kendall")) {
+          # Add code to create the distance object before the pheatmap call
+          code_parts <- c(code_parts, "",
+                        paste0("col_dist <- custom_cor(processed_data, method = \"", params$clustering_distance_cols, "\")"))
+          pheatmap_call <- paste0(pheatmap_call, ",\n  clustering_distance_cols = col_dist")
+        } else {
+          # For standard distance methods, use the string
+          pheatmap_call <- paste0(pheatmap_call, ",\n  clustering_distance_cols = \"", params$clustering_distance_cols, "\"")
+        }
+      }
+      
+      # Handle annotation parameters
+      if (!is.null(params$annotation_col)) {
+        pheatmap_call <- paste0(pheatmap_call, ",\n  annotation_col = col_annotation")
+      }
+      
+      if (!is.null(params$annotation_row)) {
+        pheatmap_call <- paste0(pheatmap_call, ",\n  annotation_row = row_annotation")
+      }
+      
+      # Handle display_numbers if it was used
+      if (!is.null(params$display_numbers)) {
+        if (is.logical(params$display_numbers)) {
+          if (params$display_numbers) {
+            pheatmap_call <- paste0(pheatmap_call, ",\n  display_numbers = TRUE")
+          }
+        } else {
+          # If display_numbers contains a matrix of values, use the raw data
+          code_parts <- c(code_parts, "",
+                        "# Create display numbers matrix from raw data",
+                        "# In standalone RStudio, we'll just use the raw_data directly",
+                        "display_numbers <- round(as.matrix(raw_data), 2)")
+          pheatmap_call <- paste0(pheatmap_call, ",\n  display_numbers = display_numbers")
+        }
+      }
+      
+      # Add colors
+      pheatmap_call <- paste0(pheatmap_call, ",\n  color = colors")
+      
+      # Close the pheatmap call
+      pheatmap_call <- paste0(pheatmap_call, "\n)")
+      
+      # Complete the heatmap code
+      code_parts <- c(code_parts, "", "# Generate the heatmap", pheatmap_call)
+      
+      paste(code_parts, collapse = "\n")
+    })
 
     
     # Return reactives that will be needed by the parent module

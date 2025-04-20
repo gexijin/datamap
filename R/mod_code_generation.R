@@ -15,21 +15,32 @@ code_generation_server <- function(id, file_data, transform_data, heatmap_result
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
     
+    delimiter <- "\n\n################################################################################"
+
     # Create a reactive expression for generating the full code
     full_code <- reactive({
       # Initialize an empty vector to store code parts
       code_parts <- c()
       
+
+      utilities_file <- "R/utilities.R"
+      if (file.exists(utilities_file)) {
+        utilities_code <- readLines(utilities_file)
+        code_parts <- c(delimiter, "# Utilty functions", utilities_code, "")
+      } else {
+        code_parts <- c(paste("# Warning: utilities file not found at", utilities_file), "")
+      }
+
       # Add file upload code if available
       if (!is.null(file_data$code())) {
-        code_parts <- c(code_parts, "# Data Import Code", file_data$code(), 
+        code_parts <- c(code_parts, delimiter, "# Data Import Code", file_data$code(), 
         "raw_data <- data", "rm(data)", "")
       }
       
       # Add column annotation file upload code if available
       if (!is.null(col_annotation_data$code())) {
         code_parts <- c(code_parts, "# Column Annotation Import Code", 
-                        col_annotation_data$code(), "col_annotation_raw <- t(data)", "rm(data)", "")
+                        col_annotation_data$code(), "col_annotation_raw <- data", "rm(data)", "")
       }
       
       # Add row annotation file upload code if available
@@ -40,22 +51,22 @@ code_generation_server <- function(id, file_data, transform_data, heatmap_result
 
       # Add transform code if available
       if (!is.null(transform_data$code())) {
-        code_parts <- c(code_parts, "# Data Transformation Code", transform_data$code(), "")
+        code_parts <- c(code_parts, delimiter, "# Data Transformation Code", transform_data$code(), "")
       }
       
       # Add heatmap code from the module if available
       if (!is.null(heatmap_results$heatmap_code())) {
-        code_parts <- c(code_parts, heatmap_results$heatmap_code())
+        code_parts <- c(code_parts, delimiter, heatmap_results$heatmap_code())
       }
 
       # Get PCA code from the module
       if (!is.null(pca_results$pca_code())) {
-        code_parts <- c(code_parts, pca_results$pca_code())
+        code_parts <- c(code_parts, delimiter, "# PCA plot", pca_results$pca_code())
       }
       
       # Get t-SNE code from the module
       if (!is.null(tsne_results$tsne_code())) {
-        code_parts <- c(code_parts, tsne_results$tsne_code())
+        code_parts <- c(code_parts, delimiter, "# tSNE plot", tsne_results$tsne_code())
       }
       
       # Combine all parts and return
@@ -68,7 +79,7 @@ code_generation_server <- function(id, file_data, transform_data, heatmap_result
       code_text <- full_code()
       
       # Split the code into sections for better display
-      sections <- strsplit(code_text, "# ")[[1]]
+      sections <- strsplit(code_text, delimiter)[[1]]
       
       # Initialize HTML output
       html_output <- tagList()
@@ -82,26 +93,24 @@ code_generation_server <- function(id, file_data, transform_data, heatmap_result
         
         # First line is likely a section title
         lines <- strsplit(section, "\n")[[1]]
-        section_title <- lines[1]
-        
-        # If it's a proper section title
-        if (section_title %in% c("Data Import Code", "Data Transformation Code", "Heatmap Generation Code")) {
-          # If we were building a previous section, add it to output
-          if (!is.null(current_section) && !is.null(section_content)) {
-            html_output <- tagAppendChild(html_output, 
-                                        tags$div(
-                                          tags$h3(current_section, class = "code-section-title"),
-                                          tags$pre(tags$code(class = "r", section_content))
-                                        ))
-          }
-          
-          # Start new section
-          current_section <- section_title
-          section_content <- paste(lines[-1], collapse = "\n")
-        } else {
-          # Just continuation of content
-          section_content <- paste(section_content, "# ", section, sep = "")
+
+        section_title <- gsub("#", "", lines[2])
+        if(length(lines) > 2) {
+          lines <- lines[-(1:2)]
         }
+        
+        # If we were building a previous section, add it to output
+        if (!is.null(current_section) && !is.null(section_content)) {
+          html_output <- tagAppendChild(html_output, 
+                                      tags$div(
+                                        tags$h3(current_section, class = "code-section-title"),
+                                        tags$pre(tags$code(class = "r", section_content))
+                                      ))
+        }
+        
+        # Start new section
+        current_section <- section_title
+        section_content <- paste(lines[-1], collapse = "\n")
       }
       
       # Add the last section
@@ -139,11 +148,11 @@ code_generation_server <- function(id, file_data, transform_data, heatmap_result
       tagList(
         css,
         tags$div(
-          tags$h2("Generated R Code"),
-          tags$p("This code can be used to reproduce the analysis:"),
-          html_output,
-          tags$hr(),
-          downloadButton(ns("download_combined_code"), "Download Code as R Script")
+            fluidRow(
+            column(width = 4, style = "margin-top:5px;", downloadButton(ns("download_combined_code"), "Generated R Script")),
+            column(width = 8, style = "margin-top:5px;", tags$p("To reproduce the plots, save and run it in a directory that also contains all the data files.", style = "margin-left: 15px;"))
+            ),
+          html_output
         )
       )
     })

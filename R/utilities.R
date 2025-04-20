@@ -1,81 +1,35 @@
-guess_transform <- function(data_matrix) {
-  # sample this meany rows or columns
-  n_sample <- 500
+# Utility functions for plotting and processing annotations. DataMap
 
-  # Check if input is valid
-  if (!is.matrix(data_matrix) && !is.data.frame(data_matrix)) {
-    return(0)  # Return 0 for invalid input
-  }
-  
-  # Convert to matrix if it's a data frame
-  if (is.data.frame(data_matrix)) {
-    # Try to convert to numeric matrix, handling potential errors
-    tryCatch({
-      data_matrix <- as.matrix(data_matrix)
-      data_matrix <- matrix(as.numeric(data_matrix), nrow = nrow(data_matrix))
-    }, error = function(e) {
-      return(0)  # Return 0 if conversion fails
-    })
-  }
-  
-  # Check if matrix is empty or contains only NAs
-  if (nrow(data_matrix) == 0 || ncol(data_matrix) == 0 || all(is.na(data_matrix))) {
-    return(0)
-  }
-  
-  if (nrow(data_matrix) > n_sample) {
-    sampled_rows <- sample(1:nrow(data_matrix), n_sample)
-    data_matrix <- data_matrix[sampled_rows, , drop = FALSE]
-  }
-  
-  # Sample columns if more than 500
-  if (ncol(data_matrix) > n_sample) {
-    sampled_cols <- sample(1:ncol(data_matrix), n_sample)
-    data_matrix <- data_matrix[, sampled_cols, drop = FALSE]
-  }
-  
-  # Calculate row and column medians, ignoring NA values
-  row_medians <- apply(data_matrix, 1, median, na.rm = TRUE)
-  col_medians <- apply(data_matrix, 2, median, na.rm = TRUE)
-  
-  # Check if all medians are NA
-  if (all(is.na(row_medians)) || all(is.na(col_medians))) {
-    return(0)
-  }
-  
-  # Calculate MAD of medians
-  row_mad <- mad(row_medians, na.rm = TRUE)
-  col_mad <- mad(col_medians, na.rm = TRUE)
-  
-  # Handle edge cases where MAD is 0 or NA
-  if (is.na(row_mad) || is.na(col_mad) || row_mad == 0 || col_mad == 0) {
-    # If MAD is 0, calculate standard deviation instead
-    row_mad <- sd(row_medians, na.rm = TRUE)
-    col_mad <- sd(col_medians, na.rm = TRUE)
-    
-    # If still 0 or NA, return 0
-    if (is.na(row_mad) || is.na(col_mad) || row_mad == 0 || col_mad == 0) {
-      return(0)
-    }
-  }
-  
-  # Compare MADs without division
-  if (col_mad <= row_mad) {  # Rows are variables, columns are observations
-    if (max(row_medians) < 10 * min(row_medians)) {
-      return(2)  # Largest row_mad < 10 times smallest row_mad
-    } else {
-      return(3)  # Otherwise, recommend row scaling
-    }
-  } else {  # Columns are variables, rows are observations
-    if (max(col_medians) < 10 * min(col_medians)) {
-      return(4)  # Largest col_mad < 10 times smallest col_mad
-    } else {
-      return(5)  # Otherwise, recommend column scaling
-    }
-  }
-}
 
-# Generic dimensionality reduction plot function
+#' Create Dimensionality Reduction Plot
+#'
+#' Generates a scatter plot for dimensionality reduction with support for annotations that alter
+#' point colors and shapes, and optionally includes point labels.
+#'
+#' @param coords_data A numeric matrix or data frame containing at least two columns for the x and y coordinates.
+#' @param x_label A character string specifying the label for the x-axis.
+#' @param y_label A character string specifying the label for the y-axis.
+#' @param point_annot Optional data frame containing annotation data. The first column is used for assigning colors,
+#'   and if a second column is provided, its values are used for assigning point shapes.
+#' @param fontsize A numeric value specifying the base font size used for labels, axes, and legends. Default is 12.
+#' @param show_labels Logical flag indicating whether to display text labels next to points. Default is FALSE.
+#' @param point_labels Optional character vector containing labels for each point. Must have at least as many elements as rows in coords_data when show_labels is TRUE.
+#'
+#' @return A recorded plot object that can be replayed using \code{replayPlot()}.
+#'
+#' @details The function sets up the plotting environment, adjusts plot limits based on whether labels are shown,
+#' and manages legends for both color and shape annotations. If annotation data is provided, the first column
+#' determines the color palette (using a rainbow palette) and the second column (if available) assigns point shapes.
+#'
+#' @examples
+#' # Example with simulated data:
+#' coords <- matrix(rnorm(200), ncol = 2)
+#' annot <- data.frame(Group = sample(c("A", "B", "C"), 100, replace = TRUE),
+#'                     Type = sample(c("X", "Y"), 100, replace = TRUE))
+#' plot_obj <- create_dr_plot(coords, "X Axis", "Y Axis", point_annot = annot, show_labels = TRUE, 
+#'                            point_labels = paste("P", 1:100, sep=""))
+#' replayPlot(plot_obj)
+#'
 create_dr_plot <- function(coords_data, x_label, y_label, point_annot = NULL, fontsize = 12, 
                           show_labels = FALSE, point_labels = NULL) {
   # Default plot settings
@@ -211,90 +165,95 @@ create_dr_plot <- function(coords_data, x_label, y_label, point_annot = NULL, fo
 
 
 
- #' Process Column Annotations for Heatmap
-  #'
-  #' This function processes column annotations by aligning selected annotation rows with the main dataset's columns.
-  #' It attempts to safely subset and merge annotation data based on common sample names and handles errors during processing.
-  #'
-  #' @param main_data_cols A character vector of column names corresponding to the main dataset.
-  #' @param annotation_df A data frame containing annotation information where rows correspond to different annotation types 
-  #'   and columns represent samples.
-  #' @param selected_annotations A vector indicating the rows (by their names or indices) in annotation_df to be selected.
-  #'
-  #' @return A data frame with the main dataset's column names as its row names and the selected annotation types as its column names.
-  #'   If there are no annotations selected, no common samples between datasets, or if all annotations fail to process, the function returns NULL.
-  #'
-  #'
-  #' @examples
-  #' \dontrun{
-  #' main_cols <- c("sample1", "sample2", "sample3")
-  #' ann_df <- data.frame(sample1 = c("A", "B"), sample2 = c("C", "D"), sample3 = c("E", "F"))
-  #' rownames(ann_df) <- c("Annotation1", "Annotation2")
-  #' selected <- c("Annotation1")
-  #'
-  #' # Process the column annotations for the heatmap
-  #' processed_annotations <- process_column_annotations(main_cols, ann_df, selected)
-  #' }
-  #'
-  #' @export
-  # Column annotation for heatmap
-  process_column_annotations <- function(main_data_cols, annotation_df, selected_annotations) {
-    # Check if annotation rows are selected
-    if (is.null(selected_annotations) || length(selected_annotations) == 0) {
-      return(NULL)
-    }
-    
-    # Safely select annotation rows - note the difference in approach here
-    annot_selected <- NULL
-    tryCatch({
-      annot_selected <- annotation_df[selected_annotations, , drop = FALSE]
+#' Process Column Annotations for Heatmap
+#'
+#' This function processes column annotations by aligning selected annotation rows with the main dataset's columns.
+#' It attempts to safely subset and merge annotation data based on common sample names and handles errors during processing.
+#'
+#' @param main_data_cols A character vector of column names corresponding to the main dataset.
+#' @param annotation_df A data frame containing annotation information where rows correspond to different annotation types 
+#'   and columns represent samples.
+#' @param selected_annotations A vector indicating the rows (by their names or indices) in annotation_df to be selected.
+#'
+#' @return A data frame with the main dataset's column names as its row names and the selected annotation types as its column names.
+#'   If there are no annotations selected, no common samples between datasets, or if all annotations fail to process, the function returns NULL.
+#'
+#'
+#' @export
+process_column_annotations <- function(main_data_cols, annotation_df, selected_annotations) {
+  # Check if annotation rows are selected
+  if (is.null(selected_annotations) || length(selected_annotations) == 0) {
+    return(NULL)
+  }
+  
+  # Safely select annotation rows - note the difference in approach here
+  annot_selected <- NULL
+  tryCatch({
+    annot_selected <- annotation_df[selected_annotations, , drop = FALSE]
+  }, error = function(e) {
+    # Log the error
+    warning("Error selecting annotations: ", e$message)
+  })
+  
+  # Check if annotation selection failed
+  if (is.null(annot_selected)) {
+    return(NULL)
+  }
+  
+  # Check if there are any common samples between main data and annotation file
+  common_samples <- intersect(main_data_cols, colnames(annot_selected))
+  if (length(common_samples) == 0) {
+    return(NULL)
+  }
+  
+  # Create an empty data frame with all main data samples
+  output_df <- data.frame(matrix(NA, nrow = length(main_data_cols), ncol = nrow(annot_selected)))
+  rownames(output_df) <- main_data_cols
+  colnames(output_df) <- rownames(annot_selected)
+  
+  for (ann in rownames(annot_selected)) {
+    success <- tryCatch({
+      values <- as.character(annot_selected[ann, common_samples])
+      names(values) <- common_samples
+      output_df[common_samples, ann] <- values
+      TRUE #indicate success
     }, error = function(e) {
-      # Log the error
-      warning("Error selecting annotations: ", e$message)
+      warning("Error processing annotation '", ann, "': ", e$message)
+      FALSE #indicate failure
     })
-    
-    # Check if annotation selection failed
-    if (is.null(annot_selected)) {
-      return(NULL)
+    if (!success) {
+      output_df <- output_df[, colnames(output_df) != ann, drop = FALSE]
     }
-    
-    # Check if there are any common samples between main data and annotation file
-    common_samples <- intersect(main_data_cols, colnames(annot_selected))
-    if (length(common_samples) == 0) {
-      return(NULL)
-    }
-    
-    # Create an empty data frame with all main data samples
-    output_df <- data.frame(matrix(NA, nrow = length(main_data_cols), ncol = nrow(annot_selected)))
-    rownames(output_df) <- main_data_cols
-    colnames(output_df) <- rownames(annot_selected)
-    
-    for (ann in rownames(annot_selected)) {
-      success <- tryCatch({
-        values <- as.character(annot_selected[ann, common_samples])
-        names(values) <- common_samples
-        output_df[common_samples, ann] <- values
-        TRUE #indicate success
-      }, error = function(e) {
-        warning("Error processing annotation '", ann, "': ", e$message)
-        FALSE #indicate failure
-      })
-      if (!success) {
-        output_df <- output_df[, colnames(output_df) != ann, drop = FALSE]
-      }
-    }
-
-    # Check if we have any annotations left
-    if (ncol(output_df) == 0) {
-      warning("All annotations failed to process")
-      return(NULL)
-    }
-    
-    return(as.data.frame(output_df))
   }
 
+  # Check if we have any annotations left
+  if (ncol(output_df) == 0) {
+    warning("All annotations failed to process")
+    return(NULL)
+  }
+  
+  return(as.data.frame(output_df))
+}
 
 
+
+#' Process Row Annotations
+#'
+#' This function processes and combines annotation data for rows from two potential sources:
+#' a file-uploaded annotation data frame and an auto-detected factor annotation data frame. It selects
+#' desired annotation columns based on the provided list, aligns these annotations with the main data rows,
+#' and merges them into a single data frame.
+#'
+#' @param main_data_rows A vector of row identifiers from the main data set.
+#' @param file_annotation_df An optional data frame containing row annotations from an uploaded file.
+#'   Default is NULL.
+#' @param factor_annotation_df An optional data frame containing row annotations based on factors.
+#'   Default is NULL.
+#' @param selected_annotations A character vector specifying the names of annotations to extract.
+#'
+#' @return A data frame with combined annotations that correspond to the main data rows. Returns
+#'   NULL if no annotations are selected or if no matching annotations are found.
+#'
 process_row_annotations <- function(main_data_rows, 
                                    file_annotation_df = NULL,
                                    factor_annotation_df = NULL,
