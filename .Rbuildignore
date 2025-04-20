@@ -1,1 +1,7 @@
 ^\.github$
+^\.git$
+^app\.R$
+^README\.md$
+^\.Rproj\.user$
+^extdata$
+^www$

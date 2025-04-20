@@ -179,7 +179,6 @@ create_dr_plot <- function(coords_data, x_label, y_label, point_annot = NULL, fo
 #'   If there are no annotations selected, no common samples between datasets, or if all annotations fail to process, the function returns NULL.
 #'
 #'
-#' @export
 process_column_annotations <- function(main_data_cols, annotation_df, selected_annotations) {
   # Check if annotation rows are selected
   if (is.null(selected_annotations) || length(selected_annotations) == 0) {
@@ -324,4 +323,33 @@ process_row_annotations <- function(main_data_rows,
   }
   
   return(combined_annot)
+}
+
+
+#' Find resource files for datamap
+#'
+#' @param path Path to the resource within the package
+#' @return The full path to the resource file
+#' @keywords internal
+datamap_resource <- function(path) {
+  # First check if we're running in app directory
+  app_path <- file.path(".", path)
+  if (file.exists(app_path)) {
+    return(app_path)
+  }
+  
+  # Then check inst/ directory during development
+  dev_path <- file.path("inst", path)
+  if (file.exists(dev_path)) {
+    return(dev_path)
+  }
+  
+  # Finally check installed package location
+  system_path <- system.file(path, package = "datamap")
+  if (system_path != "") {
+    return(system_path)
+  }
+  
+  # Fallback for packages not yet installed (development)
+  file.path("inst", path)
 }

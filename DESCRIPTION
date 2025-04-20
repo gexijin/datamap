@@ -1,0 +1,17 @@
+Package: datamap
+Title: Interactive Visualization of Data Matrices
+Version: 0.1.0
+Authors@R: person("Steven", "Ge", email = "Xijin.Ge@sdstate.edu", role = c("aut", "cre"))
+Description: A Shiny application for visualizing data matrices with heatmaps, PCA, and t-SNE.
+    Allows users to upload, transform, and visualize their data interactively.
+License: MIT + file LICENSE
+Encoding: UTF-8
+LazyData: true
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.2
+Imports:
+    shiny,
+    pheatmap,
+    readxl,
+    Rtsne,
+    stats
