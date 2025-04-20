@@ -402,64 +402,8 @@ server <- function(input, output, session) {
       )
     }
   })
-  
-  # Column annotation for heatmap
-  process_column_annotations <- function(main_data_cols, annotation_df, selected_annotations) {
-    # Check if annotation rows are selected
-    if (is.null(selected_annotations) || length(selected_annotations) == 0) {
-      return(NULL)
-    }
-    
-    # Safely select annotation rows - note the difference in approach here
-    annot_selected <- NULL
-    tryCatch({
-      annot_selected <- annotation_df[selected_annotations, , drop = FALSE]
-    }, error = function(e) {
-      # Log the error
-      warning("Error selecting annotations: ", e$message)
-    })
-    
-    # Check if annotation selection failed
-    if (is.null(annot_selected)) {
-      return(NULL)
-    }
-    
-    # Check if there are any common samples between main data and annotation file
-    common_samples <- intersect(main_data_cols, colnames(annot_selected))
-    if (length(common_samples) == 0) {
-      return(NULL)
-    }
-    
-    # Create an empty data frame with all main data samples
-    output_df <- data.frame(matrix(NA, nrow = length(main_data_cols), ncol = nrow(annot_selected)))
-    rownames(output_df) <- main_data_cols
-    colnames(output_df) <- rownames(annot_selected)
-    
-    for (ann in rownames(annot_selected)) {
-      success <- tryCatch({
-        values <- as.character(annot_selected[ann, common_samples])
-        names(values) <- common_samples
-        output_df[common_samples, ann] <- values
-        TRUE #indicate success
-      }, error = function(e) {
-        warning("Error processing annotation '", ann, "': ", e$message)
-        FALSE #indicate failure
-      })
-      if (!success) {
-        output_df <- output_df[, colnames(output_df) != ann, drop = FALSE]
-      }
-    }
 
-    # Check if we have any annotations left
-    if (ncol(output_df) == 0) {
-      warning("All annotations failed to process")
-      return(NULL)
-    }
-    
-    return(output_df)
-  }
-
-  # Modified reactive function that matches original behavior
+   # Modified reactive function that matches original behavior
   col_annotation_for_heatmap <- reactive({
     req(current_data())
     
@@ -479,68 +423,37 @@ server <- function(input, output, session) {
       annotation_df = annot_df,
       selected_annotations = selected
     )
-  })
+  }) 
 
   row_annotation_for_heatmap <- reactive({
     req(current_data())
     
     # Get selected annotations
     selected <- input$row_annotation_select
-    if (is.null(selected) || length(selected) == 0) {
-      return(NULL)
-    }
     
-    # Create empty data frame to store combined annotations
+    # Get main data rows
     main_rows <- rownames(current_data())
-    combined_annot <- data.frame(row.names = main_rows)
-    added_columns <- c()
     
-    # First try to add columns from uploaded row annotation file
+    # Get file annotation data
+    file_annot_df <- NULL
     if (!is.null(row_annotation_file_data$data())) {
-      annot_df <- row_annotation_file_data$data()
-      
-      # Only proceed if all main rows are in the annotation file
-      if (all(main_rows %in% rownames(annot_df))) {
-        # Subset and reorder to match main data
-        annot_df <- annot_df[main_rows, , drop = FALSE]
-        
-        # Find selected columns that exist in the file
-        file_cols <- intersect(selected, colnames(annot_df))
-        
-        if (length(file_cols) > 0) {
-          # Add selected columns from file
-          combined_annot <- cbind(combined_annot, annot_df[, file_cols, drop = FALSE])
-          added_columns <- c(added_columns, file_cols)
-        }
-      }
+      file_annot_df <- row_annotation_file_data$data()
     }
     
-    # Next try to add columns from auto-detected factors
+    # Get factor annotation data
+    factor_annot_df <- NULL
     if (!is.null(transform_data$factor_columns()) && 
         ncol(transform_data$factor_columns()) > 0) {
-      factor_df <- transform_data$factor_columns()
-      
-      # Only proceed if all main rows are in the factor data
-      if (all(main_rows %in% rownames(factor_df))) {
-        # Subset and reorder to match main data
-        factor_df <- factor_df[main_rows, , drop = FALSE]
-        
-        # Find selected columns that exist in factors (and aren't already added)
-        factor_cols <- setdiff(intersect(selected, colnames(factor_df)), added_columns)
-        
-        if (length(factor_cols) > 0) {
-          # Add selected columns from factors
-          combined_annot <- cbind(combined_annot, factor_df[, factor_cols, drop = FALSE])
-        }
-      }
+      factor_annot_df <- transform_data$factor_columns()
     }
     
-    # Return NULL if no annotations were added
-    if (ncol(combined_annot) == 0) {
-      return(NULL)
-    }
-    
-    return(combined_annot)
+    # Process annotations using the utility function
+    process_row_annotations(
+      main_data_rows = main_rows,
+      file_annotation_df = file_annot_df,
+      factor_annotation_df = factor_annot_df,
+      selected_annotations = selected
+    )
   })
 
 

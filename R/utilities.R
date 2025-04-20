@@ -208,3 +208,161 @@ create_dr_plot <- function(coords_data, x_label, y_label, point_annot = NULL, fo
   
   return(p)
 }
+
+
+
+ #' Process Column Annotations for Heatmap
+  #'
+  #' This function processes column annotations by aligning selected annotation rows with the main dataset's columns.
+  #' It attempts to safely subset and merge annotation data based on common sample names and handles errors during processing.
+  #'
+  #' @param main_data_cols A character vector of column names corresponding to the main dataset.
+  #' @param annotation_df A data frame containing annotation information where rows correspond to different annotation types 
+  #'   and columns represent samples.
+  #' @param selected_annotations A vector indicating the rows (by their names or indices) in annotation_df to be selected.
+  #'
+  #' @return A data frame with the main dataset's column names as its row names and the selected annotation types as its column names.
+  #'   If there are no annotations selected, no common samples between datasets, or if all annotations fail to process, the function returns NULL.
+  #'
+  #'
+  #' @examples
+  #' \dontrun{
+  #' main_cols <- c("sample1", "sample2", "sample3")
+  #' ann_df <- data.frame(sample1 = c("A", "B"), sample2 = c("C", "D"), sample3 = c("E", "F"))
+  #' rownames(ann_df) <- c("Annotation1", "Annotation2")
+  #' selected <- c("Annotation1")
+  #'
+  #' # Process the column annotations for the heatmap
+  #' processed_annotations <- process_column_annotations(main_cols, ann_df, selected)
+  #' }
+  #'
+  #' @export
+  # Column annotation for heatmap
+  process_column_annotations <- function(main_data_cols, annotation_df, selected_annotations) {
+    # Check if annotation rows are selected
+    if (is.null(selected_annotations) || length(selected_annotations) == 0) {
+      return(NULL)
+    }
+    
+    # Safely select annotation rows - note the difference in approach here
+    annot_selected <- NULL
+    tryCatch({
+      annot_selected <- annotation_df[selected_annotations, , drop = FALSE]
+    }, error = function(e) {
+      # Log the error
+      warning("Error selecting annotations: ", e$message)
+    })
+    
+    # Check if annotation selection failed
+    if (is.null(annot_selected)) {
+      return(NULL)
+    }
+    
+    # Check if there are any common samples between main data and annotation file
+    common_samples <- intersect(main_data_cols, colnames(annot_selected))
+    if (length(common_samples) == 0) {
+      return(NULL)
+    }
+    
+    # Create an empty data frame with all main data samples
+    output_df <- data.frame(matrix(NA, nrow = length(main_data_cols), ncol = nrow(annot_selected)))
+    rownames(output_df) <- main_data_cols
+    colnames(output_df) <- rownames(annot_selected)
+    
+    for (ann in rownames(annot_selected)) {
+      success <- tryCatch({
+        values <- as.character(annot_selected[ann, common_samples])
+        names(values) <- common_samples
+        output_df[common_samples, ann] <- values
+        TRUE #indicate success
+      }, error = function(e) {
+        warning("Error processing annotation '", ann, "': ", e$message)
+        FALSE #indicate failure
+      })
+      if (!success) {
+        output_df <- output_df[, colnames(output_df) != ann, drop = FALSE]
+      }
+    }
+
+    # Check if we have any annotations left
+    if (ncol(output_df) == 0) {
+      warning("All annotations failed to process")
+      return(NULL)
+    }
+    
+    return(as.data.frame(output_df))
+  }
+
+
+
+process_row_annotations <- function(main_data_rows, 
+                                   file_annotation_df = NULL,
+                                   factor_annotation_df = NULL,
+                                   selected_annotations) {
+  # Return NULL if no annotations are selected
+  if (is.null(selected_annotations) || length(selected_annotations) == 0) {
+    return(NULL)
+  }
+  
+  # Initialize combined annotations as NULL
+  combined_annot <- NULL
+  added_columns <- c()
+  
+  # First try to add columns from uploaded row annotation file
+  if (!is.null(file_annotation_df)) {
+    # Find selected columns that exist in the file
+    file_cols <- intersect(selected_annotations, colnames(file_annotation_df))
+    
+    if (length(file_cols) > 0) {
+      # Create a new data frame with the same structure as the annotation columns
+      template_df <- file_annotation_df[1:0, file_cols, drop = FALSE] # Empty df with same column types
+      
+      # Add rows for all main data rows (with NAs)
+      template_df[main_data_rows,] <- NA
+      
+      # Fill in values for rows that exist in the annotation file
+      common_rows <- intersect(main_data_rows, rownames(file_annotation_df))
+      if (length(common_rows) > 0) {
+        template_df[common_rows, ] <- file_annotation_df[common_rows, file_cols, drop = FALSE]
+      }
+      
+      # Start the combined annotations
+      combined_annot <- template_df
+      added_columns <- c(added_columns, file_cols)
+    }
+  }
+  
+  # Next try to add columns from auto-detected factors
+  if (!is.null(factor_annotation_df) && ncol(factor_annotation_df) > 0) {
+    # Find selected columns that exist in factors (and aren't already added)
+    factor_cols <- setdiff(intersect(selected_annotations, colnames(factor_annotation_df)), added_columns)
+    
+    if (length(factor_cols) > 0) {
+      # Create a new data frame with the same structure as the factor columns
+      template_df <- factor_annotation_df[1:0, factor_cols, drop = FALSE] # Empty df with same column types
+      
+      # Add rows for all main data rows (with NAs)
+      template_df[main_data_rows,] <- NA
+      
+      # Fill in values for rows that exist in the factor data
+      common_rows <- intersect(main_data_rows, rownames(factor_annotation_df))
+      if (length(common_rows) > 0) {
+        template_df[common_rows, ] <- factor_annotation_df[common_rows, factor_cols, drop = FALSE]
+      }
+      
+      # Start or add to the combined annotations
+      if (is.null(combined_annot)) {
+        combined_annot <- template_df
+      } else {
+        combined_annot <- cbind(combined_annot, template_df)
+      }
+    }
+  }
+  
+  # Return NULL if no annotations were added
+  if (is.null(combined_annot) || ncol(combined_annot) == 0) {
+    return(NULL)
+  }
+  
+  return(combined_annot)
+}
