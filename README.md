@@ -7,7 +7,7 @@ remotes::install_github("gexijin/datamap", upgrade = "never")
 datamap::run_app()
 ```
 
-DataMap is a secure, browser-based application for visualizing high-dimensional 'omics and other data matrices with heatmaps, PCA, and t-SNE. Built with R/Shiny using [shinylive](https://posit-dev.github.io/r-shinylive/), DataMap is a serverless app that ensures your data never leaves your device.
+DataMap is a secure, browser-based application for visualizing high-dimensional 'omics and other data matrices with heatmaps, PCA, and t-SNE. Built with R/Shiny using [shinylive](https://posit-dev.github.io/r-shinylive/), DataMap is a serverless app that is secure and scalable. 
 
 ![heatmap](https://github.com/user-attachments/assets/b649808a-d8d3-4a84-94ed-bec42a9b8f81)
 ![image](https://github.com/user-attachments/assets/cbdaaa45-e681-4cbd-b8ef-500b0c4b0b8a)
@@ -51,7 +51,7 @@ Yes, once loaded in your browser, DataMap can operate without an internet connec
 Slower in the browser when clustering 5000 rows or columns. Can take up to 2 minutes. For large datasets, install and use it as an R package.
 
 **Why did you write DataMap?**  
-A. I love heatmaps. B. I wanted to do an vibe coding experiment. I prompted and Claude.ai 95% of the code. See my [blog](https://www.ge-lab.org/2025/04/21/extreme-vibe-coding-the-making-of-datamap/) on how DataMap was developed.
+A. I love heatmaps! B. I wanted to do an vibe coding experiment. Claude.ai wrote 95% of the code. See my [blog](https://www.ge-lab.org/2025/04/21/extreme-vibe-coding-the-making-of-datamap/) on how DataMap was developed.
 
 ## Cite our preprint
 
