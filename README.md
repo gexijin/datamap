@@ -60,7 +60,7 @@ After getting a plot, you can go to the Code tab to export the R code, which rec
 Slower in the browser when clustering 5000 rows or columns. Can take up to 2 minutes. For large datasets, install and use it as an R package. Also, we only use pheatmap package to render heatmaps. 
 
 **Why did you write DataMap?**  
-a) I love heatmaps! b) I wanted to do an vibe coding experiment. Claude.ai wrote 95% of the code. I mostly served as a product manager. See my [blog](https://www.ge-lab.org/2025/04/21/extreme-vibe-coding-the-making-of-datamap/) on how DataMap was developed.
+a) I love heatmaps! b) I wanted to do a vibe coding experiment. Claude.ai wrote 95% of the code. I mostly served as a product manager. See my [blog](https://www.ge-lab.org/2025/04/21/extreme-vibe-coding-the-making-of-datamap/) on how DataMap was developed.
 
 ## Preprint and citation
 DataMap is described in details in this preprint. Please cite it if you use it.
