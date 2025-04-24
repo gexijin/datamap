@@ -7,7 +7,7 @@ remotes::install_github("gexijin/datamap", upgrade = "never")
 datamap::run_app()
 ```
 
-DataMap is a secure, browser-based application for visualizing high-dimensional 'omics and other data matrices with heatmaps, PCA, and t-SNE. Built with R/Shiny using [shinylive](https://posit-dev.github.io/r-shinylive/), DataMap is a serverless app that is secure and scalable. 
+DataMap is a browser-based application for visualizing high-dimensional 'omics and other data matrices with heatmaps, PCA, and t-SNE. Built with R/Shiny using [shinylive](https://posit-dev.github.io/r-shinylive/), DataMap is a serverless app that is secure and scalable. 
 
 ![heatmap](https://github.com/user-attachments/assets/b649808a-d8d3-4a84-94ed-bec42a9b8f81)
 ![image](https://github.com/user-attachments/assets/cbdaaa45-e681-4cbd-b8ef-500b0c4b0b8a)
@@ -38,24 +38,25 @@ Your data should be organized in a matrix format where:
 
 ## FAQ
 
-**Is my data secure?**  
-Yes. DataMap runs entirely in your browser. After loading the app, it works fine even if you disconnect the internet. 
+**How do I know my data is secure?**  
+Once DataMap is loaded, you can disconnect your computer from the internet and then upload your data (to your browser!) for analysis. It is hosted here as a static web page. It does not send any data to me or any other website.
 
 **What browsers are supported?**  
 Chrome, Firefox (slower to load), Edge, and Safari.
 
 **Can I use DataMap offline?**  
-Yes, once loaded in your browser, DataMap can operate without an internet connection. Alternatively, you can intsall DataMap as an R package.
+Once loaded, DataMap actually already runs offline using your browser as a platform. You can intsall DataMap as an R package and use it from RStudio. Alternatively, you can download this repo to a folder, and turn this into a [shinylive](https://posit-dev.github.io/r-shinylive/) application, which could be used from the browser.
+
+**How can I reproduce my analysis**
+After getting a plot, you can go to the Code tab to export the R code, which can be run in RStudio to reproduce the plots. Please note the version of DataMap used. Later, you or other scientists can find the corresponding version of the app from our previous [releases](https://github.com/gexijin/datamap/releases), which can be downloaded and run.
 
 **Limitations?**  
-Slower in the browser when clustering 5000 rows or columns. Can take up to 2 minutes. For large datasets, install and use it as an R package.
+Slower in the browser when clustering 5000 rows or columns. Can take up to 2 minutes. For large datasets, install and use it as an R package. Also, we only use pheatmap package to render heatmaps. 
 
 **Why did you write DataMap?**  
-A. I love heatmaps! B. I wanted to do an vibe coding experiment. Claude.ai wrote 95% of the code. See my [blog](https://www.ge-lab.org/2025/04/21/extreme-vibe-coding-the-making-of-datamap/) on how DataMap was developed.
+a) I love heatmaps! b) I wanted to do an vibe coding experiment. Claude.ai wrote 95% of the code. I mostly served as a product manager. See my [blog](https://www.ge-lab.org/2025/04/21/extreme-vibe-coding-the-making-of-datamap/) on how DataMap was developed.
 
-## Cite our preprint
-
-If you use DataMap in your research, please cite:
+## Cite our preprint!
 
 > Ge, X. (2025). DataMap: A Portable Application for Visualizing High-Dimensional Data,	[arXiv:2504.08875](https://arxiv.org/abs/2504.08875), 2025.
 
