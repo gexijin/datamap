@@ -45,10 +45,16 @@ Once DataMap is loaded, you can disconnect your computer from the internet and t
 Chrome, Firefox (slower to load), Edge, and Safari.
 
 **Can I use DataMap offline?**  
-Once loaded, DataMap actually already runs offline using your browser as a platform. You can intsall DataMap as an R package and use it from RStudio. Alternatively, you can download this repo to a folder, and turn this into a [shinylive](https://posit-dev.github.io/r-shinylive/) application, which could be used from the browser.
+Once loaded, DataMap actually already runs offline inside your browser. You can intsall DataMap as an R package and use it from RStudio. Alternatively, you can download this repo to a folder, and turn this into a [shinylive](https://posit-dev.github.io/r-shinylive/) application, which could be used from the browser:
+```{R}
+# first download this repo to a folder called datamap
+install.packages("shinylive")
+shinylive::export("datamap", "site")
+httpuv::runStaticServer("site") # app opens in browser
+```
 
-**How can I reproduce my analysis**
-After getting a plot, you can go to the Code tab to export the R code, which can be run in RStudio to reproduce the plots. Please note the version of DataMap used. Later, you or other scientists can find the corresponding version of the app from our previous [releases](https://github.com/gexijin/datamap/releases), which can be downloaded and run.
+**How can I reproduce my analysis?**  
+After getting a plot, you can go to the Code tab to export the R code, which can be run in RStudio to reproduce the plots. Please note the version of DataMap used. Later, you or other scientists can find the corresponding version of the app from our previous [releases](https://github.com/gexijin/datamap/releases), which can be downloaded and run (see above).
 
 **Limitations?**  
 Slower in the browser when clustering 5000 rows or columns. Can take up to 2 minutes. For large datasets, install and use it as an R package. Also, we only use pheatmap package to render heatmaps. 
@@ -56,8 +62,8 @@ Slower in the browser when clustering 5000 rows or columns. Can take up to 2 min
 **Why did you write DataMap?**  
 a) I love heatmaps! b) I wanted to do an vibe coding experiment. Claude.ai wrote 95% of the code. I mostly served as a product manager. See my [blog](https://www.ge-lab.org/2025/04/21/extreme-vibe-coding-the-making-of-datamap/) on how DataMap was developed.
 
-## Cite our preprint!
-
+## Preprint and citation
+DataMap is described in details in this preprint. Please cite it if you use it.
 > Ge, X. (2025). DataMap: A Portable Application for Visualizing High-Dimensional Data,	[arXiv:2504.08875](https://arxiv.org/abs/2504.08875), 2025.
 
 **Dr. Xijin Ge** is a Professor at South Dakota State University. [LinkedIn](https://www.linkedin.com/in/steven-ge-ab016947/), [BlueSky.](https://bsky.app/profile/stevenge.bsky.social)
