@@ -20,13 +20,10 @@ Quick start: watch a 2-min video on [**YouTube.**](https://youtu.be/9G508BxzjBk)
 ## Features
 
 - **Browser-based**: No installation required, runs completely in your browser
-- **Interactive Visualizations**: 
-  - Heatmaps with hierarchical clustering
-  - Principal Component Analysis (PCA)
-  - t-SNE (t-Distributed Stochastic Neighbor Embedding)
-- **Exportable**: Generate R code to reproduce the plots
-- **Publication-ready plots**: Export as PNG or PDF formats
-- **Multiple File Formats**: Supports CSV, TSV, TXT, and Excel files
+- **Visualizations**:  Heatmaps with hierarchical clustering, principal component analysis (PCA) plot, and t-SNE plot
+- **Exportable code**: Generate R code to reproduce the plots
+- **Publication-ready plots**: download PNG or PDF formats
+- **Multiple input File Formats**: Supports CSV, TSV, TXT, and Excel files
 
 ## Data Format
 
