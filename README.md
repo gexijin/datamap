@@ -24,17 +24,17 @@ Quick start: watch a 2-min video on [**YouTube.**](https://youtu.be/9G508BxzjBk)
   - Heatmaps with hierarchical clustering
   - Principal Component Analysis (PCA)
   - t-SNE (t-Distributed Stochastic Neighbor Embedding)
-- **Exportable**: Generate R code to reproduce the plots.
+- **Exportable**: Generate R code to reproduce the plots
 - **Publication-ready plots**: Export as PNG or PDF formats
 - **Multiple File Formats**: Supports CSV, TSV, TXT, and Excel files
 
-### Data Format Requirements
+## Data Format
 
 Your data should be organized in a matrix format where:
 - The first row must contain column headers
-- The first column may contain row identifiers.
-- Some columns can be categorical, which will be used to color rows.
-- Column annotation can be included in the data matrix or uploaded separately.
+- The first column may contain row identifiers (optional)
+- Some columns can be categorical, which will be used to color rows
+- Column annotation can be uploaded separately
 
 ## FAQ
 
