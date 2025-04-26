@@ -15,6 +15,7 @@ run_app <- function() {
 
 
 library(shiny)
+library(munsell) # otherwise it will not work; Pheatmap dependency. Sometimes shinylive does not install this.
 
 # these are needed showing static images for both the R package and directly from the app
 # Note: The images and html files are saved into two copies!!!!!
