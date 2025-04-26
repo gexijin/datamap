@@ -36,7 +36,7 @@ Your data should be organized in a matrix format where:
 ## FAQ
 
 **How do I know my data is secure?**  
-Once DataMap is loaded, you can disconnect your computer from the internet and then upload your data (to your browser!) for analysis. It is hosted here as a static web page. It does not send any data to me or any other website.
+Once DataMap is loaded, you can disconnect your computer from the internet and then upload your data (to your browser!) for analysis. It is hosted here as a static web page. 
 
 **What browsers are supported?**  
 Chrome, Firefox (slower to load), Edge, and Safari.
@@ -55,6 +55,9 @@ After getting a plot, you can go to the Code tab to export the R code, which rec
 
 **Limitations?**  
 Slower in the browser when clustering 5000 rows or columns. Can take up to 2 minutes. For large datasets, install and use it as an R package. Also, we only use pheatmap package to render heatmaps. 
+
+**Do you track usage?**  
+Yes. I added this Google Analytics [script](https://github.com/gexijin/datamap/blob/main/www/google_analytics.html) to track how many times it is used.  If there are more users, I will spend more time to improve it. Google Analytics does report city-level location. If you are opposed to this, please let me know. I can disable tracking. 
 
 **Why did you write DataMap?**  
 a) I love heatmaps! b) I wanted to do a vibe coding experiment. Claude.ai wrote 95% of the code. I mostly served as a product manager. See my [blog](https://www.ge-lab.org/2025/04/21/extreme-vibe-coding-the-making-of-datamap/) on how DataMap was developed.
