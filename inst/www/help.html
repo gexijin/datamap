@@ -228,7 +228,7 @@
          <h1>DataMap: Visualizating High-Dimensional Data in Your Browser</h1> 
     </header>-->
 
-        <p>A secure, browser-based application for visualizing high-dimensional 'omics and other data matrices with heatmaps, PCA, and t-SNE.  V. 0.1</p>
+        <p>DataMap is a secure, browser-based application for visualizing high-dimensional omics and other data matrices with heatmaps, PCA, and t-SNE.</p>
 	    <div class="content-section">
         <h2>Video tutorials</h2>
 <p>
@@ -262,7 +262,7 @@
         <h2>Getting Started</h2>
         
         <h3>Launching the Application</h3>
-        <p>DataMap is accessed through your web browser. Simply navigate to the DataMap URL to launch the application. No installation is required.</p>
+        <p>Simply navigate to  <a href="https://gexijin.github.io/datamap/" target="_blank">this GitHub page</a> to load the application in your browser. No installation is required. You can choose to install it as an R package or download the source code and turn it into a shinylive app yourself. See instructions below.</p>
         
         <h3>Interface Overview</h3>
         <p>The DataMap interface consists of:</p>
@@ -490,7 +490,7 @@
         
         <h3>Uploading Your Data</h3>
         <ol>
-            <li>Click the <strong>Data Files</strong> button in the sidebar</li>
+            <li>Click the <strong>Files</strong> button in the sidebar</li>
             <li>Use the file upload controls to select and upload your files</li>
             <li>Configure import settings (delimiter, headers, row names) in the dialog</li>
             <li>Preview your data to ensure it's imported correctly</li>
@@ -640,51 +640,67 @@
     <div class="content-section">
         <h2>FAQ</h2>
         
-        <h3>General Questions</h3>
-        
         <h4>Is my data secure?</h4>
-        <p>Yes. DataMap runs entirely in your browser using WebAssembly technology. Your data never leaves your device and is not sent to any server, providing maximum security and privacy.</p>
+        <p>Yes. DataMap runs entirely in your browser using WebAssembly technology. Your data never leaves your device and is not sent to any server, providing maximum security and privacy. Once DataMap is loaded, you can disconnect your computer from the internet and then upload your data (to your browser!) for analysis.</p>
         
         <h4>What is the maximum file size I can upload?</h4>
         <p>Since the application runs in your browser, the maximum file size depends on your device's memory. However, this browser app gets slow when there are 5000 rows or columns. Users can install DataMap as an R package to run it natively. </p>
-        
-        <h4>Can I analyze RNA-seq (bulk or single cell) data?</h4>
-        <p>Yes, DataMap is particularly well-suited for analyzing gene expression data from RNA-seq or microarray experiments. The scaling and transformation options are designed with these data types in mind.</p>
-        
-        <h4>How do I cite DataMap in my publication?</h4>
-        <p>If you use DataMap in your research, please cite it as: "Ge, X. (2025). DataMap: A secure browser-based application for visualizing high-dimensional data matrices. [Software]. Available from: [URL]"</p>
-        
+		
         <h4>What browsers are supported?</h4>
-        <p>DataMap works best with modern browsers like Chrome, Firefox, Edge, and Safari. We recommend using the latest version of your preferred browser for optimal performance.</p>
+        <p>Chrome, Edge, Safari, and Firefox (slower).</p>        
         
+        <h4>Can I use DataMap offline?</h4>
+        <p>Once loaded, DataMap actually already runs offline inside your browser. You can intsall DataMap as an R package and use it from RStudio. </p>
+<pre style="background-color: #f0f0f0;">
+install.packages("remotes")
+remotes::install_github("gexijin/datamap", upgrade = "never")
+datamap::run_app()
+</pre>		
+		<p>Alternatively, you can download the <a href="https://github.com/gexijin/datamap">source code </a> to a folder, and turn it into a shinylive application that could be used from the browser:</p>
+<pre style="background-color: #f0f0f0; padding: 10px;">
+# first download this repo to a folder called datamap
+install.packages("shinylive")
+shinylive::export("datamap", "site")
+httpuv::runStaticServer("site") # app opens in browser
+</pre>
+
+        <h4>How can I reproduce my analysis?</h4>
+        <p>After getting a plot, you can go to the Code tab to export the R code, which records all your settings and can be run in RStudio to reproduce the plot. Alternatively, you can note the version of DataMap used. Later, you or other scientists can find the corresponding version of the app from our <a href="https://github.com/gexijin/datamap/releases">previous releases on GitHub</a>, which can be downloaded and run (see above).</p>
+		
         <h4>My visualization is taking a long time to generate. What can I do?</h4>
         <p>For large datasets, consider these strategies to improve performance:</p>
         <ul>
-            <li>Try install DataMap as an R package. See instruction on the GitHub page.</li>
+            <li>Try install DataMap as an R package. See instructions above.</li>
             <li>Filter your data to fewer rows (use the "Keep top most variable rows" option)</li>
             <li>Use simpler clustering methods (like "single" or "average" instead of "complete" or "ward.D")</li>
             <li>Reduce the perplexity value for t-SNE</li>
         </ul>
+		
+        <h4>Do you track usage?</h4>
+        <p>Yes. I added a Google Analytics script to track how many times it is used. If there are more users, I will spend more time to improve it. Google Analytics does report city-level location. If you are opposed to this, please let me know. I can disable tracking.</p>
+
+        <h4>Why did you write DataMap?</h4>
+        <p>a) I love heatmaps! b) I wanted to do a vibe coding experiment. Claude.ai wrote 95% of the code. I mostly served as a product manager. See my blog on how DataMap was developed.</p>
         
-        <h4>Can I use DataMap offline?</h4>
-        <p>Yes, once loaded in your browser, DataMap can operate without an internet connection. You can bookmark the page for offline access in some browsers.</p>
         <h4>Who owns the copyright of the produced plots?</h4>
         <p>You!</p>
     </div>
 
     <div class="content-section">
         <h2>Install as an R package</h2>
-        <p>remotes::install_github("gexijin/datamap")</p>
-        <p>datamap::run_app()</p>
+<pre style="background-color: #f0f0f0;">
+install.packages("remotes")
+remotes::install_github("gexijin/datamap", upgrade = "never")
+datamap::run_app()
+</pre>	
     </div>
 
     <div class="content-section">
         <h2>Source code, Bug Reports, and Feature Requests</h2>
-        <p>If you encounter any issues or have suggestions for improving DataMap, please report them on our GitHub repository:</p>
-        <p><a href="https://github.com/gexijin/datamap" target="_blank">https://github.com/gexijin/datamap</a></p>
+        <p>If you encounter any issues or have suggestions, feel free to email me. Or report them on Issues tab on the GitHub repository, where you can also find the source code: <a href="https://github.com/gexijin/datamap" target="_blank">https://github.com/gexijin/datamap</a></p>
     </div>
     <div class="content-section">
-<h2>Paper & Citation</h2>
+<h2>Preprint & Citation</h2>
 
 <p>For more information, please read this preprint. If you use DataMap in your research, please cite it:</p>
 
@@ -710,7 +726,7 @@
 
     <div class="footer">
         <p>DataMap by Dr. Xijin Ge, South Dakota State University &copy; 2025</p>
-        <p>This documentation last updated: April 17, 2025</p>
+        <p>This documentation last updated: April 25, 2025</p>
     </div>
 
     <script>
