@@ -51,7 +51,7 @@ httpuv::runStaticServer("site") # app opens in browser
 ```
 
 **How can I reproduce my analysis?**  
-After getting a plot, you can go to the Code tab to export the R code, which records all your settings and can be run in RStudio to reproduce the plot. Alternatively, you can note the version of DataMap used. Later, you or other scientists can find the corresponding version of the app from our previous [releases](https://github.com/gexijin/datamap/releases), which can be downloaded and run (see above).
+After getting a plot, you can go to the Code tab to export the R code, which records all your settings and can be run in RStudio to reproduce the plot. Alternatively, you can note the version of DataMap used. Later, you or other scientists can find the corresponding version of the app from our previous [releases](https://github.com/gexijin/datamap/releases), which can be downloaded and run (see above). 
 
 **Limitations?**  
 Slower in the browser when clustering 5000 rows or columns. Can take up to 2 minutes. For large datasets, install and use it as an R package. Also, we only use pheatmap package to render heatmaps. 
