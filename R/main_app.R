@@ -133,7 +133,7 @@ ui <- fluidPage(
                  includeHTML(datamap_resource("www/help.html"))
         )
       )
-      #,tags$head(includeHTML("www/google_analytics.html"))
+      ,tags$head(includeHTML(datamap_resource("www/google_analytics.html")))
     )
   )
 )
